@@ -169,3 +169,8 @@
 2026-04-18 10:53:46 [INFO] Compiled: NCMS\templates\blog.nhtml -> NCMS\public\cache\blog.html
 2026-04-18 10:53:46 [INFO] Compiled: NCMS\templates\login.nhtml -> NCMS\public\cache\login.html
 2026-04-18 10:53:46 [INFO] Compiled: NCMS\templates\post.nhtml -> NCMS\public\cache\post.html
+2026-04-18 13:42:29 [INFO] Compiled: NCMS\templates\admin.nhtml -> NCMS\public\cache\admin.html
+2026-04-18 13:42:37 [INFO] Compiled: NCMS\templates\admin.nhtml -> NCMS\public\cache\admin.html
+2026-04-18 13:42:37 [INFO] Compiled: NCMS\templates\blog.nhtml -> NCMS\public\cache\blog.html
+2026-04-18 13:42:37 [INFO] Compiled: NCMS\templates\login.nhtml -> NCMS\public\cache\login.html
+2026-04-18 13:42:37 [INFO] Compiled: NCMS\templates\post.nhtml -> NCMS\public\cache\post.html

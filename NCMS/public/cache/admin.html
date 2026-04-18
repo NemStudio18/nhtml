@@ -187,19 +187,44 @@
 
         <!-- VUES NAVIGATION / FORMS / SUBMISSIONS (Nouveautés v1.0) -->
         <div data-nhtml-if="current_view == 'navigation'" data-nhtml-group="nhif_5" style="display:none"><h2><i class="fas fa-map-signs"></i> Gestion de la navigation</h2>
+            
+            <div class="nav-modules-wrapper" style="display:flex; gap: 20px; margin-bottom: 30px;">
+                <!-- Raccourci Blog -->
+                <div class="nav-card" style="flex:1; background:var(--card); padding:20px; border-radius:8px; box-shadow:0 2px 5px rgba(0,0,0,0.05);">
+                    <h3><i class="fas fa-blog"></i> Module Blog</h3>
+                    <p style="font-size:0.9rem; color:#666;">Ajouter la page d'accueil listant les articles récents.</p>
+                    <form action="/admin/menu/save" method="POST">
+                        <input type="hidden" name="label" value="Accueil"/>
+                        <input type="hidden" name="url" value="/"/>
+                        <input type="hidden" name="position" value="1"/>
+                        <button type="submit" class="primary" style="padding:6px 12px; font-size:0.9rem;"><i class="fas fa-plus"></i> Ajouter</button>
+                    </form>
+                </div>
+
+                <!-- Raccourci Pages Statiques -->
+                <div class="nav-card" style="flex:1; background:var(--card); padding:20px; border-radius:8px; box-shadow:0 2px 5px rgba(0,0,0,0.05);">
+                    <h3><i class="fas fa-file-alt"></i> Pages Statiques</h3>
+                    <p style="font-size:0.9rem; color:#666;">Ajouter rapidement une page publiée.</p>
+                    <ul style="list-style:none; padding:0; margin:0;">
+                        <div id="nheach_13" data-nhtml-each="posts.filter(p => p.type === 'page')"></div>
+                    </ul>
+                </div>
+            </div>
+
+            <h3><i class="fas fa-link"></i> Lien Personnalisé</h3>
             <form action="/admin/menu/save" method="POST" class="simple-form">
                 <input type="text" name="label" placeholder="Libellé du lien" required/>
                 <input type="text" name="url" placeholder="URL (ex: /ma-page ou https://...)" required/>
                 <input type="number" name="position" placeholder="Ordre" style="width:70px"/>
                 <select name="parent_id">
                     <option value>-- Pas de parent --</option>
-                    <div id="nheach_13" data-nhtml-each="menu_links"></div>
+                    <div id="nheach_14" data-nhtml-each="menu_links"></div>
                 </select>
-                <button type="submit" class="primary">Ajouter au menu</button>
+                <button type="submit" class="primary">Ajouter</button>
             </form>
-            <table>
+            <table style="margin-top:20px;">
                 <thead><tr><th>Libellé</th><th>URL</th><th>Ordre</th><th>Actions</th></tr></thead>
-                <tbody id="nheach_14" data-nhtml-each="menu_links"></tbody>
+                <tbody id="nheach_15" data-nhtml-each="menu_links"></tbody>
             </table></div>
 
         <div data-nhtml-if="current_view == 'forms'" data-nhtml-group="nhif_6" style="display:none"><h2><i class="fas fa-wpforms"></i> Générateur de formulaires</h2>
@@ -211,11 +236,11 @@
             </form>
             <table style="margin-top:20px">
                 <thead><tr><th>Formulaire</th><th>Champs</th><th>Actions</th></tr></thead>
-                <tbody id="nheach_15" data-nhtml-each="forms"></tbody>
+                <tbody id="nheach_16" data-nhtml-each="forms"></tbody>
             </table></div>
 
         <div data-nhtml-if="current_view == 'submissions'" data-nhtml-group="nhif_7" style="display:none"><h2><i class="fas fa-inbox"></i> Réponses reçues</h2>
-            <div id="nheach_16" data-nhtml-each="submissions"></div>
+            <div id="nheach_17" data-nhtml-each="submissions"></div>
             <div data-nhtml-empty="submissions" style="display:none"><p>Aucune réponse reçue pour le moment.</p></div></div>
     </main>
 <script>
@@ -763,7 +788,7 @@ document.addEventListener('DOMContentLoaded', function() {
         // Support des expressions complexes dans in="..."
         let items = [];
         try {
-            items = _nhtmlEval('menu_links');
+            items = _nhtmlEval('posts.filter(p => p.type === \'page\')');
             if (!Array.isArray(items)) items = [];
         } catch(e) {
             console.warn("[Nhtml] Erreur boucle each:", e);
@@ -775,7 +800,14 @@ document.addEventListener('DOMContentLoaded', function() {
         items.forEach((_item, _i) => {
             
             const _nhtml_loop_item_nheach_13 = _item;
-            const _tpl = `<option data-nhtml-attrs="{&quot;value&quot;: &quot;${_nhtml_loop_item_nheach_13.id}&quot;}"><span data-nhtml-text="${_nhtml_loop_item_nheach_13.label}">${_nhtml_loop_item_nheach_13.label}</span></option>`;
+            const _tpl = `<li style="display:flex; justify-content:space-between; align-items:center; padding:8px 0; border-bottom:1px solid #eee;">
+                                <strong><span data-nhtml-text="${_nhtml_loop_item_nheach_13.title}">${_nhtml_loop_item_nheach_13.title}</span></strong>
+                                <form action="/admin/menu/save" method="POST" style="margin:0;">
+                                    <input type="hidden" name="label" data-nhtml-attrs="{&quot;value&quot;: &quot;${_nhtml_loop_item_nheach_13.title}&quot;}"/>
+                                    <input type="hidden" name="url" data-nhtml-attrs="{&quot;value&quot;: &quot;/page/${_nhtml_loop_item_nheach_13.id}&quot;}"/>
+                                    <button type="submit" class="secondary" style="padding:4px 8px; font-size:0.85rem;"><i class="fas fa-plus"></i></button>
+                                </form>
+                            </li>`;
             container.insertAdjacentHTML('beforeend', _tpl);
         });
         // Mettre à jour le marqueur empty
@@ -811,12 +843,7 @@ document.addEventListener('DOMContentLoaded', function() {
         items.forEach((_item, _i) => {
             
             const _nhtml_loop_item_nheach_14 = _item;
-            const _tpl = `<tr>
-                        <td><span data-nhtml-text="${_nhtml_loop_item_nheach_14.parent_id ? '↳ ' : ''}">${_nhtml_loop_item_nheach_14.parent_id ? '↳ ' : ''}</span><strong><span data-nhtml-text="${_nhtml_loop_item_nheach_14.label}">${_nhtml_loop_item_nheach_14.label}</span></strong></td>
-                        <td><code><span data-nhtml-text="${_nhtml_loop_item_nheach_14.url}">${_nhtml_loop_item_nheach_14.url}</span></code></td>
-                        <td><span data-nhtml-text="${_nhtml_loop_item_nheach_14.position}">${_nhtml_loop_item_nheach_14.position}</span></td>
-                        <td><form action="/admin/menu/delete" method="POST" style="display:inline;"><input type="hidden" name="id" data-nhtml-attrs="{&quot;value&quot;: &quot;${_nhtml_loop_item_nheach_14.id}&quot;}"/><button class="danger"><i class="fas fa-trash"></i></button></form></td>
-                    </tr>`;
+            const _tpl = `<option data-nhtml-attrs="{&quot;value&quot;: &quot;${_nhtml_loop_item_nheach_14.id}&quot;}"><span data-nhtml-text="${_nhtml_loop_item_nheach_14.label}">${_nhtml_loop_item_nheach_14.label}</span></option>`;
             container.insertAdjacentHTML('beforeend', _tpl);
         });
         // Mettre à jour le marqueur empty
@@ -840,7 +867,7 @@ document.addEventListener('DOMContentLoaded', function() {
         // Support des expressions complexes dans in="..."
         let items = [];
         try {
-            items = _nhtmlEval('forms');
+            items = _nhtmlEval('menu_links');
             if (!Array.isArray(items)) items = [];
         } catch(e) {
             console.warn("[Nhtml] Erreur boucle each:", e);
@@ -853,9 +880,10 @@ document.addEventListener('DOMContentLoaded', function() {
             
             const _nhtml_loop_item_nheach_15 = _item;
             const _tpl = `<tr>
-                        <td><strong><span data-nhtml-text="${_nhtml_loop_item_nheach_15.name}">${_nhtml_loop_item_nheach_15.name}</span></strong></td>
-                        <td><small><span data-nhtml-text="${_nhtml_loop_item_nheach_15.fields ? JSON.parse(_nhtml_loop_item_nheach_15.fields).length : 0}">${_nhtml_loop_item_nheach_15.fields ? JSON.parse(_nhtml_loop_item_nheach_15.fields).length : 0}</span> champs</small></td>
-                        <td><form action="/admin/form/delete" method="POST" style="display:inline;"><input type="hidden" name="id" data-nhtml-attrs="{&quot;value&quot;: &quot;${_nhtml_loop_item_nheach_15.id}&quot;}"/><button class="danger"><i class="fas fa-trash"></i></button></form></td>
+                        <td><span data-nhtml-text="${_nhtml_loop_item_nheach_15.parent_id ? '↳ ' : ''}">${_nhtml_loop_item_nheach_15.parent_id ? '↳ ' : ''}</span><strong><span data-nhtml-text="${_nhtml_loop_item_nheach_15.label}">${_nhtml_loop_item_nheach_15.label}</span></strong></td>
+                        <td><code><span data-nhtml-text="${_nhtml_loop_item_nheach_15.url}">${_nhtml_loop_item_nheach_15.url}</span></code></td>
+                        <td><span data-nhtml-text="${_nhtml_loop_item_nheach_15.position}">${_nhtml_loop_item_nheach_15.position}</span></td>
+                        <td><form action="/admin/menu/delete" method="POST" style="display:inline;"><input type="hidden" name="id" data-nhtml-attrs="{&quot;value&quot;: &quot;${_nhtml_loop_item_nheach_15.id}&quot;}"/><button class="danger"><i class="fas fa-trash"></i></button></form></td>
                     </tr>`;
             container.insertAdjacentHTML('beforeend', _tpl);
         });
@@ -880,7 +908,7 @@ document.addEventListener('DOMContentLoaded', function() {
         // Support des expressions complexes dans in="..."
         let items = [];
         try {
-            items = _nhtmlEval('submissions');
+            items = _nhtmlEval('forms');
             if (!Array.isArray(items)) items = [];
         } catch(e) {
             console.warn("[Nhtml] Erreur boucle each:", e);
@@ -892,10 +920,11 @@ document.addEventListener('DOMContentLoaded', function() {
         items.forEach((_item, _i) => {
             
             const _nhtml_loop_item_nheach_16 = _item;
-            const _tpl = `<div class="submission-card">
-                    <div class="s-header"><strong><span data-nhtml-text="${_nhtml_loop_item_nheach_16.form_name}">${_nhtml_loop_item_nheach_16.form_name}</span></strong> <small>le <span data-nhtml-text="${_nhtml_loop_item_nheach_16.created_at}">${_nhtml_loop_item_nheach_16.created_at}</span></small></div>
-                    <pre><span data-nhtml-text="${JSON.stringify(JSON.parse(_nhtml_loop_item_nheach_16.data), null, 2)}">${JSON.stringify(JSON.parse(_nhtml_loop_item_nheach_16.data), null, 2)}</span></pre>
-                </div>`;
+            const _tpl = `<tr>
+                        <td><strong><span data-nhtml-text="${_nhtml_loop_item_nheach_16.name}">${_nhtml_loop_item_nheach_16.name}</span></strong></td>
+                        <td><small><span data-nhtml-text="${_nhtml_loop_item_nheach_16.fields ? JSON.parse(_nhtml_loop_item_nheach_16.fields).length : 0}">${_nhtml_loop_item_nheach_16.fields ? JSON.parse(_nhtml_loop_item_nheach_16.fields).length : 0}</span> champs</small></td>
+                        <td><form action="/admin/form/delete" method="POST" style="display:inline;"><input type="hidden" name="id" data-nhtml-attrs="{&quot;value&quot;: &quot;${_nhtml_loop_item_nheach_16.id}&quot;}"/><button class="danger"><i class="fas fa-trash"></i></button></form></td>
+                    </tr>`;
             container.insertAdjacentHTML('beforeend', _tpl);
         });
         // Mettre à jour le marqueur empty
@@ -908,6 +937,45 @@ document.addEventListener('DOMContentLoaded', function() {
     }
     _nhtmlRender_nheach_16();
     document.addEventListener('nhtml:update', _nhtmlRender_nheach_16);
+});
+
+
+document.addEventListener('DOMContentLoaded', function() {
+    function _nhtmlRender_nheach_17() {
+        const container = document.getElementById('nheach_17');
+        if (!container) return;
+        
+        // Support des expressions complexes dans in="..."
+        let items = [];
+        try {
+            items = _nhtmlEval('submissions');
+            if (!Array.isArray(items)) items = [];
+        } catch(e) {
+            console.warn("[Nhtml] Erreur boucle each:", e);
+        }
+        
+        
+
+        container.innerHTML = '';
+        items.forEach((_item, _i) => {
+            
+            const _nhtml_loop_item_nheach_17 = _item;
+            const _tpl = `<div class="submission-card">
+                    <div class="s-header"><strong><span data-nhtml-text="${_nhtml_loop_item_nheach_17.form_name}">${_nhtml_loop_item_nheach_17.form_name}</span></strong> <small>le <span data-nhtml-text="${_nhtml_loop_item_nheach_17.created_at}">${_nhtml_loop_item_nheach_17.created_at}</span></small></div>
+                    <pre><span data-nhtml-text="${JSON.stringify(JSON.parse(_nhtml_loop_item_nheach_17.data), null, 2)}">${JSON.stringify(JSON.parse(_nhtml_loop_item_nheach_17.data), null, 2)}</span></pre>
+                </div>`;
+            container.insertAdjacentHTML('beforeend', _tpl);
+        });
+        // Mettre à jour le marqueur empty
+        const empty = document.querySelector('[data-nhtml-empty="nheach_17"]');
+        if (empty) empty.style.display = (items && items.length === 0) ? '' : 'none';
+        
+        if (typeof _nhtmlUpdateDOM === 'function') {
+            _nhtmlUpdateDOM();
+        }
+    }
+    _nhtmlRender_nheach_17();
+    document.addEventListener('nhtml:update', _nhtmlRender_nheach_17);
 });
 
 
