@@ -15,6 +15,8 @@
 <var submissions=[]>
 <var current_view="articles"> <!-- articles, pages, categories, navigation, forms, submissions, edit, new -->
 <var editing_post={"id": null, "title": "", "content": "", "status": "published", "type": "post", "category_id": null, "allow_comments": 1, "form_id": null}>
+<var editing_category={"id": null, "name": "", "slug": "", "parent_id": null}>
+<var editing_menu={"id": null, "label": "", "url": "", "position": 0, "parent_id": null}>
 
 <body>
     <header>
@@ -87,19 +89,30 @@
         <if condition="current_view == 'categories'">
             <div class="actions">
                 <h2><i class="fas fa-tags"></i> Catégories</h2>
+                <button if="{editing_category.id}" type="button" class="btn-secondary" onclick="editing_category={id: null, name: '', slug: '', parent_id: null}">Annuler l'édition</button>
             </div>
             <form action="/admin/category/save" method="POST" class="simple-form">
-                <input type="text" name="name" placeholder="Nom de la catégorie" required/>
-                <input type="text" name="slug" placeholder="Slug (ex: technologie)"/>
-                <button type="submit" class="primary"><i class="fas fa-plus"></i> Ajouter</button>
+                <input type="hidden" name="id" value="{editing_category.id || ''}"/>
+                <input type="text" name="name" value="{editing_category.name}" placeholder="Nom de la catégorie" required/>
+                <input type="text" name="slug" value="{editing_category.slug}" placeholder="Slug (ex: technologie)"/>
+                <select name="parent_id" value="{editing_category.parent_id || ''}">
+                    <option value="">-- Pas de parent --</option>
+                    <each in="{categories}" as="c_opt">
+                        <option value="{c_opt.id}">{c_opt.name}</option>
+                    </each>
+                </select>
+                <button type="submit" class="primary"><i class="fas {editing_category.id ? 'fa-save' : 'fa-plus'}"></i> {editing_category.id ? 'Modifier' : 'Ajouter'}</button>
             </form>
             <table style="margin-top:20px">
                 <thead><tr><th>Nom</th><th>Slug</th><th>Actions</th></tr></thead>
                 <each in="{categories}" as="c" tag="tbody">
                     <tr>
-                        <td><strong>{c.name}</strong></td>
+                        <td>{c.parent_id ? '↳ ' : ''}<strong>{c.name}</strong></td>
                         <td><code>{c.slug || '-'}</code></td>
-                        <td><form action="/admin/category/delete" method="POST" style="display:inline;"><input type="hidden" name="id" value="{c.id}"/><button class="danger"><i class="fas fa-trash"></i></button></form></td>
+                        <td>
+                            <button type="button" class="secondary" title="Éditer" onclick="editing_category.id={c.id}; editing_category.name='{c.name.replace(`'`, `\\'`).replace(`"`, `\\"`)}'; editing_category.slug='{c.slug}'; editing_category.parent_id='{c.parent_id || ''}'; window.scrollTo(0,0)"><i class="fas fa-edit"></i></button>
+                            <form action="/admin/category/delete" method="POST" style="display:inline;"><input type="hidden" name="id" value="{c.id}"/><button class="danger"><i class="fas fa-trash"></i></button></form>
+                        </td>
                     </tr>
                 </each>
             </table>
@@ -212,16 +225,21 @@
                 </div>
             </div>
 
-            <h3><i class="fas fa-link"></i> Lien Personnalisé</h3>
+            <div style="display:flex; justify-content:space-between; align-items:center;">
+                <h3><i class="fas fa-link"></i> Lien Personnalisé</h3>
+                <button if="{editing_menu.id}" type="button" class="btn-secondary btn-sm" onclick="editing_menu={id: null, label: '', url: '', position: 0, parent_id: null}">Annuler l'édition</button>
+            </div>
+            
             <form action="/admin/menu/save" method="POST" class="simple-form">
-                <input type="text" name="label" placeholder="Libellé du lien" required/>
-                <input type="text" name="url" placeholder="URL (ex: /ma-page ou https://...)" required/>
-                <input type="number" name="position" placeholder="Ordre" style="width:70px"/>
-                <select name="parent_id">
+                <input type="hidden" name="id" value="{editing_menu.id || ''}"/>
+                <input type="text" name="label" value="{editing_menu.label}" placeholder="Libellé du lien" required/>
+                <input type="text" name="url" value="{editing_menu.url}" placeholder="URL (ex: /ma-page ou https://...)" required/>
+                <input type="number" name="position" value="{editing_menu.position}" placeholder="Ordre" style="width:70px"/>
+                <select name="parent_id" value="{editing_menu.parent_id || ''}">
                     <option value="">-- Pas de parent --</option>
                     <each in="{menu_links}" as="m"><option value="{m.id}">{m.label}</option></each>
                 </select>
-                <button type="submit" class="primary">Ajouter</button>
+                <button type="submit" class="primary">{editing_menu.id ? 'Modifier' : 'Ajouter'}</button>
             </form>
             <table style="margin-top:20px;">
                 <thead><tr><th>Libellé</th><th>URL</th><th>Ordre</th><th>Actions</th></tr></thead>
@@ -230,7 +248,10 @@
                         <td>{m.parent_id ? '↳ ' : ''}<strong>{m.label}</strong></td>
                         <td><code>{m.url}</code></td>
                         <td>{m.position}</td>
-                        <td><form action="/admin/menu/delete" method="POST" style="display:inline;"><input type="hidden" name="id" value="{m.id}"/><button class="danger"><i class="fas fa-trash"></i></button></form></td>
+                        <td>
+                            <button type="button" class="secondary" title="Éditer" onclick="editing_menu.id={m.id}; editing_menu.label='{m.label.replace(`'`, `\\'`).replace(`"`, `\\"`)}'; editing_menu.url='{m.url}'; editing_menu.position={m.position}; editing_menu.parent_id='{m.parent_id || ''}'; window.scrollTo(0, 0);"><i class="fas fa-edit"></i></button>
+                            <form action="/admin/menu/delete" method="POST" style="display:inline;"><input type="hidden" name="id" value="{m.id}"/><button class="danger"><i class="fas fa-trash"></i></button></form>
+                        </td>
                     </tr>
                 </each>
             </table>

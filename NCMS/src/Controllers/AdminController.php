@@ -97,15 +97,20 @@ class AdminController {
     public function saveCategory(): void {
         $id   = $_POST['id'] ?? null;
         $name = $_POST['name'] ?? '';
+        $slug = $_POST['slug'] ?? '';
+        $parent_id = !empty($_POST['parent_id']) ? (int)$_POST['parent_id'] : null;
         
         if ($name) {
             $db = \App\Core\Database::getInstance();
+            if (empty($slug)) {
+                $slug = strtolower(str_replace(' ', '-', $name));
+            }
             if ($id && is_numeric($id)) {
-                $stmt = $db->prepare("UPDATE categories SET name = ? WHERE id = ?");
-                $stmt->execute([$name, (int)$id]);
+                $stmt = $db->prepare("UPDATE categories SET name = ?, slug = ?, parent_id = ? WHERE id = ?");
+                $stmt->execute([$name, $slug, $parent_id, (int)$id]);
             } else {
-                $stmt = $db->prepare("INSERT INTO categories (name, slug) VALUES (?, ?)");
-                $stmt->execute([$name, strtolower(str_replace(' ', '-', $name))]);
+                $stmt = $db->prepare("INSERT INTO categories (name, slug, parent_id) VALUES (?, ?, ?)");
+                $stmt->execute([$name, $slug, $parent_id]);
             }
         }
         header('Location: /admin?view=categories');

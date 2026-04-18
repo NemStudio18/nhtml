@@ -109,15 +109,21 @@
         <!-- VUE CATÉGORIES -->
         <div data-nhtml-if="current_view == 'categories'" data-nhtml-group="nhif_3" style="display:none"><div class="actions">
                 <h2><i class="fas fa-tags"></i> Catégories</h2>
+                <button type="button" class="btn-secondary" data-nhtml-if="editing_category.id" style="display:none" data-nhtml-attrs="{&quot;onclick&quot;: &quot;editing_category={id: null, name: '', slug: '', parent_id: null}&quot;}">Annuler l'édition</button>
             </div>
             <form action="/admin/category/save" method="POST" class="simple-form">
-                <input type="text" name="name" placeholder="Nom de la catégorie" required/>
-                <input type="text" name="slug" placeholder="Slug (ex: technologie)"/>
-                <button type="submit" class="primary"><i class="fas fa-plus"></i> Ajouter</button>
+                <input type="hidden" name="id" data-nhtml-attrs="{&quot;value&quot;: &quot;{editing_category.id || ''}&quot;}"/>
+                <input type="text" name="name" placeholder="Nom de la catégorie" required data-nhtml-attrs="{&quot;value&quot;: &quot;{editing_category.name}&quot;}"/>
+                <input type="text" name="slug" placeholder="Slug (ex: technologie)" data-nhtml-attrs="{&quot;value&quot;: &quot;{editing_category.slug}&quot;}"/>
+                <select name="parent_id" data-nhtml-attrs="{&quot;value&quot;: &quot;{editing_category.parent_id || ''}&quot;}">
+                    <option value>-- Pas de parent --</option>
+                    <div id="nheach_10" data-nhtml-each="categories"></div>
+                </select>
+                <button type="submit" class="primary"><i data-nhtml-attrs="{&quot;class&quot;: &quot;fas {editing_category.id ? 'fa-save' : 'fa-plus'}&quot;}"></i> <span data-nhtml-text="{editing_category.id ? 'Modifier' : 'Ajouter'}">{editing_category.id ? 'Modifier' : 'Ajouter'}</span></button>
             </form>
             <table style="margin-top:20px">
                 <thead><tr><th>Nom</th><th>Slug</th><th>Actions</th></tr></thead>
-                <tbody id="nheach_10" data-nhtml-each="categories"></tbody>
+                <tbody id="nheach_11" data-nhtml-each="categories"></tbody>
             </table></div>
 
         <div data-nhtml-if="current_view == 'edit' || current_view == 'new'" data-nhtml-group="nhif_4" style="display:none"><h2>
@@ -153,7 +159,7 @@
                         <label>Catégorie (pour articles)</label>
                         <select name="category_id" disabled="{editing_post.type == 'page'}" oninput="editing_post.category_id = this.value" data-nhtml-attrs="{&quot;value&quot;: &quot;{editing_post.category_id}&quot;}">
                             <option value>-- Aucune --</option>
-                            <optgroup id="nheach_11" data-nhtml-each="categories"></optgroup>
+                            <optgroup id="nheach_12" data-nhtml-each="categories"></optgroup>
                         </select>
                     </div>
                     <div class="form-group flex-1">
@@ -174,7 +180,7 @@
                         <label>Formulaire lié</label>
                         <select name="form_id" oninput="editing_post.form_id = this.value" data-nhtml-attrs="{&quot;value&quot;: &quot;{editing_post.form_id}&quot;}">
                             <option value>-- Aucun --</option>
-                            <optgroup id="nheach_12" data-nhtml-each="forms"></optgroup>
+                            <optgroup id="nheach_13" data-nhtml-each="forms"></optgroup>
                         </select>
                     </div>
                 </div>
@@ -206,25 +212,30 @@
                     <h3><i class="fas fa-file-alt"></i> Pages Statiques</h3>
                     <p style="font-size:0.9rem; color:#666;">Ajouter rapidement une page publiée.</p>
                     <ul style="list-style:none; padding:0; margin:0;">
-                        <div id="nheach_13" data-nhtml-each="posts.filter(p => p.type === 'page')"></div>
+                        <div id="nheach_14" data-nhtml-each="posts.filter(p => p.type === 'page')"></div>
                     </ul>
                 </div>
             </div>
 
-            <h3><i class="fas fa-link"></i> Lien Personnalisé</h3>
+            <div style="display:flex; justify-content:space-between; align-items:center;">
+                <h3><i class="fas fa-link"></i> Lien Personnalisé</h3>
+                <button type="button" class="btn-secondary btn-sm" data-nhtml-if="editing_menu.id" style="display:none" data-nhtml-attrs="{&quot;onclick&quot;: &quot;editing_menu={id: null, label: '', url: '', position: 0, parent_id: null}&quot;}">Annuler l'édition</button>
+            </div>
+            
             <form action="/admin/menu/save" method="POST" class="simple-form">
-                <input type="text" name="label" placeholder="Libellé du lien" required/>
-                <input type="text" name="url" placeholder="URL (ex: /ma-page ou https://...)" required/>
-                <input type="number" name="position" placeholder="Ordre" style="width:70px"/>
-                <select name="parent_id">
+                <input type="hidden" name="id" data-nhtml-attrs="{&quot;value&quot;: &quot;{editing_menu.id || ''}&quot;}"/>
+                <input type="text" name="label" placeholder="Libellé du lien" required data-nhtml-attrs="{&quot;value&quot;: &quot;{editing_menu.label}&quot;}"/>
+                <input type="text" name="url" placeholder="URL (ex: /ma-page ou https://...)" required data-nhtml-attrs="{&quot;value&quot;: &quot;{editing_menu.url}&quot;}"/>
+                <input type="number" name="position" placeholder="Ordre" style="width:70px" data-nhtml-attrs="{&quot;value&quot;: &quot;{editing_menu.position}&quot;}"/>
+                <select name="parent_id" data-nhtml-attrs="{&quot;value&quot;: &quot;{editing_menu.parent_id || ''}&quot;}">
                     <option value>-- Pas de parent --</option>
-                    <div id="nheach_14" data-nhtml-each="menu_links"></div>
+                    <div id="nheach_15" data-nhtml-each="menu_links"></div>
                 </select>
-                <button type="submit" class="primary">Ajouter</button>
+                <button type="submit" class="primary"><span data-nhtml-text="{editing_menu.id ? 'Modifier' : 'Ajouter'}">{editing_menu.id ? 'Modifier' : 'Ajouter'}</span></button>
             </form>
             <table style="margin-top:20px;">
                 <thead><tr><th>Libellé</th><th>URL</th><th>Ordre</th><th>Actions</th></tr></thead>
-                <tbody id="nheach_15" data-nhtml-each="menu_links"></tbody>
+                <tbody id="nheach_16" data-nhtml-each="menu_links"></tbody>
             </table></div>
 
         <div data-nhtml-if="current_view == 'forms'" data-nhtml-group="nhif_6" style="display:none"><h2><i class="fas fa-wpforms"></i> Générateur de formulaires</h2>
@@ -236,17 +247,17 @@
             </form>
             <table style="margin-top:20px">
                 <thead><tr><th>Formulaire</th><th>Champs</th><th>Actions</th></tr></thead>
-                <tbody id="nheach_16" data-nhtml-each="forms"></tbody>
+                <tbody id="nheach_17" data-nhtml-each="forms"></tbody>
             </table></div>
 
         <div data-nhtml-if="current_view == 'submissions'" data-nhtml-group="nhif_7" style="display:none"><h2><i class="fas fa-inbox"></i> Réponses reçues</h2>
-            <div id="nheach_17" data-nhtml-each="submissions"></div>
+            <div id="nheach_18" data-nhtml-each="submissions"></div>
             <div data-nhtml-empty="submissions" style="display:none"><p>Aucune réponse reçue pour le moment.</p></div></div>
     </main>
 <script>
 
 // ── Système de réactivité Nhtml ──────────────────────────────────────────
-const _nhtmlState = {"site_name": "NCMS", "posts": [], "categories": [], "menu_links": [], "forms": [], "submissions": [], "current_view": "articles", "editing_post": {"id": null, "title": "", "content": "", "status": "published", "type": "post", "category_id": null, "allow_comments": 1, "form_id": null}};
+const _nhtmlState = {"site_name": "NCMS", "posts": [], "categories": [], "menu_links": [], "forms": [], "submissions": [], "current_view": "articles", "editing_post": {"id": null, "title": "", "content": "", "status": "published", "type": "post", "category_id": null, "allow_comments": 1, "form_id": null}, "editing_category": {"id": null, "name": "", "slug": "", "parent_id": null}, "editing_menu": {"id": null, "label": "", "url": "", "position": 0, "parent_id": null}};
 const _nhtmlPersistent = [];
 const _nhtmlWatchers = {};
 const _nhtmlBindings = [];
@@ -352,6 +363,8 @@ Object.defineProperty(window, 'forms', {get() { return nhtml['forms']; },set(v) 
 Object.defineProperty(window, 'submissions', {get() { return nhtml['submissions']; },set(v) { nhtml['submissions'] = v; }});
 Object.defineProperty(window, 'current_view', {get() { return nhtml['current_view']; },set(v) { nhtml['current_view'] = v; }});
 Object.defineProperty(window, 'editing_post', {get() { return nhtml['editing_post']; },set(v) { nhtml['editing_post'] = v; }});
+Object.defineProperty(window, 'editing_category', {get() { return nhtml['editing_category']; },set(v) { nhtml['editing_category'] = v; }});
+Object.defineProperty(window, 'editing_menu', {get() { return nhtml['editing_menu']; },set(v) { nhtml['editing_menu'] = v; }});
 
 function _nhtmlWatch(varName, callback) {
     if (!_nhtmlWatchers[varName]) _nhtmlWatchers[varName] = [];
@@ -688,11 +701,7 @@ document.addEventListener('DOMContentLoaded', function() {
         items.forEach((_item, _i) => {
             
             const _nhtml_loop_item_nheach_10 = _item;
-            const _tpl = `<tr>
-                        <td><strong><span data-nhtml-text="${_nhtml_loop_item_nheach_10.name}">${_nhtml_loop_item_nheach_10.name}</span></strong></td>
-                        <td><code><span data-nhtml-text="${_nhtml_loop_item_nheach_10.slug || '-'}">${_nhtml_loop_item_nheach_10.slug || '-'}</span></code></td>
-                        <td><form action="/admin/category/delete" method="POST" style="display:inline;"><input type="hidden" name="id" data-nhtml-attrs="{&quot;value&quot;: &quot;${_nhtml_loop_item_nheach_10.id}&quot;}"/><button class="danger"><i class="fas fa-trash"></i></button></form></td>
-                    </tr>`;
+            const _tpl = `<option data-nhtml-attrs="{&quot;value&quot;: &quot;${_nhtml_loop_item_nheach_10.id}&quot;}"><span data-nhtml-text="${_nhtml_loop_item_nheach_10.name}">${_nhtml_loop_item_nheach_10.name}</span></option>`;
             container.insertAdjacentHTML('beforeend', _tpl);
         });
         // Mettre à jour le marqueur empty
@@ -728,7 +737,14 @@ document.addEventListener('DOMContentLoaded', function() {
         items.forEach((_item, _i) => {
             
             const _nhtml_loop_item_nheach_11 = _item;
-            const _tpl = `<option data-nhtml-attrs="{&quot;value&quot;: &quot;${_nhtml_loop_item_nheach_11.id}&quot;}"><span data-nhtml-text="${_nhtml_loop_item_nheach_11.name}">${_nhtml_loop_item_nheach_11.name}</span></option>`;
+            const _tpl = `<tr>
+                        <td><span data-nhtml-text="${_nhtml_loop_item_nheach_11.parent_id ? '↳ ' : ''}">${_nhtml_loop_item_nheach_11.parent_id ? '↳ ' : ''}</span><strong><span data-nhtml-text="${_nhtml_loop_item_nheach_11.name}">${_nhtml_loop_item_nheach_11.name}</span></strong></td>
+                        <td><code><span data-nhtml-text="${_nhtml_loop_item_nheach_11.slug || '-'}">${_nhtml_loop_item_nheach_11.slug || '-'}</span></code></td>
+                        <td>
+                            <button type="button" class="secondary" title="Éditer" onclick="editing_category.id=<span data-nhtml-text="${_nhtml_loop_item_nheach_11.id}">${_nhtml_loop_item_nheach_11.id}</span>; editing_category.name='<span data-nhtml-text="${_nhtml_loop_item_nheach_11.name.replace(`'`, `\\'`).replace(`"`, `\\"`)}">${_nhtml_loop_item_nheach_11.name.replace(`'`, `\\'`).replace(`"`, `\\"`)}</span>'; editing_category.slug='<span data-nhtml-text="${_nhtml_loop_item_nheach_11.slug}">${_nhtml_loop_item_nheach_11.slug}</span>'; editing_category.parent_id='<span data-nhtml-text="${_nhtml_loop_item_nheach_11.parent_id || ''}">${_nhtml_loop_item_nheach_11.parent_id || ''}</span>'; window.scrollTo(0,0)"><i class="fas fa-edit"></i></button>
+                            <form action="/admin/category/delete" method="POST" style="display:inline;"><input type="hidden" name="id" data-nhtml-attrs="{&quot;value&quot;: &quot;${_nhtml_loop_item_nheach_11.id}&quot;}"/><button class="danger"><i class="fas fa-trash"></i></button></form>
+                        </td>
+                    </tr>`;
             container.insertAdjacentHTML('beforeend', _tpl);
         });
         // Mettre à jour le marqueur empty
@@ -752,7 +768,7 @@ document.addEventListener('DOMContentLoaded', function() {
         // Support des expressions complexes dans in="..."
         let items = [];
         try {
-            items = _nhtmlEval('forms');
+            items = _nhtmlEval('categories');
             if (!Array.isArray(items)) items = [];
         } catch(e) {
             console.warn("[Nhtml] Erreur boucle each:", e);
@@ -788,7 +804,7 @@ document.addEventListener('DOMContentLoaded', function() {
         // Support des expressions complexes dans in="..."
         let items = [];
         try {
-            items = _nhtmlEval('posts.filter(p => p.type === \'page\')');
+            items = _nhtmlEval('forms');
             if (!Array.isArray(items)) items = [];
         } catch(e) {
             console.warn("[Nhtml] Erreur boucle each:", e);
@@ -800,14 +816,7 @@ document.addEventListener('DOMContentLoaded', function() {
         items.forEach((_item, _i) => {
             
             const _nhtml_loop_item_nheach_13 = _item;
-            const _tpl = `<li style="display:flex; justify-content:space-between; align-items:center; padding:8px 0; border-bottom:1px solid #eee;">
-                                <strong><span data-nhtml-text="${_nhtml_loop_item_nheach_13.title}">${_nhtml_loop_item_nheach_13.title}</span></strong>
-                                <form action="/admin/menu/save" method="POST" style="margin:0;">
-                                    <input type="hidden" name="label" data-nhtml-attrs="{&quot;value&quot;: &quot;${_nhtml_loop_item_nheach_13.title}&quot;}"/>
-                                    <input type="hidden" name="url" data-nhtml-attrs="{&quot;value&quot;: &quot;/page/${_nhtml_loop_item_nheach_13.id}&quot;}"/>
-                                    <button type="submit" class="secondary" style="padding:4px 8px; font-size:0.85rem;"><i class="fas fa-plus"></i></button>
-                                </form>
-                            </li>`;
+            const _tpl = `<option data-nhtml-attrs="{&quot;value&quot;: &quot;${_nhtml_loop_item_nheach_13.id}&quot;}"><span data-nhtml-text="${_nhtml_loop_item_nheach_13.name}">${_nhtml_loop_item_nheach_13.name}</span></option>`;
             container.insertAdjacentHTML('beforeend', _tpl);
         });
         // Mettre à jour le marqueur empty
@@ -831,7 +840,7 @@ document.addEventListener('DOMContentLoaded', function() {
         // Support des expressions complexes dans in="..."
         let items = [];
         try {
-            items = _nhtmlEval('menu_links');
+            items = _nhtmlEval('posts.filter(p => p.type === \'page\')');
             if (!Array.isArray(items)) items = [];
         } catch(e) {
             console.warn("[Nhtml] Erreur boucle each:", e);
@@ -843,7 +852,14 @@ document.addEventListener('DOMContentLoaded', function() {
         items.forEach((_item, _i) => {
             
             const _nhtml_loop_item_nheach_14 = _item;
-            const _tpl = `<option data-nhtml-attrs="{&quot;value&quot;: &quot;${_nhtml_loop_item_nheach_14.id}&quot;}"><span data-nhtml-text="${_nhtml_loop_item_nheach_14.label}">${_nhtml_loop_item_nheach_14.label}</span></option>`;
+            const _tpl = `<li style="display:flex; justify-content:space-between; align-items:center; padding:8px 0; border-bottom:1px solid #eee;">
+                                <strong><span data-nhtml-text="${_nhtml_loop_item_nheach_14.title}">${_nhtml_loop_item_nheach_14.title}</span></strong>
+                                <form action="/admin/menu/save" method="POST" style="margin:0;">
+                                    <input type="hidden" name="label" data-nhtml-attrs="{&quot;value&quot;: &quot;${_nhtml_loop_item_nheach_14.title}&quot;}"/>
+                                    <input type="hidden" name="url" data-nhtml-attrs="{&quot;value&quot;: &quot;/page/${_nhtml_loop_item_nheach_14.id}&quot;}"/>
+                                    <button type="submit" class="secondary" style="padding:4px 8px; font-size:0.85rem;"><i class="fas fa-plus"></i></button>
+                                </form>
+                            </li>`;
             container.insertAdjacentHTML('beforeend', _tpl);
         });
         // Mettre à jour le marqueur empty
@@ -879,12 +895,7 @@ document.addEventListener('DOMContentLoaded', function() {
         items.forEach((_item, _i) => {
             
             const _nhtml_loop_item_nheach_15 = _item;
-            const _tpl = `<tr>
-                        <td><span data-nhtml-text="${_nhtml_loop_item_nheach_15.parent_id ? '↳ ' : ''}">${_nhtml_loop_item_nheach_15.parent_id ? '↳ ' : ''}</span><strong><span data-nhtml-text="${_nhtml_loop_item_nheach_15.label}">${_nhtml_loop_item_nheach_15.label}</span></strong></td>
-                        <td><code><span data-nhtml-text="${_nhtml_loop_item_nheach_15.url}">${_nhtml_loop_item_nheach_15.url}</span></code></td>
-                        <td><span data-nhtml-text="${_nhtml_loop_item_nheach_15.position}">${_nhtml_loop_item_nheach_15.position}</span></td>
-                        <td><form action="/admin/menu/delete" method="POST" style="display:inline;"><input type="hidden" name="id" data-nhtml-attrs="{&quot;value&quot;: &quot;${_nhtml_loop_item_nheach_15.id}&quot;}"/><button class="danger"><i class="fas fa-trash"></i></button></form></td>
-                    </tr>`;
+            const _tpl = `<option data-nhtml-attrs="{&quot;value&quot;: &quot;${_nhtml_loop_item_nheach_15.id}&quot;}"><span data-nhtml-text="${_nhtml_loop_item_nheach_15.label}">${_nhtml_loop_item_nheach_15.label}</span></option>`;
             container.insertAdjacentHTML('beforeend', _tpl);
         });
         // Mettre à jour le marqueur empty
@@ -908,7 +919,7 @@ document.addEventListener('DOMContentLoaded', function() {
         // Support des expressions complexes dans in="..."
         let items = [];
         try {
-            items = _nhtmlEval('forms');
+            items = _nhtmlEval('menu_links');
             if (!Array.isArray(items)) items = [];
         } catch(e) {
             console.warn("[Nhtml] Erreur boucle each:", e);
@@ -921,9 +932,13 @@ document.addEventListener('DOMContentLoaded', function() {
             
             const _nhtml_loop_item_nheach_16 = _item;
             const _tpl = `<tr>
-                        <td><strong><span data-nhtml-text="${_nhtml_loop_item_nheach_16.name}">${_nhtml_loop_item_nheach_16.name}</span></strong></td>
-                        <td><small><span data-nhtml-text="${_nhtml_loop_item_nheach_16.fields ? JSON.parse(_nhtml_loop_item_nheach_16.fields).length : 0}">${_nhtml_loop_item_nheach_16.fields ? JSON.parse(_nhtml_loop_item_nheach_16.fields).length : 0}</span> champs</small></td>
-                        <td><form action="/admin/form/delete" method="POST" style="display:inline;"><input type="hidden" name="id" data-nhtml-attrs="{&quot;value&quot;: &quot;${_nhtml_loop_item_nheach_16.id}&quot;}"/><button class="danger"><i class="fas fa-trash"></i></button></form></td>
+                        <td><span data-nhtml-text="${_nhtml_loop_item_nheach_16.parent_id ? '↳ ' : ''}">${_nhtml_loop_item_nheach_16.parent_id ? '↳ ' : ''}</span><strong><span data-nhtml-text="${_nhtml_loop_item_nheach_16.label}">${_nhtml_loop_item_nheach_16.label}</span></strong></td>
+                        <td><code><span data-nhtml-text="${_nhtml_loop_item_nheach_16.url}">${_nhtml_loop_item_nheach_16.url}</span></code></td>
+                        <td><span data-nhtml-text="${_nhtml_loop_item_nheach_16.position}">${_nhtml_loop_item_nheach_16.position}</span></td>
+                        <td>
+                            <button type="button" class="secondary" title="Éditer" onclick="editing_menu.id=<span data-nhtml-text="${_nhtml_loop_item_nheach_16.id}">${_nhtml_loop_item_nheach_16.id}</span>; editing_menu.label='<span data-nhtml-text="${_nhtml_loop_item_nheach_16.label.replace(`'`, `\\'`).replace(`"`, `\\"`)}">${_nhtml_loop_item_nheach_16.label.replace(`'`, `\\'`).replace(`"`, `\\"`)}</span>'; editing_menu.url='<span data-nhtml-text="${_nhtml_loop_item_nheach_16.url}">${_nhtml_loop_item_nheach_16.url}</span>'; editing_menu.position=<span data-nhtml-text="${_nhtml_loop_item_nheach_16.position}">${_nhtml_loop_item_nheach_16.position}</span>; editing_menu.parent_id='<span data-nhtml-text="${_nhtml_loop_item_nheach_16.parent_id || ''}">${_nhtml_loop_item_nheach_16.parent_id || ''}</span>'; window.scrollTo(0, 0);"><i class="fas fa-edit"></i></button>
+                            <form action="/admin/menu/delete" method="POST" style="display:inline;"><input type="hidden" name="id" data-nhtml-attrs="{&quot;value&quot;: &quot;${_nhtml_loop_item_nheach_16.id}&quot;}"/><button class="danger"><i class="fas fa-trash"></i></button></form>
+                        </td>
                     </tr>`;
             container.insertAdjacentHTML('beforeend', _tpl);
         });
@@ -948,7 +963,7 @@ document.addEventListener('DOMContentLoaded', function() {
         // Support des expressions complexes dans in="..."
         let items = [];
         try {
-            items = _nhtmlEval('submissions');
+            items = _nhtmlEval('forms');
             if (!Array.isArray(items)) items = [];
         } catch(e) {
             console.warn("[Nhtml] Erreur boucle each:", e);
@@ -960,10 +975,11 @@ document.addEventListener('DOMContentLoaded', function() {
         items.forEach((_item, _i) => {
             
             const _nhtml_loop_item_nheach_17 = _item;
-            const _tpl = `<div class="submission-card">
-                    <div class="s-header"><strong><span data-nhtml-text="${_nhtml_loop_item_nheach_17.form_name}">${_nhtml_loop_item_nheach_17.form_name}</span></strong> <small>le <span data-nhtml-text="${_nhtml_loop_item_nheach_17.created_at}">${_nhtml_loop_item_nheach_17.created_at}</span></small></div>
-                    <pre><span data-nhtml-text="${JSON.stringify(JSON.parse(_nhtml_loop_item_nheach_17.data), null, 2)}">${JSON.stringify(JSON.parse(_nhtml_loop_item_nheach_17.data), null, 2)}</span></pre>
-                </div>`;
+            const _tpl = `<tr>
+                        <td><strong><span data-nhtml-text="${_nhtml_loop_item_nheach_17.name}">${_nhtml_loop_item_nheach_17.name}</span></strong></td>
+                        <td><small><span data-nhtml-text="${_nhtml_loop_item_nheach_17.fields ? JSON.parse(_nhtml_loop_item_nheach_17.fields).length : 0}">${_nhtml_loop_item_nheach_17.fields ? JSON.parse(_nhtml_loop_item_nheach_17.fields).length : 0}</span> champs</small></td>
+                        <td><form action="/admin/form/delete" method="POST" style="display:inline;"><input type="hidden" name="id" data-nhtml-attrs="{&quot;value&quot;: &quot;${_nhtml_loop_item_nheach_17.id}&quot;}"/><button class="danger"><i class="fas fa-trash"></i></button></form></td>
+                    </tr>`;
             container.insertAdjacentHTML('beforeend', _tpl);
         });
         // Mettre à jour le marqueur empty
@@ -976,6 +992,45 @@ document.addEventListener('DOMContentLoaded', function() {
     }
     _nhtmlRender_nheach_17();
     document.addEventListener('nhtml:update', _nhtmlRender_nheach_17);
+});
+
+
+document.addEventListener('DOMContentLoaded', function() {
+    function _nhtmlRender_nheach_18() {
+        const container = document.getElementById('nheach_18');
+        if (!container) return;
+        
+        // Support des expressions complexes dans in="..."
+        let items = [];
+        try {
+            items = _nhtmlEval('submissions');
+            if (!Array.isArray(items)) items = [];
+        } catch(e) {
+            console.warn("[Nhtml] Erreur boucle each:", e);
+        }
+        
+        
+
+        container.innerHTML = '';
+        items.forEach((_item, _i) => {
+            
+            const _nhtml_loop_item_nheach_18 = _item;
+            const _tpl = `<div class="submission-card">
+                    <div class="s-header"><strong><span data-nhtml-text="${_nhtml_loop_item_nheach_18.form_name}">${_nhtml_loop_item_nheach_18.form_name}</span></strong> <small>le <span data-nhtml-text="${_nhtml_loop_item_nheach_18.created_at}">${_nhtml_loop_item_nheach_18.created_at}</span></small></div>
+                    <pre><span data-nhtml-text="${JSON.stringify(JSON.parse(_nhtml_loop_item_nheach_18.data), null, 2)}">${JSON.stringify(JSON.parse(_nhtml_loop_item_nheach_18.data), null, 2)}</span></pre>
+                </div>`;
+            container.insertAdjacentHTML('beforeend', _tpl);
+        });
+        // Mettre à jour le marqueur empty
+        const empty = document.querySelector('[data-nhtml-empty="nheach_18"]');
+        if (empty) empty.style.display = (items && items.length === 0) ? '' : 'none';
+        
+        if (typeof _nhtmlUpdateDOM === 'function') {
+            _nhtmlUpdateDOM();
+        }
+    }
+    _nhtmlRender_nheach_18();
+    document.addEventListener('nhtml:update', _nhtmlRender_nheach_18);
 });
 
 
