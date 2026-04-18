@@ -1,0 +1,15 @@
+# SAMPLE NGINX CONFIGURATION FOR NCMS
+# Put this in your 'server' block
+
+location / {
+    # Redirige toutes les requêtes inexistantes vers index.php
+    try_files $uri $uri/ /index.php?$query_string;
+}
+
+# Assurez-vous que PHP est bien configuré (exemple général)
+location ~ \.php$ {
+    include snippets/fastcgi-php.conf;
+    fastcgi_pass unix:/var/run/php/php8.2-fpm.sock;
+    fastcgi_param SCRIPT_FILENAME $realpath_root$fastcgi_script_name;
+    include fastcgi_params;
+}

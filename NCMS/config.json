@@ -1,0 +1,7 @@
+{
+    "site_name": "NCMS - Nhtml Managed System",
+    "admin_user": "admin",
+    "admin_pass": "admin123",
+    "db_name": "database.sqlite",
+    "debug": true
+}

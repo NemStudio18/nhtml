@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <title>Page introuvable — NCMS</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.2/css/all.min.css">
+    <style>
+        :root { --primary: #1A1A2E; --accent: #E94560; }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Inter', system-ui, sans-serif;
+            background: var(--primary);
+            color: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            overflow: hidden;
+        }
+        .bg-grid {
+            position: fixed; inset: 0;
+            background-image: radial-gradient(rgba(233,69,96,0.08) 1px, transparent 1px);
+            background-size: 40px 40px;
+        }
+        .card {
+            position: relative;
+            text-align: center;
+            padding: 60px 80px;
+            background: rgba(255,255,255,0.04);
+            border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 24px;
+            backdrop-filter: blur(20px);
+            max-width: 550px;
+            animation: fadeIn 0.6s ease;
+        }
+        @keyframes fadeIn { from { opacity:0; transform: translateY(20px); } to { opacity:1; transform: translateY(0); } }
+        .error-code {
+            font-size: 8rem;
+            font-weight: 900;
+            line-height: 1;
+            background: linear-gradient(135deg, #E94560, #ff6b8a);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin-bottom: 10px;
+        }
+        .icon { font-size: 3rem; margin-bottom: 20px; opacity: 0.6; }
+        h1 { font-size: 1.8rem; margin-bottom: 12px; font-weight: 700; }
+        p { color: rgba(255,255,255,0.65); line-height: 1.7; margin-bottom: 30px; font-size: 1.05rem; }
+        .btn {
+            display: inline-block;
+            padding: 14px 32px;
+            background: var(--accent);
+            color: white;
+            text-decoration: none;
+            border-radius: 50px;
+            font-weight: 700;
+            font-size: 0.95rem;
+            transition: 0.3s;
+        }
+        .btn:hover { transform: scale(1.05); box-shadow: 0 10px 30px rgba(233,69,96,0.4); }
+        .countdown {
+            margin-top: 25px;
+            font-size: 0.85rem;
+            color: rgba(255,255,255,0.4);
+        }
+        .countdown span { color: var(--accent); font-weight: bold; }
+    </style>
+</head>
+<body>
+    <div class="bg-grid"></div>
+    <div class="card">
+        <div class="icon"><i class="fas fa-ghost"></i></div>
+        <div class="error-code">404</div>
+        <h1>Page introuvable</h1>
+        <p>Oops ! Cette page semble avoir disparu dans les abysses du web.<br>Elle n'existe pas ou a été déplacée.</p>
+        <a href="/" class="btn"><i class="fas fa-home"></i> Retour à l'accueil</a>
+        <p class="countdown">Redirection automatique dans <span id="timer">10</span> secondes...</p>
+    </div>
+    <script>
+        let t = 10;
+        const el = document.getElementById('timer');
+        const iv = setInterval(() => {
+            t--;
+            el.textContent = t;
+            if (t <= 0) { clearInterval(iv); window.location.href = '/'; }
+        }, 1000);
+    </script>
+</body>
+</html>

@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    
+    <title>Nhtml — Test v0.1</title>
+
+    <style>
+    
+    body { font-family: Arial, sans-serif; max-width: 800px; margin: 40px auto; padding: 0 20px; }
+    h1 { color: #1A1A2E; }
+    h2 { color: #0F3460; border-bottom: 1px solid #eee; padding-bottom: 8px; }
+    button { margin: 4px; padding: 8px 16px; background: #1A1A2E; color: white; border: none; border-radius: 4px; cursor: pointer; }
+    input { padding: 8px; border: 1px solid #ccc; border-radius: 4px; width: 300px; }
+
+    </style>
+</head>
+<body>
+<h1>Test Nhtml Parser</h1>
+
+    <!-- ── TEST 1 : Variables et liaison {} ── -->
+    <h2>1. Variables réactives</h2>
+    <p data-nhtml-text="Bonjour {nom}, compteur = {compteur}"/>
+    <button onclick="compteur++">+1</button>
+    <button onclick="compteur=0">Reset</button>
+
+    <!-- ── TEST 2 : Conditions attribut if ── -->
+    <h2>2. Conditions simples</h2>
+    <p data-nhtml-if="estConnecte" style="display:none" data-nhtml-text="Vous êtes connecté"/>
+    <p data-nhtml-if="!estConnecte" style="display:none" data-nhtml-text="Vous n'êtes pas connecté"/>
+    <button onclick="estConnecte=!estConnecte">Basculer connexion</button>
+
+    <!-- ── TEST 3 : Blocs if/elseif/else ── -->
+    <h2>3. Blocs conditionnels</h2>
+    <div data-nhtml-if="compteur == 0" data-nhtml-group="nhif_1"><p>Compteur à zéro</p></div>
+<div data-nhtml-elseif="compteur < 5" data-nhtml-group="nhif_1" style="display:none"><p>Compteur petit</p></div>
+<div data-nhtml-else data-nhtml-group="nhif_1" style="display:none"><p>Compteur grand</p></div>
+
+    <!-- ── TEST 4 : Listes <each> ── -->
+    <h2>4. Listes</h2>
+    <div id="nheach_2" data-nhtml-each="produits"></div>
+    <div data-nhtml-empty="produits" style="display:none"><p>Aucun produit.</p></div>
+
+    <!-- ── TEST 5 : Formulaire ── -->
+    <h2>5. Formulaire</h2>
+    
+    <form onsubmit="alert('Soumis : ' + email)">
+        <input type="email" placeholder="Votre email" oninput="email = this.value" data-nhtml-attrs="{&quot;value&quot;: &quot;{email}&quot;}" required title="Email invalide" onblur="this.checkValidity()"/>
+        <button type="submit">Envoyer</button>
+    </form>
+<script>
+
+// ── Système de réactivité Nhtml ──────────────────────────────────────────
+const _nhtmlState = {"compteur": 0, "nom": "Alice", "estConnecte": false, "produits": [{"nom": "Chaise", "prix": 49, "stock": true}, {"nom": "Table", "prix": 120, "stock": false}, {"nom": "Lampe", "prix": 35, "stock": true}], "email": ""};
+const _nhtmlWatchers = {};
+const _nhtmlBindings = [];
+
+function _nhtmlUpdateDOM() {
+    // Mettre à jour les éléments avec text="{var}"
+    document.querySelectorAll('[data-nhtml-text]').forEach(el => {
+        const template = el.getAttribute('data-nhtml-text');
+        el.textContent = _nhtmlInterpolate(template);
+    });
+    // Mettre à jour les attributs calculés
+    document.querySelectorAll('[data-nhtml-attrs]').forEach(el => {
+        const attrsJson = el.getAttribute('data-nhtml-attrs');
+        const attrs = JSON.parse(attrsJson);
+        for (const [attr, template] of Object.entries(attrs)) {
+            const value = _nhtmlInterpolate(template);
+            if (attr === 'color') el.style.color = value;
+            else if (attr === 'background') el.style.background = value;
+            else if (attr === 'disabled') el.disabled = (value === 'true' || value === true);
+            else if (attr === 'visible') el.style.display = (value === 'false' || value === false) ? 'none' : '';
+            else el.setAttribute(attr, value);
+        }
+    });
+    // Mettre à jour les conditions if
+    document.querySelectorAll('[data-nhtml-if]').forEach(el => {
+        const expr = el.getAttribute('data-nhtml-if');
+        const result = _nhtmlEval(expr);
+        el.style.display = result ? '' : 'none';
+    });
+    // Déclencher les watchers
+    for (const [varName, callbacks] of Object.entries(_nhtmlWatchers)) {
+        callbacks.forEach(cb => cb(_nhtmlState[varName]));
+    }
+}
+
+function _nhtmlInterpolate(template) {
+    return template.replace(/\{(.*?)\}/g, (_, expr) => {
+        return _nhtmlEval(expr.trim());
+    });
+}
+
+function _nhtmlEval(expr) {
+    try {
+        const fn = new Function(...Object.keys(_nhtmlState), `return ${expr}`);
+        return fn(...Object.values(_nhtmlState));
+    } catch(e) {
+        return '';
+    }
+}
+
+// Proxy pour intercepter les modifications de variables
+const nhtml = new Proxy(_nhtmlState, {
+    set(target, prop, value) {
+        target[prop] = value;
+        _nhtmlUpdateDOM();
+        // Déclencher l'événement pour les groupes if/each
+        document.dispatchEvent(new CustomEvent('nhtml:update', { detail: { prop, value } }));
+        return true;
+    },
+    get(target, prop) {
+        return target[prop];
+    }
+});
+
+// Exposer les variables globalement
+Object.defineProperty(window, 'compteur', {get() { return nhtml['compteur']; },set(v) { nhtml['compteur'] = v; }});
+Object.defineProperty(window, 'nom', {get() { return nhtml['nom']; },set(v) { nhtml['nom'] = v; }});
+Object.defineProperty(window, 'estConnecte', {get() { return nhtml['estConnecte']; },set(v) { nhtml['estConnecte'] = v; }});
+Object.defineProperty(window, 'produits', {get() { return nhtml['produits']; },set(v) { nhtml['produits'] = v; }});
+Object.defineProperty(window, 'email', {get() { return nhtml['email']; },set(v) { nhtml['email'] = v; }});
+
+function _nhtmlWatch(varName, callback) {
+    if (!_nhtmlWatchers[varName]) _nhtmlWatchers[varName] = [];
+    _nhtmlWatchers[varName].push(callback);
+}
+
+// Initialiser l'affichage au chargement
+document.addEventListener('DOMContentLoaded', _nhtmlUpdateDOM);
+// ─────────────────────────────────────────────────────────────────────────
+
+
+document.addEventListener('DOMContentLoaded', function() {
+    function _nhtmlUpdateGroup_nhif_1() {
+        const group = document.querySelectorAll('[data-nhtml-group="nhif_1"]');
+        let matched = false;
+        group.forEach(el => {
+            if (el.hasAttribute('data-nhtml-if')) {
+                const result = _nhtmlEval(el.getAttribute('data-nhtml-if'));
+                el.style.display = result ? '' : 'none';
+                matched = result;
+            } else if (el.hasAttribute('data-nhtml-elseif')) {
+                if (matched) { el.style.display = 'none'; }
+                else {
+                    const result = _nhtmlEval(el.getAttribute('data-nhtml-elseif'));
+                    el.style.display = result ? '' : 'none';
+                    matched = result;
+                }
+            } else if (el.hasAttribute('data-nhtml-else')) {
+                el.style.display = matched ? 'none' : '';
+            }
+        });
+    }
+    _nhtmlUpdateGroup_nhif_1();
+    // Re-évaluer à chaque mise à jour du state
+    const _orig_nhif_1 = _nhtmlUpdateDOM;
+    const _prev_nhif_1 = window._nhtmlUpdateDOM || _nhtmlUpdateDOM;
+    const _saved_nhif_1 = _nhtmlUpdateDOM;
+    document.addEventListener('nhtml:update', _nhtmlUpdateGroup_nhif_1);
+});
+
+
+document.addEventListener('DOMContentLoaded', function() {
+    function _nhtmlRender_nheach_2() {
+        const container = document.getElementById('nheach_2');
+        if (!container) return;
+        const items = (nhtml['produits'] || []);
+        container.innerHTML = '';
+        items.forEach((produit, _i) => {
+            const i = _i;
+            const _tpl = `<div style="border:1px solid #ccc; padding:8px; margin:4px">
+            <strong>${i}. ${produit.nom}</strong> — ${produit.prix} €
+        </div>`;
+            container.insertAdjacentHTML('beforeend', _tpl);
+        });
+        // Mettre à jour le marqueur empty
+        const empty = document.querySelector('[data-nhtml-empty="nheach_2"]');
+        if (empty) empty.style.display = items.length === 0 ? '' : 'none';
+    }
+    _nhtmlRender_nheach_2();
+    document.addEventListener('nhtml:update', _nhtmlRender_nheach_2);
+});
+
+</script>
+</body>
+</html>

@@ -1,0 +1,575 @@
+NHTML
+Next HyperText Markup Language
+Specification v0.2 — Document Fondateur
+
+Statut : Brouillon public
+Licence : MIT — Open Source
+Version : 0.2.0
+
+1. Manifeste
+
+1.1 Le problème
+Le développement web moderne souffre d'une fragmentation profonde. Pour construire une page web interactive aujourd'hui, un développeur doit maîtriser simultanément :
+HTML pour la structure
+CSS pour la présentation
+JavaScript pour le comportement
+Un framework (React, Vue, Angular...) pour lier les trois
+Node.js, un bundler, un transpileur... juste pour que le tout fonctionne
+
+Cette complexité accumulée n'est pas une fatalité. C'est le résultat de décisions historiques empilées les unes sur les autres, jamais remises en question globalement.
+
+1.2 La vision Nhtml
+Nhtml part d'un constat simple : le navigateur comprend déjà tout ce dont on a besoin. Il n'est pas nécessaire d'ajouter des couches supplémentaires. Il faut simplement donner au HTML un vocabulaire plus riche.
+
+Nhtml est HTML poussé jusqu'au bout de sa logique : un seul fichier, une seule syntaxe, une liaison native entre structure, style et comportement.
+
+1.3 Les principes fondateurs
+Un seul fichier — tout ce qui concerne une page vit dans un fichier .nhtml
+Natif — aucun runtime externe requis, aucun outil de build obligatoire
+Rétro-compatible — tout HTML/CSS/JS valide est du Nhtml valide
+Déclaratif — on décrit ce que l'on veut, pas comment l'obtenir
+Open Source — langage et outils sous licence MIT, gouvernance communautaire
+Compatible serveur classique — fonctionne avec PHP, Python, Ruby, etc. sans modification
+
+2. Structure d'un fichier Nhtml
+
+2.1 Déclaration
+Tout fichier Nhtml commence par une déclaration de version :
+<!nhtml 1.0>
+
+Cette déclaration est optionnelle pour la rétro-compatibilité. En son absence, le fichier est traité comme du HTML standard.
+
+2.2 Les blocs d'un fichier Nhtml
+Bloc	Rôle	Portée
+<head>	Métadonnées, titre, liens externes	Globale
+<body>	Structure et contenu de la page	Globale
+<style>	Styles CSS globaux	Globale
+<script>	Logique JS globale et fonctions partagées	Globale
+<var>	Variables globales réactives	Globale
+<component>	Définition d'un composant réutilisable	Globale
+<import>	Import d'un composant externe	Globale
+<style> (dans élément)	Styles isolés à l'élément	Locale
+<script> (dans élément)	Logique isolée à l'élément	Locale
+
+2.3 Exemple complet minimal
+<!nhtml 1.0>
+
+<head>
+   <title>Ma première page Nhtml</title>
+</head>
+
+<var compteur=0>
+
+<body>
+   <p id="affichage" text="{compteur}"/>
+   <button id="btn" label="+1" on:click="incrementer()"/>
+</body>
+
+<style>
+   body { font-family: sans-serif; }
+</style>
+
+<script>
+   function incrementer() {
+      compteur++
+   }
+</script>
+
+3. Variables réactives
+
+3.1 Déclaration avec <var>
+Les variables globales sont déclarées avec la balise <var>. Elles sont automatiquement réactives : toute modification met à jour l'affichage sans manipulation du DOM.
+<var compteur=0>
+<var nom="Alice">
+<var visible=true>
+<var utilisateur={ nom: "Alice", age: 30 }>
+<var produits=[]>
+
+3.2 Liaison données-affichage avec {}
+La syntaxe {} lie une variable directement à l'affichage. La mise à jour est automatique.
+<!-- Affichage simple -->
+<p text="{compteur}"/>
+
+<!-- Dans du texte libre -->
+<p>Bonjour {nom}, vous avez {compteur} messages.</p>
+
+<!-- Expression calculée -->
+<p text="{compteur > 10 ? 'Limite atteinte' : compteur}"/>
+
+<!-- Attribut calculé -->
+<button color="{compteur > 10 ? 'red' : 'green'}" label="+1"/>
+
+3.3 Réactivité avec watch:
+watch: déclenche du code automatiquement à chaque fois qu'une variable change. C'est différent d'un événement utilisateur — c'est une réaction à un changement de données.
+<var compteur=0>
+<var statut="normal">
+
+<button id="btn" label="+1" on:click="compteur++">
+   <script>
+      watch:compteur {
+         btn.color = compteur > 10 ? 'red' : 'green'
+         btn.disabled = compteur >= 20
+         statut = compteur > 10 ? 'danger' : 'normal'
+      }
+   </script>
+</button>
+
+3.4 Variables locales à un élément
+<button id="monBouton">
+   <var clicsLocaux=0>
+   <script>
+      on:click {
+         clicsLocaux++    // variable locale
+         compteur++       // variable globale
+      }
+   </script>
+</button>
+
+4. Encapsulation par élément
+
+4.1 Le principe
+Chaque élément Nhtml peut embarquer ses propres blocs <style> et <script>. Ces blocs sont isolés : le style ne fuit pas, la logique ne pollue pas l'espace global.
+
+4.2 Syntaxe
+<button id="monBouton" on:click="increment()">
+   <style>
+      padding: 12px 24px;
+      background: #1A1A2E;
+      color: white;
+      border-radius: 6px;
+   </style>
+   <script>
+      function increment() {
+         compteur++
+      }
+   </script>
+   Cliquez ici
+</button>
+
+4.3 Règles de priorité des styles
+Priorité	Type de style	Exemple
+1 (max)	Style inline attribut	style="color:red"
+2	Style local à l'élément	<style> dans la balise
+3	Style global	<style> à la racine
+4 (min)	Style navigateur	user-agent stylesheet
+
+4.4 Communication inter-éléments via #id
+Les éléments isolés communiquent entre eux via leur identifiant unique. Le préfixe # est emprunté au CSS — tous les développeurs web le connaissent.
+<!-- Appeler une fonction d'un autre élément -->
+#monElement.maFonction()
+
+<!-- Lire une variable d'un autre élément -->
+#monElement.maVariable
+
+<!-- Modifier une variable d'un autre élément -->
+#monElement.maVariable = nouvelleValeur
+
+<!-- Exemple concret -->
+<button id="btnReset">
+   <script>
+      on:click {
+         compteur = 0
+         #btnPlus.disabled = false
+         #affichage.color = 'black'
+      }
+   </script>
+</button>
+
+5. Conditions
+
+5.1 Cas simple — attribut if
+Pour conditionner l'affichage d'un seul élément, l'attribut if suffit :
+<var estConnecte=false>
+
+<p if="{estConnecte}" text="Bienvenue Alice"/>
+<p if="!{estConnecte}" text="Veuillez vous connecter"/>
+
+5.2 Cas complexe — balises <if> <elseif> <else>
+Pour conditionner des blocs entiers contenant plusieurs éléments :
+<var role="visiteur">
+
+<if condition="{role == 'admin'}">
+   <nav>
+      <a href="/admin">Panneau admin</a>
+      <a href="/users">Utilisateurs</a>
+   </nav>
+</if>
+<elseif condition="{role == 'moderateur'}">
+   <nav>
+      <a href="/moderation">Modération</a>
+   </nav>
+</elseif>
+<else>
+   <p text="Accès refusé"/>
+   <button label="Se connecter" on:click="ouvrirLogin()"/>
+</else>
+
+5.3 Règle de choix
+Situation	Syntaxe recommandée
+Un seul élément conditionné	Attribut if="{}"
+Plusieurs éléments conditionnés	Balises <if> <elseif> <else>
+Condition avec alternatives multiples	Balises <if> <elseif> <else>
+
+6. Listes et répétitions
+
+6.1 Cas simple — attribut for:each
+Pour répéter une seule balise sur une collection :
+<var noms=["Alice", "Bob", "Charlie"]>
+
+<p for:each="{noms}" as="n" text="{n}"/>
+
+6.2 Cas complexe — balise <each>
+Pour répéter un bloc contenant plusieurs éléments :
+<var produits=[
+   {nom: "Chaise", prix: 49, stock: true},
+   {nom: "Table", prix: 120, stock: false},
+   {nom: "Lampe", prix: 35, stock: true}
+]>
+
+<each in="{produits}" as="produit" index="i" filter="{produit.stock}">
+   <div>
+      <p text="{i}. {produit.nom}"/>
+      <p text="{produit.prix} €"/>
+      <button on:click="ajouterPanier(produit)" label="Ajouter"/>
+   </div>
+</each>
+
+<!-- Affiché si la liste est vide ou filtrée à zéro -->
+<empty for="#produits">
+   <p text="Aucun produit disponible"/>
+</empty>
+
+6.3 Attributs de <each>
+Attribut	Obligatoire	Description
+in="{}"	Oui	La collection à parcourir
+as=""	Oui	Nom de la variable pour chaque élément
+index=""	Non	Nom de la variable pour l'index (0, 1, 2...)
+filter="{}"	Non	Expression booléenne — filtre les éléments
+
+7. Formulaires et validation
+
+7.1 Liaison bidirectionnelle avec bind:
+L'attribut bind: crée une liaison bidirectionnelle entre un champ et une variable. La variable est mise à jour automatiquement à chaque modification du champ.
+<var email="">
+<var mdp="">
+
+<input type="text" bind:value="{email}" placeholder="Email"/>
+<input type="password" bind:value="{mdp}" placeholder="Mot de passe"/>
+
+<!-- La variable est immédiatement disponible -->
+<p text="Vous tapez : {email}"/>
+
+7.2 Validation native avec validate:
+Attribut	Description	Exemple
+validate:required	Champ obligatoire	validate:required
+validate:format	Format prédéfini	validate:format="email"
+validate:min	Valeur ou longueur minimum	validate:min="8"
+validate:max	Valeur ou longueur maximum	validate:max="100"
+validate:pattern	Expression régulière	validate:pattern="[0-9]+"
+validate:message	Message d'erreur personnalisé	validate:message="Email invalide"
+validate:when	Déclencheur de validation	validate:when="blur"
+
+7.3 Déclencheurs de validation (validate:when)
+Valeur	Comportement
+submit (défaut)	Validation uniquement à la soumission du formulaire
+realtime	Validation à chaque frappe dans le champ
+blur	Validation quand le champ perd le focus — recommandé
+both	Validation au blur ET à la soumission
+
+7.4 Formulaire complet
+<var email="">
+<var mdp="">
+<var erreur="">
+
+<form id="loginForm"
+      on:submit="connecter()"
+      on:error="erreur = 'Formulaire invalide'">
+
+   <input type="text"
+          bind:value="{email}"
+          validate:required
+          validate:format="email"
+          validate:message="Email invalide"
+          validate:when="blur"/>
+
+   <input type="password"
+          bind:value="{mdp}"
+          validate:required
+          validate:min="8"
+          validate:message="8 caractères minimum"
+          validate:when="blur"/>
+
+   <p if="{erreur}" text="{erreur}" color="red"/>
+
+   <button type="submit" label="Se connecter"/>
+
+   <script>
+      function connecter() {
+         // appelé seulement si toute la validation passe
+         // email et mdp sont déjà disponibles
+      }
+   </script>
+
+</form>
+
+8. Composants réutilisables
+
+8.1 Principe
+Un composant est un bloc Nhtml défini une fois et utilisable partout comme une balise HTML personnalisée. Il encapsule sa structure, son style et sa logique.
+
+8.2 Composant simple — dans le même fichier
+Pour un composant léger utilisé localement dans la même page :
+<!-- Définition -->
+<component name="badge">
+   <props>
+      <prop name="label" type="string" required/>
+      <prop name="couleur" type="string" default="blue"/>
+   </props>
+   <span text="{label}">
+      <style>
+         border-radius: 4px;
+         padding: 4px 8px;
+         background: {couleur};
+         color: white;
+      </style>
+   </span>
+</component>
+
+<!-- Utilisation -->
+<badge label="Nouveau" couleur="green"/>
+<badge label="Promo" couleur="red"/>
+<badge label="Stock limité"/>  <!-- couleur par défaut : blue -->
+
+8.3 Composant complexe — fichier dédié
+Pour un composant réutilisable entre plusieurs pages, on le place dans un fichier .nhtml dédié :
+<!-- fichier : composants/carte-produit.nhtml -->
+<component>
+   <props>
+      <prop name="nom" type="string" required/>
+      <prop name="prix" type="number" required/>
+      <prop name="stock" type="boolean" default=true/>
+   </props>
+   <div>
+      <p text="{nom}"/>
+      <p text="{prix} €"/>
+      <p if="!{stock}" text="Rupture de stock" color="red"/>
+      <button if="{stock}"
+              on:click="ajouterPanier()"
+              label="Ajouter au panier"/>
+      <style>
+         div { border: 1px solid #ccc; padding: 16px; border-radius: 8px; }
+      </style>
+      <script>
+         function ajouterPanier() {
+            // logique locale au composant
+         }
+      </script>
+   </div>
+</component>
+
+<!-- fichier : index.nhtml -->
+<import src="composants/carte-produit.nhtml" as="carte-produit"/>
+
+<each in="{produits}" as="p">
+   <carte-produit nom="{p.nom}" prix="{p.prix}" stock="{p.stock}"/>
+</each>
+
+8.4 Déclaration des props
+Attribut	Obligatoire	Description
+name=""	Oui	Nom de la prop
+type=""	Non	Type attendu : string, number, boolean, array, object
+required	Non	Erreur si la prop n'est pas fournie
+default=""	Non	Valeur par défaut si la prop est absente
+
+8.5 Slots — injection de contenu
+Un slot est un emplacement dans le composant où l'utilisateur peut injecter du contenu personnalisé :
+<!-- Définition avec slot par défaut -->
+<component name="carte">
+   <props>
+      <prop name="titre" type="string" required/>
+   </props>
+   <div>
+      <h3 text="{titre}"/>
+      <slot/>
+   </div>
+</component>
+
+<!-- Définition avec slots nommés -->
+<component name="mise-en-page">
+   <header><slot name="entete"/></header>
+   <main><slot/></main>
+   <footer><slot name="pied"/></footer>
+</component>
+
+<!-- Utilisation avec slots nommés -->
+<mise-en-page>
+   <p slot="entete">Mon titre</p>
+   <p>Contenu principal injecté dans le slot par défaut</p>
+   <p slot="pied">Copyright 2024</p>
+</mise-en-page>
+
+9. Événements
+
+9.1 Syntaxe
+<!-- Inline simple -->
+<button on:click="compteur++" label="+1"/>
+
+<!-- Appel de fonction -->
+<button on:click="validerFormulaire()" label="Valider"/>
+
+<!-- Dans un bloc script local -->
+<input id="champ">
+   <script>
+      on:change {
+         // logique à la modification
+      }
+      on:focus {
+         this.style.border = '2px solid blue'
+      }
+   </script>
+</input>
+
+9.2 Événements disponibles
+Événement	Déclencheur
+on:click	Clic sur l'élément
+on:change	Changement de valeur (input, select...)
+on:input	Saisie en temps réel
+on:focus	Focus sur l'élément
+on:blur	Perte du focus
+on:submit	Soumission d'un formulaire
+on:load	Chargement de l'élément
+on:keydown	Touche clavier enfoncée
+on:keyup	Touche clavier relâchée
+on:mouseover	Survol de la souris
+
+10. Réseau — Compatibilité HTMX
+
+10.1 Principe
+Nhtml ne réinvente pas la communication réseau. Il intègre nativement HTMX, une bibliothèque éprouvée qui couvre exactement ce besoin avec une philosophie déclarative identique à celle de Nhtml.
+
+Cette décision reflète un principe fondateur de Nhtml : ne pas réinventer ce qui fonctionne déjà bien. HTMX gère le réseau, Nhtml gère tout le reste.
+
+10.2 Syntaxe HTMX dans Nhtml
+<!-- Charger du contenu depuis le serveur -->
+<button nh:get="/api/produits"
+        nh:target="#liste"
+        nh:swap="innerHTML"
+        label="Charger les produits"/>
+
+<!-- Soumettre des données -->
+<form nh:post="/api/login"
+      nh:target="#message"
+      on:submit="valider()">
+   <input type="text" bind:value="{email}"/>
+   <button type="submit" label="Connexion"/>
+</form>
+
+<!-- Chargement automatique au démarrage -->
+<div id="liste" nh:get="/api/produits" nh:trigger="load"/>
+
+10.3 Préfixe nh:
+Les attributs HTMX sont préfixés nh: dans Nhtml pour rester cohérent avec les conventions on: bind: validate: for: déjà définies. Sous le capot, Nhtml traduit ces attributs vers leur équivalent HTMX natif.
+Attribut Nhtml	Équivalent HTMX	Description
+nh:get	hx-get	Requête GET vers une URL
+nh:post	hx-post	Requête POST vers une URL
+nh:put	hx-put	Requête PUT vers une URL
+nh:delete	hx-delete	Requête DELETE vers une URL
+nh:target	hx-target	Élément cible de la réponse
+nh:swap	hx-swap	Mode d'injection de la réponse
+nh:trigger	hx-trigger	Déclencheur de la requête
+
+11. Compatibilité serveur
+
+11.1 Principe
+Nhtml ne touche pas au serveur. Il fonctionne avec n'importe quelle technologie backend existante. Le serveur produit du texte comme il l'a toujours fait — Nhtml prend le relais dans le navigateur.
+
+11.2 Injection de données serveur
+<!-- Avec PHP -->
+<var utilisateur=<?= json_encode($user) ?>>
+<var produits=<?= json_encode($produits) ?>>
+
+<!-- Avec Python / Jinja2 -->
+<var utilisateur={{ user | tojson }}>
+<var produits={{ produits | tojson }}>
+
+<!-- Avec Ruby / ERB -->
+<var utilisateur=<%= user.to_json %>>
+
+11.3 Compatibilité backend
+Backend	Compatibilité	Remarque
+PHP	Totale	Injecter les données via json_encode()
+Python / Django / Flask	Totale	Utiliser tojson ou json.dumps()
+Ruby on Rails	Totale	Utiliser to_json
+Node.js / Express	Totale	Utiliser JSON.stringify()
+Go	Totale	Utiliser encoding/json
+Java / Spring	Totale	Utiliser ObjectMapper
+
+12. Rétro-compatibilité
+
+12.1 Principe absolu
+Tout fichier HTML valide est un fichier Nhtml valide. Nhtml est un sur-ensemble strict de HTML. Aucun code HTML existant ne sera jamais cassé par Nhtml.
+
+12.2 Stratégie de migration progressive
+Étape 1 — Ajouter <!nhtml 1.0> en tête de fichier (aucun impact visible)
+Étape 2 — Remplacer les variables JS globales par <var>
+Étape 3 — Déplacer les styles inline dans des <style> locaux par élément
+Étape 4 — Encapsuler la logique par élément progressivement
+Étape 5 — Remplacer les manipulations DOM par des liaisons {}
+Étape 6 — Extraire les blocs répétés en composants <component>
+
+12.3 Tableau de compatibilité
+Syntaxe	Valide en Nhtml ?	Remarque
+<div class="container">	Oui	HTML standard inchangé
+<script src="app.js">	Oui	Scripts externes supportés
+<link rel="stylesheet">	Oui	CSS externe supporté
+document.getElementById()	Oui	JS natif toujours valide
+addEventListener()	Oui	API DOM standard valide
+fetch() / XMLHttpRequest	Oui	Réseau JS natif valide
+React / Vue composants	Non	Nhtml a son propre système
+
+13. Feuille de route
+
+Phase 1 — Fondation (v0.1 - v0.2)
+Objectif : prouver le concept, attirer les premiers contributeurs.
+Publication de cette spécification sur GitHub
+Parser Python — transpileur Nhtml vers HTML/CSS/JS
+Playground interactif en ligne
+Extension VS Code pour la coloration syntaxique
+10 exemples documentés couvrant tous les blocs de la spec
+
+Phase 2 — Adoption (v0.3 - v0.9)
+Objectif : base de développeurs active, premiers projets réels.
+Plugin Nhtml pour Apache et Nginx
+Intégrations PHP, Python, Ruby documentées
+Outils de débogage dans le navigateur (extension DevTools)
+Documentation complète avec exemples interactifs
+Gouvernance formelle — RFC publiques pour toute évolution du langage
+
+Phase 3 — Navigateur natif (v1.0+)
+Objectif : moteur Nhtml intégré nativement dans un navigateur open source.
+Compilateur Rust avec backend LLVM
+Fork Chromium avec moteur Nhtml natif
+Runtime partagé et mis en cache au niveau système
+Soumission de la spec au W3C
+Dialogue avec les éditeurs de navigateurs
+
+14. Gouvernance et contribution
+
+14.1 Modèle open source
+Nhtml est et restera open source. Aucune entreprise ne peut en prendre le contrôle. La gouvernance s'inspire du modèle Linux Foundation :
+Toute évolution du langage passe par une RFC publique
+Les RFC sont discutées ouvertement pendant 30 jours minimum
+Un comité technique élu par la communauté prend les décisions finales
+Le code source du compilateur et du navigateur est sous licence MIT
+
+14.2 Comment contribuer
+Spécification — ouvrir une issue GitHub avec le tag [RFC]
+Parser / Compilateur — pull request sur le repo principal
+Documentation — wiki collaboratif ouvert
+Exemples — repo dédié aux projets Nhtml open source
+Traductions — la spec doit être accessible dans toutes les langues
+
+
+
+Nhtml Specification v0.2
+Document ouvert — Contributions bienvenues — Licence MIT

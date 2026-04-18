@@ -1,0 +1,48 @@
+<!nhtml 1.0>
+
+<head>
+    <title>Connexion — {site_name}</title>
+</head>
+
+<var site_name="NCMS">
+<var error_msg="">
+
+<body>
+    <div class="login-container">
+        <h1>{site_name}</h1>
+        <h2>Administration</h2>
+
+        <if condition="error_msg">
+            <div class="error">{error_msg}</div>
+        </if>
+
+        <form action="/login" method="POST">
+            <div class="form-group">
+                <label>Utilisateur</label>
+                <input type="text" name="user" required/>
+            </div>
+            <div class="form-group">
+                <label>Mot de passe</label>
+                <input type="password" name="pass" required/>
+            </div>
+            <button type="submit">Se connecter</button>
+        </form>
+        
+        <p><a href="/">Retour au site</a></p>
+    </div>
+
+    <style>
+        body { font-family: 'Segoe UI', sans-serif; background: #1A1A2E; color: white; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; }
+        .login-container { background: white; color: #333; padding: 40px; border-radius: 8px; width: 100%; max-width: 350px; text-align: center; box-shadow: 0 10px 25px rgba(0,0,0,0.5); }
+        h1 { margin: 0; color: #1A1A2E; }
+        h2 { font-size: 1.1em; color: #666; margin-bottom: 30px; }
+        .form-group { text-align: left; margin-bottom: 20px; }
+        label { display: block; margin-bottom: 5px; font-weight: bold; }
+        input { width: 100%; padding: 10px; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box; }
+        button { width: 100%; padding: 12px; background: #1A1A2E; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 1em; margin-top: 10px; }
+        button:hover { background: #0F3460; }
+        .error { background: #fee; color: #c00; padding: 10px; border-radius: 4px; margin-bottom: 20px; font-size: 0.9em; }
+        p { margin-top: 20px; font-size: 0.9em; }
+        p a { color: #888; text-decoration: none; }
+    </style>
+</body>

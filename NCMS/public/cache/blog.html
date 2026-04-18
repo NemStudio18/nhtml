@@ -1,0 +1,373 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Nhtml App</title>
+    
+    <style>
+    
+        :root { --primary: #1A1A2E; --accent: #E94560; --bg: #f8f9fa; --card: #ffffff; }
+        body { font-family: 'Inter', system-ui, sans-serif; line-height: 1.6; color: #333; margin: 0; background: var(--bg); }
+        
+        header { background: var(--primary); color: white; padding: 20px 0; box-shadow: 0 4px 12px rgba(0,0,0,0.1); position: sticky; top: 0; z-index: 100; }
+        .header-content { max-width: 1100px; margin: 0 auto; display: flex; justify-content: space-between; align-items: center; padding: 0 20px; }
+        header h1 { font-size: 1.5rem; letter-spacing: -0.5px; }
+        
+        nav a { color: #ccd; text-decoration: none; margin-left: 20px; font-size: 0.95rem; transition: 0.3s; font-weight: 500; }
+        nav a:hover { color: white; }
+        /* Fix Nhtml groups breaking flex alignment in nav */
+        nav [data-nhtml-group], nav [data-nhtml-each] { display: contents; }
+        .admin-link { border: 1px solid #445; padding: 5px 12px; border-radius: 20px; }
+        
+        /* Navbar Imbriquée v1.0 */
+        .dropdown { display: inline-block; position: relative; }
+        .dropdown-content { display: none; position: absolute; background: white; min-width: 160px; box-shadow: 0 8px 16px rgba(0,0,0,0.2); z-index: 1000; border-radius: 8px; margin-top: 5px; }
+        .dropdown-content a { color: #333; padding: 12px 16px; text-decoration: none; display: block; margin: 0; font-size: 0.9rem; }
+        .dropdown-content a:hover { background: #f1f1f1; color: var(--accent); }
+        .dropdown:hover .dropdown-content { display: block; }
+        
+        .container { max-width: 1100px; margin: 40px auto; display: grid; grid-template-columns: 1fr 300px; gap: 40px; padding: 0 20px; }
+        
+        h2 { font-size: 1.8rem; margin-bottom: 30px; font-weight: 700; color: var(--primary); }
+        
+        .post-card { background: var(--card); border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.03); margin-bottom: 30px; overflow: hidden; transition: 0.3s; border: 1px solid #eee; }
+        .post-card:hover { transform: translateY(-5px); box-shadow: 0 10px 30px rgba(0,0,0,0.08); }
+        .post-content { padding: 25px; }
+        
+        .category-tag { background: #f0f4ff; color: #4466ff; padding: 4px 10px; border-radius: 6px; font-size: 0.75rem; font-weight: 700; text-transform: uppercase; margin-bottom: 15px; display: inline-block; }
+        .category-tag:empty { display: none; }
+        .post-card h3 { margin: 10px 0; font-size: 1.4rem; }
+        .post-card h3 a { color: var(--primary); text-decoration: none; }
+        .meta { font-size: 0.85rem; color: #888; margin-bottom: 15px; }
+        .excerpt { color: #666; font-size: 1rem; margin-bottom: 20px; }
+        .read-more { color: var(--accent); text-decoration: none; font-weight: 700; font-size: 0.9rem; }
+        
+        aside .widget { background: white; padding: 20px; border-radius: 12px; border: 1px solid #eee; margin-bottom: 25px; }
+        aside h3 { font-size: 1.1rem; margin-top: 0; margin-bottom: 15px; padding-bottom: 10px; border-bottom: 1px solid #f0f0f0; }
+        .category-list a { display: block; padding: 8px 0; color: #555; text-decoration: none; font-size: 0.95rem; border-bottom: 1px solid #f9f9f9; }
+        .category-list a:hover { color: var(--accent); padding-left: 5px; }
+        
+        .empty-state { text-align: center; padding: 60px; color: #999; }
+        .empty-state i { font-size: 4rem; margin-bottom: 20px; color: #ddd; }
+        .btn { display: inline-block; background: var(--primary); color: white; padding: 10px 20px; border-radius: 8px; text-decoration: none; margin-top: 15px; }
+        
+        footer { background: #fff; padding: 40px 0; text-align: center; margin-top: 80px; border-top: 1px solid #eee; color: #888; }
+        footer a { color: var(--primary); text-decoration: none; font-weight: 600; }
+        
+        @media (max-width: 800px) {
+            .container { grid-template-columns: 1fr; }
+            header .header-content { flex-direction: column; gap: 15px; }
+        }
+    
+    </style>
+</head>
+<body>
+<header>
+        <div class="header-content">
+            <h1><i class="fas fa-microchip"></i> <span data-nhtml-text="{site_name}">{site_name}</span></h1>
+            <nav id="top-nav">
+                <span id="nheach_2" data-nhtml-each="menu_tree"></span>
+                
+                <div data-nhtml-if="is_admin" data-nhtml-group="nhif_1" style="display:none"><a href="/admin" class="admin-link"><i class="fas fa-user-shield"></i> Admin</a>
+                    <a href="/logout" class="admin-link"><i class="fas fa-sign-out-alt"></i> Quitter</a></div>
+<div data-nhtml-else data-nhtml-group="nhif_1" style="display:none"><a href="/login"><i class="fas fa-sign-in-alt"></i> Connexion</a></div>
+                
+            </nav>
+        </div>
+    </header>
+
+    <div class="container">
+        <main>
+            <h2 data-nhtml-if="!current_category" style="display:none"><i class="fas fa-feather-alt"></i> Derniers articles</h2>
+            <h2 data-nhtml-if="current_category" style="display:none"><i class="fas fa-tag"></i> Catégorie : <span data-nhtml-text="{current_category}">{current_category}</span></h2>
+            
+            <div id="nheach_3" data-nhtml-each="posts"></div>
+
+            <div data-nhtml-empty="posts" style="display:none"><div class="empty-state">
+                    <i class="fas fa-ghost"></i>
+                    <p>Aucun article trouvé dans cette section.</p>
+                    <a href="/" class="btn">Retour à l'accueil</a>
+                </div></div>
+        </main>
+
+        <aside>
+            <section class="widget">
+                <h3><i class="fas fa-tags"></i> Catégories</h3>
+                <nav class="category-list">
+                    <a href="/">Tout voir</a>
+                    <div id="nheach_4" data-nhtml-each="categories"></div>
+                </nav>
+            </section>
+        </aside>
+    </div>
+
+    <footer>
+        <p>&copy; 2026 <span data-nhtml-text="{site_name}">{site_name}</span> — Propulsé par <a href="https://github.com/nhtml">Nhtml Engine</a></p>
+    </footer>
+<script>
+
+// ── Système de réactivité Nhtml ──────────────────────────────────────────
+const _nhtmlState = {"site_name": "NCMS", "posts": [], "menu_tree": [], "categories": [], "current_category": "", "is_admin": false};
+const _nhtmlPersistent = [];
+const _nhtmlWatchers = {};
+const _nhtmlBindings = [];
+
+// Restaurer l'état persistant au démarrage
+for (const p of _nhtmlPersistent) {
+    const saved = localStorage.getItem('nhtml_' + p);
+    if (saved !== null) {
+        try {
+            _nhtmlState[p] = JSON.parse(saved);
+        } catch(e) {
+            _nhtmlState[p] = saved;
+        }
+    }
+}
+
+function _nhtmlUpdateDOM() {
+    // Mettre à jour les éléments avec text="{var}"
+    document.querySelectorAll('[data-nhtml-text]').forEach(el => {
+        const template = el.getAttribute('data-nhtml-text');
+        el.textContent = _nhtmlInterpolate(template);
+    });
+    // Mettre à jour les éléments avec html="{var}"
+    document.querySelectorAll('[data-nhtml-html]').forEach(el => {
+        const template = el.getAttribute('data-nhtml-html');
+        el.innerHTML = _nhtmlInterpolate(template);
+    });
+    // Mettre à jour les attributs calculés
+    document.querySelectorAll('[data-nhtml-attrs]').forEach(el => {
+        const attrsJson = el.getAttribute('data-nhtml-attrs');
+        let attrs;
+        try { attrs = JSON.parse(attrsJson.replace(/&quot;/g, '"')); } catch(e) { return; }
+        for (const [attr, template] of Object.entries(attrs)) {
+            const value = _nhtmlInterpolate(template);
+            if (attr === 'color') el.style.color = value;
+            else if (attr === 'background') el.style.background = value;
+            else if (attr === 'disabled') el.disabled = (value === 'true' || value === true);
+            else if (attr === 'visible') el.style.display = (value === 'false' || value === false) ? 'none' : '';
+            else if (attr === 'value' && (el.tagName === 'INPUT' || el.tagName === 'SELECT' || el.tagName === 'TEXTAREA')) el.value = value;
+            else el.setAttribute(attr, value);
+        }
+    });
+    // Mettre à jour les conditions if
+    document.querySelectorAll('[data-nhtml-if]').forEach(el => {
+        const expr = el.getAttribute('data-nhtml-if');
+        const result = _nhtmlEval(expr);
+        el.style.display = result ? '' : 'none';
+    });
+    // Mettre à jour le titre de la page si {site_name} ou autre
+    const titleTemplate = document.querySelector('title')?.getAttribute('data-nhtml-text');
+    if (titleTemplate) document.title = _nhtmlInterpolate(titleTemplate);
+
+    // Déclencher les watchers
+    for (const [varName, callbacks] of Object.entries(_nhtmlWatchers)) {
+        callbacks.forEach(cb => cb(_nhtmlState[varName]));
+    }
+}
+
+function _nhtmlInterpolate(template) {
+    return template.replace(/\{(.*?)\}/g, (match, expr) => {
+        const trimmed = expr.trim();
+        // Si ça ressemble à un objet JS literal {a:1, b:2}, on ne l'interpole pas
+        // On vérifie stricto sensu la syntaxe d'un objet JS pour ne pas bloquer les "ternaires ?"
+        if (/^['"]?\w+['"]?\s*:/.test(trimmed) && !trimmed.includes('?')) return match;
+        return _nhtmlEval(trimmed);
+    });
+}
+
+function _nhtmlEval(expr) {
+    try {
+        const fn = new Function(...Object.keys(_nhtmlState), `return ${expr}`);
+        return fn(...Object.values(_nhtmlState));
+    } catch(e) {
+        console.warn(`[Nhtml] Erreur d'évaluation pour l'expression '` + expr + `':`, e.message);
+        return '';
+    }
+}
+
+// Proxy pour intercepter les modifications de variables
+const nhtml = new Proxy(_nhtmlState, {
+    set(target, prop, value) {
+        target[prop] = value;
+        // Sauvegarde si persistant
+        if (_nhtmlPersistent.includes(prop)) {
+            localStorage.setItem('nhtml_' + prop, JSON.stringify(value));
+        }
+        _nhtmlUpdateDOM();
+        // Déclencher l'événement pour les groupes if/each
+        document.dispatchEvent(new CustomEvent('nhtml:update', { detail: { prop, value } }));
+        return true;
+    },
+    get(target, prop) {
+        return target[prop];
+    }
+});
+
+// Exposer les variables globalement
+Object.defineProperty(window, 'site_name', {get() { return nhtml['site_name']; },set(v) { nhtml['site_name'] = v; }});
+Object.defineProperty(window, 'posts', {get() { return nhtml['posts']; },set(v) { nhtml['posts'] = v; }});
+Object.defineProperty(window, 'menu_tree', {get() { return nhtml['menu_tree']; },set(v) { nhtml['menu_tree'] = v; }});
+Object.defineProperty(window, 'categories', {get() { return nhtml['categories']; },set(v) { nhtml['categories'] = v; }});
+Object.defineProperty(window, 'current_category', {get() { return nhtml['current_category']; },set(v) { nhtml['current_category'] = v; }});
+Object.defineProperty(window, 'is_admin', {get() { return nhtml['is_admin']; },set(v) { nhtml['is_admin'] = v; }});
+
+function _nhtmlWatch(varName, callback) {
+    if (!_nhtmlWatchers[varName]) _nhtmlWatchers[varName] = [];
+    _nhtmlWatchers[varName].push(callback);
+}
+
+// Initialiser l'affichage au chargement
+document.addEventListener('DOMContentLoaded', _nhtmlUpdateDOM);
+// ─────────────────────────────────────────────────────────────────────────
+
+
+document.addEventListener('DOMContentLoaded', function() {
+    function _nhtmlUpdateGroup_nhif_1() {
+        const group = document.querySelectorAll('[data-nhtml-group="nhif_1"]');
+        let matched = false;
+        group.forEach(el => {
+            if (el.hasAttribute('data-nhtml-if')) {
+                const result = _nhtmlEval(el.getAttribute('data-nhtml-if'));
+                el.style.display = result ? '' : 'none';
+                matched = result;
+            } else if (el.hasAttribute('data-nhtml-elseif')) {
+                if (matched) { el.style.display = 'none'; }
+                else {
+                    const result = _nhtmlEval(el.getAttribute('data-nhtml-elseif'));
+                    el.style.display = result ? '' : 'none';
+                    matched = result;
+                }
+            } else if (el.hasAttribute('data-nhtml-else')) {
+                el.style.display = matched ? 'none' : '';
+            }
+        });
+    }
+    _nhtmlUpdateGroup_nhif_1();
+    // Re-évaluer à chaque mise à jour du state
+    const _orig_nhif_1 = _nhtmlUpdateDOM;
+    const _prev_nhif_1 = window._nhtmlUpdateDOM || _nhtmlUpdateDOM;
+    const _saved_nhif_1 = _nhtmlUpdateDOM;
+    document.addEventListener('nhtml:update', _nhtmlUpdateGroup_nhif_1);
+});
+
+
+document.addEventListener('DOMContentLoaded', function() {
+    function _nhtmlRender_nheach_2() {
+        const container = document.getElementById('nheach_2');
+        if (!container) return;
+        
+        // Support des expressions complexes dans in="..."
+        let items = [];
+        try {
+            items = _nhtmlEval('menu_tree');
+            if (!Array.isArray(items)) items = [];
+        } catch(e) {
+            console.warn("[Nhtml] Erreur boucle each:", e);
+        }
+        
+        
+
+        container.innerHTML = '';
+        items.forEach((_item, _i) => {
+            
+            const _nhtml_loop_item_nheach_2 = _item;
+            const _tpl = `<a class="nav-link" data-nhtml-attrs="{&quot;href&quot;: &quot;${_nhtml_loop_item_nheach_2.url}&quot;}"><span data-nhtml-text="${_nhtml_loop_item_nheach_2.label}">${_nhtml_loop_item_nheach_2.label}</span></a>`;
+            container.insertAdjacentHTML('beforeend', _tpl);
+        });
+        // Mettre à jour le marqueur empty
+        const empty = document.querySelector('[data-nhtml-empty="nheach_2"]');
+        if (empty) empty.style.display = (items && items.length === 0) ? '' : 'none';
+        
+        if (typeof _nhtmlUpdateDOM === 'function') {
+            _nhtmlUpdateDOM();
+        }
+    }
+    _nhtmlRender_nheach_2();
+    document.addEventListener('nhtml:update', _nhtmlRender_nheach_2);
+});
+
+
+document.addEventListener('DOMContentLoaded', function() {
+    function _nhtmlRender_nheach_3() {
+        const container = document.getElementById('nheach_3');
+        if (!container) return;
+        
+        // Support des expressions complexes dans in="..."
+        let items = [];
+        try {
+            items = _nhtmlEval('posts');
+            if (!Array.isArray(items)) items = [];
+        } catch(e) {
+            console.warn("[Nhtml] Erreur boucle each:", e);
+        }
+        
+        
+
+        container.innerHTML = '';
+        items.forEach((_item, _i) => {
+            
+            const _nhtml_loop_item_nheach_3 = _item;
+            const _tpl = `<article class="post-card">
+                    <div class="post-content">
+                        <small class="category-tag"><span data-nhtml-text="${_nhtml_loop_item_nheach_3.category_name || ''}">${_nhtml_loop_item_nheach_3.category_name || ''}</span></small>
+                        <h3><a data-nhtml-attrs="{&quot;href&quot;: &quot;/post/${_nhtml_loop_item_nheach_3.id}&quot;}"><span data-nhtml-text="${_nhtml_loop_item_nheach_3.title}">${_nhtml_loop_item_nheach_3.title}</span></a></h3>
+                        <p class="meta">✍️ Publié le <span data-nhtml-text="${_nhtml_loop_item_nheach_3.created_at}">${_nhtml_loop_item_nheach_3.created_at}</span></p>
+                        <div class="excerpt"><span data-nhtml-text="${_nhtml_loop_item_nheach_3.content.replace(/<[^>]*>?/gm, '').substring(0, 150)}">${_nhtml_loop_item_nheach_3.content.replace(/<[^>]*>?/gm, '').substring(0, 150)}</span>...</div>
+                        <a class="read-more" data-nhtml-attrs="{&quot;href&quot;: &quot;/post/${_nhtml_loop_item_nheach_3.id}&quot;}">Lire la suite <i class="fas fa-arrow-right"></i></a>
+                    </div>
+                </article>`;
+            container.insertAdjacentHTML('beforeend', _tpl);
+        });
+        // Mettre à jour le marqueur empty
+        const empty = document.querySelector('[data-nhtml-empty="nheach_3"]');
+        if (empty) empty.style.display = (items && items.length === 0) ? '' : 'none';
+        
+        if (typeof _nhtmlUpdateDOM === 'function') {
+            _nhtmlUpdateDOM();
+        }
+    }
+    _nhtmlRender_nheach_3();
+    document.addEventListener('nhtml:update', _nhtmlRender_nheach_3);
+});
+
+
+document.addEventListener('DOMContentLoaded', function() {
+    function _nhtmlRender_nheach_4() {
+        const container = document.getElementById('nheach_4');
+        if (!container) return;
+        
+        // Support des expressions complexes dans in="..."
+        let items = [];
+        try {
+            items = _nhtmlEval('categories');
+            if (!Array.isArray(items)) items = [];
+        } catch(e) {
+            console.warn("[Nhtml] Erreur boucle each:", e);
+        }
+        
+        
+
+        container.innerHTML = '';
+        items.forEach((_item, _i) => {
+            
+            const _nhtml_loop_item_nheach_4 = _item;
+            const _tpl = `<a data-nhtml-attrs="{&quot;href&quot;: &quot;/category/${_nhtml_loop_item_nheach_4.id}&quot;}"><span data-nhtml-text="${_nhtml_loop_item_nheach_4.name}">${_nhtml_loop_item_nheach_4.name}</span></a>`;
+            container.insertAdjacentHTML('beforeend', _tpl);
+        });
+        // Mettre à jour le marqueur empty
+        const empty = document.querySelector('[data-nhtml-empty="nheach_4"]');
+        if (empty) empty.style.display = (items && items.length === 0) ? '' : 'none';
+        
+        if (typeof _nhtmlUpdateDOM === 'function') {
+            _nhtmlUpdateDOM();
+        }
+    }
+    _nhtmlRender_nheach_4();
+    document.addEventListener('nhtml:update', _nhtmlRender_nheach_4);
+});
+
+</script>
+</body>
+</html>
