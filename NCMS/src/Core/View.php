@@ -14,8 +14,12 @@ class View {
             die("Erreur : Template introuvable ($template.nhtml)");
         }
 
-        // On-the-fly transpilation if source is newer or cache missing
-        if (!file_exists($cachePath) || filemtime($sourcePath) > filemtime($cachePath)) {
+        // Recompilation automatique : activée uniquement si config.json contient "dev_auto_compile": true
+        // En production/développement normal, utilisez : python nhtml.py build templates/ public/cache/
+        $config = json_decode(file_get_contents(__DIR__ . '/../../config.json'), true);
+        $autoCompile = $config['dev_auto_compile'] ?? false;
+
+        if (!file_exists($cachePath) || ($autoCompile && filemtime($sourcePath) > filemtime($cachePath))) {
             self::transpile($sourcePath, $cachePath);
         }
 

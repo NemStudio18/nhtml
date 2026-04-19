@@ -1,0 +1,1 @@
+[19:08:35] [ERROR] [127.0.0.1] Exception non gérée : App\Models\Post::find(): Argument #1 ($id) must be of type int, string given, called in C:\Users\nemst\Desktop\Nhtml\NCMS\src\Controllers\BlogController.php on line 48 in C:\Users\nemst\Desktop\Nhtml\NCMS\src\Models\Post.php on line 20

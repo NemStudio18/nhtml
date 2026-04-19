@@ -1,12 +1,55 @@
-<!DOCTYPE html>
-<html lang="fr">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Nhtml App</title>
-    
+
+
+
+
+
+
+
+<body>
+    <header>
+        <div class="header-content">
+            <h1><i class="fas fa-microchip"></i> {site_name}</h1>
+            <nav id="top-nav">
+                <span id="nheach_2" data-nhtml-each="menu_tree"></span>
+                
+                <div data-nhtml-if="is_admin" data-nhtml-group="nhif_1" style="display:none"><a href="/admin" class="admin-link"><i class="fas fa-user-shield"></i> Admin</a>
+                    <a href="/logout" class="admin-link"><i class="fas fa-sign-out-alt"></i> Quitter</a></div>
+<div data-nhtml-else data-nhtml-group="nhif_1" style="display:none"><a href="/login"><i class="fas fa-sign-in-alt"></i> Connexion</a></div>
+                
+            </nav>
+        </div>
+    </header>
+
+    <div class="container">
+        <main>
+            <h2 if="!current_category"><i class="fas fa-feather-alt"></i> Derniers articles</h2>
+            <h2 if="current_category"><i class="fas fa-tag"></i> Catégorie : {current_category}</h2>
+            
+            <div id="nheach_3" data-nhtml-each="posts"></div>
+
+            <div data-nhtml-empty="posts" style="display:none"><div class="empty-state">
+                    <i class="fas fa-ghost"></i>
+                    <p>Aucun article trouvé dans cette section.</p>
+                    <a href="/" class="btn">Retour à l'accueil</a>
+                </div></div>
+        </main>
+
+        <aside>
+            <section class="widget">
+                <h3><i class="fas fa-tags"></i> Catégories</h3>
+                <nav class="category-list">
+                    <a href="/">Tout voir</a>
+                    <div id="nheach_4" data-nhtml-each="categories"></div>
+                </nav>
+            </section>
+        </aside>
+    </div>
+
+    <footer>
+        <p>&copy; 2026 <span data-nhtml-text="{site_name}">{site_name}</span> — Propulsé par <a href="https://github.com/nhtml">Nhtml Engine</a></p>
+    </footer>
+
     <style>
-    
         :root { --primary: #1A1A2E; --accent: #E94560; --bg: #f8f9fa; --card: #ffffff; }
         body { font-family: 'Inter', system-ui, sans-serif; line-height: 1.6; color: #333; margin: 0; background: var(--bg); }
         
@@ -59,144 +102,89 @@
             .container { grid-template-columns: 1fr; }
             header .header-content { flex-direction: column; gap: 15px; }
         }
-    
     </style>
-</head>
-<body>
-<header>
-        <div class="header-content">
-            <h1><i class="fas fa-microchip"></i> <span data-nhtml-text="{site_name}">{site_name}</span></h1>
-            <nav id="top-nav">
-                <span id="nheach_2" data-nhtml-each="menu_tree"></span>
-                
-                <div data-nhtml-if="is_admin" data-nhtml-group="nhif_1" style="display:none"><a href="/admin" class="admin-link"><i class="fas fa-user-shield"></i> Admin</a>
-                    <a href="/logout" class="admin-link"><i class="fas fa-sign-out-alt"></i> Quitter</a></div>
-<div data-nhtml-else data-nhtml-group="nhif_1" style="display:none"><a href="/login"><i class="fas fa-sign-in-alt"></i> Connexion</a></div>
-                
-            </nav>
-        </div>
-    </header>
-
-    <div class="container">
-        <main>
-            <h2 data-nhtml-if="!current_category" style="display:none"><i class="fas fa-feather-alt"></i> Derniers articles</h2>
-            <h2 data-nhtml-if="current_category" style="display:none"><i class="fas fa-tag"></i> Catégorie : <span data-nhtml-text="{current_category}">{current_category}</span></h2>
-            
-            <div id="nheach_3" data-nhtml-each="posts"></div>
-
-            <div data-nhtml-empty="posts" style="display:none"><div class="empty-state">
-                    <i class="fas fa-ghost"></i>
-                    <p>Aucun article trouvé dans cette section.</p>
-                    <a href="/" class="btn">Retour à l'accueil</a>
-                </div></div>
-        </main>
-
-        <aside>
-            <section class="widget">
-                <h3><i class="fas fa-tags"></i> Catégories</h3>
-                <nav class="category-list">
-                    <a href="/">Tout voir</a>
-                    <div id="nheach_4" data-nhtml-each="categories"></div>
-                </nav>
-            </section>
-        </aside>
-    </div>
-
-    <footer>
-        <p>&copy; 2026 <span data-nhtml-text="{site_name}">{site_name}</span> — Propulsé par <a href="https://github.com/nhtml">Nhtml Engine</a></p>
-    </footer>
 <script>
 
-// ── Système de réactivité Nhtml ──────────────────────────────────────────
-const _nhtmlState = {"site_name": "NCMS", "posts": [], "menu_tree": [], "categories": [], "current_category": "", "is_admin": false};
-const _nhtmlPersistent = [];
-const _nhtmlWatchers = {};
-const _nhtmlBindings = [];
 
-// Restaurer l'état persistant au démarrage
-for (const p of _nhtmlPersistent) {
+window._nhtmlState = {"site_name": "NCMS", "posts": [], "menu_tree": [], "categories": [], "current_category": "", "is_admin": false};
+window._nhtmlPersistent = [];
+window._nhtmlWatchers = {};
+window._nhtmlBindings = [];
+
+
+// ── Nhtml Runtime ──────────────────────────────────────────────────────────
+for (const p of (window._nhtmlPersistent || [])) {
     const saved = localStorage.getItem('nhtml_' + p);
     if (saved !== null) {
-        try {
-            _nhtmlState[p] = JSON.parse(saved);
-        } catch(e) {
-            _nhtmlState[p] = saved;
-        }
+        try { window._nhtmlState[p] = JSON.parse(saved); } 
+        catch(e) { window._nhtmlState[p] = saved; }
     }
 }
 
-function _nhtmlUpdateDOM() {
-    // Mettre à jour les éléments avec text="{var}"
+window._nhtmlUpdateDOM = function() {
     document.querySelectorAll('[data-nhtml-text]').forEach(el => {
-        const template = el.getAttribute('data-nhtml-text');
-        el.textContent = _nhtmlInterpolate(template);
+        try { el.textContent = window._nhtmlInterpolate(el.getAttribute('data-nhtml-text')); }
+        catch(e) { console.warn('[Nhtml] text error:', e.message); }
     });
-    // Mettre à jour les éléments avec html="{var}"
     document.querySelectorAll('[data-nhtml-html]').forEach(el => {
-        const template = el.getAttribute('data-nhtml-html');
-        el.innerHTML = _nhtmlInterpolate(template);
+        try { el.innerHTML = window._nhtmlInterpolate(el.getAttribute('data-nhtml-html')); }
+        catch(e) { console.warn('[Nhtml] html error:', e.message); }
     });
-    // Mettre à jour les attributs calculés
     document.querySelectorAll('[data-nhtml-attrs]').forEach(el => {
         const attrsJson = el.getAttribute('data-nhtml-attrs');
         let attrs;
         try { attrs = JSON.parse(attrsJson.replace(/&quot;/g, '"')); } catch(e) { return; }
         for (const [attr, template] of Object.entries(attrs)) {
-            const value = _nhtmlInterpolate(template);
-            if (attr === 'color') el.style.color = value;
-            else if (attr === 'background') el.style.background = value;
-            else if (attr === 'disabled') el.disabled = (value === 'true' || value === true);
-            else if (attr === 'visible') el.style.display = (value === 'false' || value === false) ? 'none' : '';
-            else if (attr === 'value' && (el.tagName === 'INPUT' || el.tagName === 'SELECT' || el.tagName === 'TEXTAREA')) el.value = value;
-            else el.setAttribute(attr, value);
+            try {
+                const value = window._nhtmlInterpolate(template);
+                if (attr === 'color') el.style.color = value;
+                else if (attr === 'background') el.style.background = value;
+                else if (attr === 'disabled') el.disabled = (value === 'true' || value === true);
+                else if (attr === 'visible') el.style.display = (value === 'false' || value === false) ? 'none' : '';
+                else if (attr === 'value' && (el.tagName === 'INPUT' || el.tagName === 'SELECT' || el.tagName === 'TEXTAREA')) el.value = value;
+                else el.setAttribute(attr, value);
+            } catch(e) { console.warn('[Nhtml] attr error on', attr, ':', e.message); }
         }
     });
-    // Mettre à jour les conditions if
     document.querySelectorAll('[data-nhtml-if]').forEach(el => {
-        const expr = el.getAttribute('data-nhtml-if');
-        const result = _nhtmlEval(expr);
-        el.style.display = result ? '' : 'none';
+        try { el.style.display = window._nhtmlEval(el.getAttribute('data-nhtml-if')) ? '' : 'none'; }
+        catch(e) { console.warn('[Nhtml] if error:', e.message); }
     });
-    // Mettre à jour le titre de la page si {site_name} ou autre
-    const titleTemplate = document.querySelector('title')?.getAttribute('data-nhtml-text');
-    if (titleTemplate) document.title = _nhtmlInterpolate(titleTemplate);
+    try {
+        const titleTemplate = document.querySelector('title')?.getAttribute('data-nhtml-text');
+        if (titleTemplate) document.title = window._nhtmlInterpolate(titleTemplate);
+    } catch(e) {}
 
-    // Déclencher les watchers
-    for (const [varName, callbacks] of Object.entries(_nhtmlWatchers)) {
-        callbacks.forEach(cb => cb(_nhtmlState[varName]));
+    for (const [varName, callbacks] of Object.entries(window._nhtmlWatchers || {})) {
+        callbacks.forEach(cb => { try { cb(window._nhtmlState[varName]); } catch(e) {} });
     }
-}
+};
 
-function _nhtmlInterpolate(template) {
+window._nhtmlInterpolate = function(template) {
     return template.replace(/\{(.*?)\}/g, (match, expr) => {
         const trimmed = expr.trim();
-        // Si ça ressemble à un objet JS literal {a:1, b:2}, on ne l'interpole pas
-        // On vérifie stricto sensu la syntaxe d'un objet JS pour ne pas bloquer les "ternaires ?"
         if (/^['"]?\w+['"]?\s*:/.test(trimmed) && !trimmed.includes('?')) return match;
-        return _nhtmlEval(trimmed);
+        return window._nhtmlEval(trimmed);
     });
-}
+};
 
-function _nhtmlEval(expr) {
+window._nhtmlEval = function(expr) {
     try {
-        const fn = new Function(...Object.keys(_nhtmlState), `return ${expr}`);
-        return fn(...Object.values(_nhtmlState));
+        const fn = new Function(...Object.keys(window._nhtmlState), `return ${expr}`);
+        return fn(...Object.values(window._nhtmlState));
     } catch(e) {
         console.warn(`[Nhtml] Erreur d'évaluation pour l'expression '` + expr + `':`, e.message);
         return '';
     }
-}
+};
 
-// Proxy pour intercepter les modifications de variables
-const nhtml = new Proxy(_nhtmlState, {
+window.nhtml = new Proxy(window._nhtmlState, {
     set(target, prop, value) {
         target[prop] = value;
-        // Sauvegarde si persistant
-        if (_nhtmlPersistent.includes(prop)) {
+        if ((window._nhtmlPersistent || []).includes(prop)) {
             localStorage.setItem('nhtml_' + prop, JSON.stringify(value));
         }
-        _nhtmlUpdateDOM();
-        // Déclencher l'événement pour les groupes if/each
+        window._nhtmlUpdateDOM();
         document.dispatchEvent(new CustomEvent('nhtml:update', { detail: { prop, value } }));
         return true;
     },
@@ -205,22 +193,19 @@ const nhtml = new Proxy(_nhtmlState, {
     }
 });
 
-// Exposer les variables globalement
+window._nhtmlWatch = function(varName, callback) {
+    if (!window._nhtmlWatchers[varName]) window._nhtmlWatchers[varName] = [];
+    window._nhtmlWatchers[varName].push(callback);
+};
+
+document.addEventListener('DOMContentLoaded', window._nhtmlUpdateDOM);
+
 Object.defineProperty(window, 'site_name', {get() { return nhtml['site_name']; },set(v) { nhtml['site_name'] = v; }});
 Object.defineProperty(window, 'posts', {get() { return nhtml['posts']; },set(v) { nhtml['posts'] = v; }});
 Object.defineProperty(window, 'menu_tree', {get() { return nhtml['menu_tree']; },set(v) { nhtml['menu_tree'] = v; }});
 Object.defineProperty(window, 'categories', {get() { return nhtml['categories']; },set(v) { nhtml['categories'] = v; }});
 Object.defineProperty(window, 'current_category', {get() { return nhtml['current_category']; },set(v) { nhtml['current_category'] = v; }});
 Object.defineProperty(window, 'is_admin', {get() { return nhtml['is_admin']; },set(v) { nhtml['is_admin'] = v; }});
-
-function _nhtmlWatch(varName, callback) {
-    if (!_nhtmlWatchers[varName]) _nhtmlWatchers[varName] = [];
-    _nhtmlWatchers[varName].push(callback);
-}
-
-// Initialiser l'affichage au chargement
-document.addEventListener('DOMContentLoaded', _nhtmlUpdateDOM);
-// ─────────────────────────────────────────────────────────────────────────
 
 
 document.addEventListener('DOMContentLoaded', function() {
@@ -312,7 +297,7 @@ document.addEventListener('DOMContentLoaded', function() {
             const _tpl = `<article class="post-card">
                     <div class="post-content">
                         <small class="category-tag"><span data-nhtml-text="${_nhtml_loop_item_nheach_3.category_name || ''}">${_nhtml_loop_item_nheach_3.category_name || ''}</span></small>
-                        <h3><a data-nhtml-attrs="{&quot;href&quot;: &quot;/post/${_nhtml_loop_item_nheach_3.id}&quot;}"><span data-nhtml-text="${_nhtml_loop_item_nheach_3.title}">${_nhtml_loop_item_nheach_3.title}</span></a></h3>
+                        <h3><a  data-nhtml-attrs="{&quot;href&quot;: &quot;/post/${_nhtml_loop_item_nheach_3.id}&quot;}"><span data-nhtml-text="${_nhtml_loop_item_nheach_3.title}">${_nhtml_loop_item_nheach_3.title}</span></a></h3>
                         <p class="meta">✍️ Publié le <span data-nhtml-text="${_nhtml_loop_item_nheach_3.created_at}">${_nhtml_loop_item_nheach_3.created_at}</span></p>
                         <div class="excerpt"><span data-nhtml-text="${_nhtml_loop_item_nheach_3.content.replace(/<[^>]*>?/gm, '').substring(0, 150)}">${_nhtml_loop_item_nheach_3.content.replace(/<[^>]*>?/gm, '').substring(0, 150)}</span>...</div>
                         <a class="read-more" data-nhtml-attrs="{&quot;href&quot;: &quot;/post/${_nhtml_loop_item_nheach_3.id}&quot;}">Lire la suite <i class="fas fa-arrow-right"></i></a>
@@ -353,7 +338,7 @@ document.addEventListener('DOMContentLoaded', function() {
         items.forEach((_item, _i) => {
             
             const _nhtml_loop_item_nheach_4 = _item;
-            const _tpl = `<a data-nhtml-attrs="{&quot;href&quot;: &quot;/category/${_nhtml_loop_item_nheach_4.id}&quot;}"><span data-nhtml-text="${_nhtml_loop_item_nheach_4.name}">${_nhtml_loop_item_nheach_4.name}</span></a>`;
+            const _tpl = `<a  data-nhtml-attrs="{&quot;href&quot;: &quot;/category/${_nhtml_loop_item_nheach_4.id}&quot;}"><span data-nhtml-text="${_nhtml_loop_item_nheach_4.name}">${_nhtml_loop_item_nheach_4.name}</span></a>`;
             container.insertAdjacentHTML('beforeend', _tpl);
         });
         // Mettre à jour le marqueur empty
@@ -370,4 +355,3 @@ document.addEventListener('DOMContentLoaded', function() {
 
 </script>
 </body>
-</html>

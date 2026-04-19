@@ -1,0 +1,134 @@
+<!nhtml 1.0>
+<var test_name="Kitchen Sink Premium V2">
+<var counter=0 persist="true">
+<var complex_var='{"items": [{"label":"<Danger>"}, {"label": "Safer"}], "active": true, "regex": "/[a-z]+/g"}'>
+
+<style>
+    :root {
+        --primary: #6366f1;
+        --bg: #0f172a;
+        --card-bg: rgba(30, 41, 59, 0.7);
+    }
+    body {
+        font-family: 'Inter', system-ui, sans-serif;
+        background: radial-gradient(circle at top right, #1e1b4b, var(--bg));
+        color: #f8fafc;
+        margin: 0;
+        padding: 2rem;
+        min-height: 100vh;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+    }
+    .container {
+        max-width: 800px;
+        width: 100%;
+    }
+    h1 {
+        font-size: 2.5rem;
+        background: linear-gradient(to right, #818cf8, #c084fc);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        margin-bottom: 2rem;
+    }
+    .card {
+        background: var(--card-bg);
+        backdrop-filter: blur(12px);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        border-radius: 1rem;
+        padding: 1.5rem;
+        box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1);
+        margin-bottom: 1.5rem;
+        transition: transform 0.2s;
+    }
+    .card:hover {
+        transform: translateY(-4px);
+    }
+    button {
+        background: var(--primary);
+        color: white;
+        border: none;
+        padding: 0.75rem 1.5rem;
+        border-radius: 0.5rem;
+        font-weight: 600;
+        cursor: pointer;
+        transition: filter 0.2s;
+    }
+    button:hover {
+        filter: brightness(1.1);
+    }
+    .status-pill {
+        display: inline-block;
+        padding: 0.25rem 0.75rem;
+        border-radius: 9999px;
+        font-size: 0.875rem;
+        background: rgba(16, 185, 129, 0.2);
+        color: #10b981;
+    }
+</style>
+
+<div class="container">
+    <h1>{test_name}</h1>
+
+    <!-- Cas 11 : État complexe & Ternaire -->
+    <div class="card">
+        <div class="status-pill">{ complex_var.active ? (counter > 0 ? "Actif & Positif" : "Actif & Nul") : "Inactif" }</div>
+        <p style="margin-top: 1rem; color: #94a3b8;">
+            Le state est piloté par le <strong>Manifeste JSON</strong> et hydraté par le <strong>Micro-Runtime V2</strong>.
+        </p>
+    </div>
+
+    <!-- Cas 9 : Composant avec Props -->
+    <ViciousCard title="Compteur : {counter}" desc="Ce composant est instancié dynamiquement.">
+        <p>Contenu du Slot (Contenu injecté depuis l'appelant).</p>
+    </ViciousCard>
+
+    <div style="display: flex; gap: 1rem; align-items: center; margin-top: 2rem;">
+        <button on:click="counter += 1">Incrémenter le Compteur</button>
+        <span style="color: #94a3b8;">Current: {counter}</span>
+    </div>
+
+    <!-- Cas 5 : Boucle itérative & Tag <empty> -->
+    <div style="margin-top: 3rem;">
+        <h3>Éléments Filtrés :</h3>
+        <each in="{complex_var.items}" as="item" index="i" filter="item.label !== '<Danger>'" tag="div">
+            <div class="card" style="margin-bottom: 0.5rem; padding: 0.75rem;">
+                {i + 1}. {item.label}
+            </div>
+        </each>
+        <empty for="complex_var.items">
+            <p style="color: #64748b;">La liste est vide (Test du tag &lt;empty&gt;).</p>
+        </empty>
+    </div>
+
+    <!-- Cas 12 : Binding profond et Échappement de quotes -->
+    <div class="card" style="margin-top: 2rem;">
+        <h3>Édition Directe (NCMS-Like)</h3>
+        <div class="form-group">
+            <label>Titre de la Page (Bind simple)</label>
+            <input type="text" bind:value="{test_name}" style="background: white; color: black;"/>
+        </div>
+        <div class="form-group">
+            <label>Regex (Bind profond: complex_var.regex)</label>
+            <input type="text" bind:value="{complex_var.regex}" style="background: white; color: black;"/>
+        </div>
+        <p>Preview Titre : <strong>{test_name}</strong></p>
+        <p>Preview Regex : <code>{complex_var.regex}</code></p>
+        
+        <button on:click="test_name = 'L\'échappement de l\'enfer works !'">Test Échappement</button>
+    </div>
+</div>
+
+<component name="ViciousCard">
+    <props>
+        <prop name="title" default="Sans Titre"/>
+        <prop name="desc" />
+    </props>
+    <div class="card">
+        <h3 style="margin-top: 0;">{title}</h3>
+        <p style="color: #94a3b8;">{desc}</p>
+        <div style="padding: 1rem; border: 1px dashed rgba(255,255,255,0.2); border-radius: 0.5rem;">
+            <slot></slot>
+        </div>
+    </div>
+</component>

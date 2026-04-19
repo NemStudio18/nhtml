@@ -24,6 +24,9 @@
                     <a href="/admin" class="admin-link"><i class="fas fa-user-shield"></i> Admin</a>
                     <a href="/logout" class="admin-link"><i class="fas fa-sign-out-alt"></i> Quitter</a>
                 </if>
+                <else>
+                    <a href="/login"><i class="fas fa-sign-in-alt"></i> Connexion</a>
+                </else>
             </nav>
         </div>
     </header>

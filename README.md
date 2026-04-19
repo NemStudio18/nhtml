@@ -8,11 +8,12 @@
 
 ## ✨ Fonctionnalités
 
-- **Moteur Nhtml v0.3** : Réactivité native sans framework (React/Vue/etc.).
+- **Moteur Nhtml v2.0** : Architecture "Headless" ultra-performante.
+- **Réativité Native** : Pilotage du DOM via un Manifeste JSON (AST) et un Micro-Runtime de 3KB.
+- **Futur Native** : Préparation au portage WebAssembly (Rust/Wasm) et Natif (.so).
 - **Dashboard Admin** : Une interface d'administration complète pour gérer vos articles.
 - **Éditeur Pell Local** : Éditeur WYSIWYG intégré localement pour une stabilité maximale.
 - **Backend PHP & SQLite** : Rapide, portable et sans configuration complexe.
-- **Routing Intelligent** : Gestion fluide des vues (Liste, Édition, Nouvel article).
 - **SEO Ready** : Les métadonnées et titres sont gérés dynamiquement de manière propre.
 
 ---
@@ -21,8 +22,8 @@
 
 ### Prérequis
 - **PHP 8.x** avec extension SQLite3.
-- **Python 3.x** (pour le moteur Nhtml).
-- **Serveur Web** (Nginx recommandé, compatible Apache).
+- **Python 3.x** (pour le compilateur Nhtml).
+- **Wasm Runtime** (Optionnel, intégré via Micro-Runtime JS par défaut).
 
 ### Déploiement rapide
 1. Clonez le dépôt.
@@ -49,7 +50,7 @@
 ---
 
 ## 📜 Spécifications Nhtml
-Le projet NCMS est basé sur la spécification **Nhtml v0.3**. Consultez le fichier `NHTML-Specification-v0.3.md` pour plus de détails sur la syntaxe.
+Le projet NCMS migre vers la spécification **Nhtml v2.0 (Headless)**. Consultez le fichier `NHTML-Specification-v2.0.md` pour plus de détails sur le format du manifeste.
 
 ---
 

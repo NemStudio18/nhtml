@@ -31,8 +31,8 @@ def parse_inline_attrs(attrs_str: str) -> dict:
         r'(?:\s*=\s*'           # signe égal optionnel
         r'(?:"([^"]*)"'         # valeur entre double quotes
         r"|'([^']*)'"           # valeur entre simple quotes
-        r'|({[^}]*})'           # valeur entre accolades
-        r'|([^>\s"\'=]+)'       # valeur sans quotes (autorise !, {} etc)
+        r'|(\{(?:[^{}]|\{[^{}]*\})*\})'  # valeur entre accolades (supporte 1 niveau d'imbrication)
+        r'|([^>\s"\'=]+)'       # valeur sans quotes
         r'))?'
     )
     for m in pattern.finditer(attrs_str):
@@ -43,3 +43,40 @@ def parse_inline_attrs(attrs_str: str) -> dict:
         else:
             attrs[name] = value
     return attrs
+
+def js_to_opcodes(js_str: str) -> list:
+    """
+    Parse une string JavaScript rudimentaire ("counter += 1; alert('Hello')")
+    en un tableau d'opcodes déclaratifs independant.
+    """
+    ops = []
+    commands = [c.strip() for c in js_str.split(';') if c.strip()]
+    
+    for cmd in commands:
+        m_inc = re.match(r'^([\w.-]+)\s*(\+|-)=\s*(.+)$', cmd)
+        if m_inc:
+            target, sign, value = m_inc.groups()
+            op = 'increment' if sign == '+' else 'decrement'
+            try:
+                val = int(value.strip())
+            except ValueError:
+                val = value.strip()
+            ops.append({"op": op, "target": target, "value": val})
+            continue
+            
+        m_set = re.match(r'^([\w.-]+)\s*=\s*(.+)$', cmd)
+        if m_set:
+            target, value = m_set.groups()
+            ops.append({"op": "set", "target": target, "value": value.strip()})
+            continue
+            
+        m_call = re.match(r'^([\w.-]+)\s*\((.*)\)$', cmd)
+        if m_call:
+            fn, raw_args = m_call.groups()
+            args = [a.strip() for a in raw_args.split(',') if a.strip()]
+            ops.append({"op": "call", "fn": fn, "args": args})
+            continue
+            
+        ops.append({"op": "eval", "expr": cmd})
+        
+    return ops
