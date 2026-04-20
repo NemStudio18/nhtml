@@ -119,33 +119,51 @@ function Counter() {
                 const el = document.getElementById(id);
                 if (!el) continue;
 
-                // Si c'est un objet JSON, c'est une commande spéciale (ex: visibility)
+                // Gestion des mises à jour structurées (JSON)
                 if (typeof val === "string" && val.startsWith('{')) {
-                    const cmd = JSON.parse(val);
-                    if (cmd.visible !== undefined) el.style.display = cmd.visible ? '' : 'none';
-                    continue;
+                    try {
+                        const cmd = JSON.parse(val);
+                        if (cmd.type === "if") {
+                            el.style.display = cmd.visible ? '' : 'none';
+                        } else if (cmd.type === "attrs") {
+                            for (const [attr, attrVal] of Object.entries(cmd.values)) {
+                                if (attr === "value") el.value = attrVal;
+                                else el.setAttribute(attr, attrVal);
+                            }
+                        }
+                        continue;
+                    } catch(e) {}
                 }
 
-                // Sinon c'est une mise à jour de contenu (Texte)
+                // Sinon c'est une mise à jour de contenu (Texte ou HTML pour les boucles Each)
                 if (el.tagName === "INPUT" || el.tagName === "TEXTAREA") {
                     el.value = val;
-                } else if (el.innerHTML !== val) {
-                    el.textContent = val;
+                } else {
+                    // Pour Each ou Html nodes, Rust renvoie de l'HTML
+                    el.innerHTML = val;
                 }
             }
         }
 
-        function setupInteractivity(manifest) {
-            for (const [id, node] of Object.entries(manifest.nodes || {})) {
-                const el = document.getElementById(id);
-                if (!el || !node.events) continue;
-
-                for (const [eventName, ops] of Object.entries(node.events)) {
-                    el.addEventListener(eventName, async (e) => {
-                        await nhtmlDispatch(eventName, ops, id);
-                    });
-                }
-            }
+        function setupGlobalListeners() {
+            const root = document.getElementById('root');
+            
+            // Délégation d'événements unique pour tout le document
+            const events = ['click', 'input', 'change'];
+            events.forEach(et => {
+                root.addEventListener(et, async (e) => {
+                    const target = e.target.closest('[id]');
+                    if (!target) return;
+                    
+                    // On retrouve l'ID original (sans les suffixes de boucle _0, _1...)
+                    const originalId = target.id.split('_').slice(0, 2).join('_');
+                    const node = window.nhtmlManifest.nodes[originalId];
+                    
+                    if (node && node.events && node.events[et]) {
+                        await nhtmlDispatch(et, node.events[et], target.id);
+                    }
+                }, true);
+            });
         }
 
         async function run() {
@@ -165,7 +183,7 @@ function Counter() {
                     }
                     window.nhtmlManifest = result.manifest;
 
-                    setupInteractivity(result.manifest);
+                    setupGlobalListeners();
                 });
                 document.getElementById('btn-compile').click();
             } catch (e) {

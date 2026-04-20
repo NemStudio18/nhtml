@@ -113,12 +113,49 @@ pub mod wasm {
                     let val = rt.eval(expr, None);
                     updates.insert(id.clone(), val.as_str().map(|s| s.to_string()).unwrap_or(val.to_string()));
                 },
+                ast::Node::Html { expr } => {
+                    let val = rt.eval(expr, None);
+                    updates.insert(id.clone(), val.as_str().map(|s| s.to_string()).unwrap_or(val.to_string()));
+                },
                 ast::Node::If { condition, group, .. } => {
                     let visible = rt.eval(condition, None).as_bool().unwrap_or(false);
-                    updates.insert(id.clone(), serde_json::json!({ "visible": visible, "group": group }).to_string());
+                    updates.insert(id.clone(), serde_json::json!({ "type": "if", "visible": visible, "group": group }).to_string());
                 },
-                // Note: Each est plus complexe, sera géré par un re-rendu partiel dans une V2
-                _ => {}
+                ast::Node::Attrs { bindings, .. } => {
+                    if let Some(binds) = bindings {
+                        let mut resolved = HashMap::new();
+                        for (attr, expr) in binds {
+                            // On retire les {} de l'expression d'attribut si présents
+                            let expr = expr.trim_matches(|c| c == '{' || c == '}');
+                            let val = rt.eval(expr, None);
+                            resolved.insert(attr.clone(), val.as_str().map(|s| s.to_string()).unwrap_or(val.to_string()));
+                        }
+                        updates.insert(id.clone(), serde_json::json!({ "type": "attrs", "values": resolved }).to_string());
+                    }
+                },
+                ast::Node::Each { source, item, template, index, .. } => {
+                    // Re-rendu de la boucle entière (simple pour la V1)
+                    let list_val = rt.eval(source, None);
+                    if let Some(list) = list_val.as_array() {
+                        let mut rendered = String::new();
+                        for (idx, val) in list.iter().enumerate() {
+                            let mut local = HashMap::new();
+                            local.insert(item.clone(), val.clone());
+                            if let Some(idx_var) = index { local.insert(idx_var.clone(), serde_json::Value::Number(idx.into())); }
+                            
+                            let mut sub_parser = parser::NhtmlParser::new();
+                            sub_parser.sync_runtime(); // Sync vars
+                            sub_parser.runtime = Some(runtime::Runtime::new(rt.state.clone()));
+                            // Simule un décalage d'ID pour la stabilité
+                            sub_parser.ctx.next_id = 1000 + (idx * 100); 
+                            
+                            // On utilise une version de rendu interne
+                            let item_html = sub_parser.parse_document_internal(template, Some(&local));
+                            rendered.push_str(&item_html);
+                        }
+                        updates.insert(id.clone(), rendered);
+                    }
+                }
             }
         }
 

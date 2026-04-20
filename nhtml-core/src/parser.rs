@@ -370,7 +370,7 @@ impl NhtmlParser {
         final_html
     }
 
-    fn parse_document_internal(&mut self, input: &str, local_context: Option<&HashMap<String, Value>>) -> String {
+    pub fn parse_document_internal(&mut self, input: &str, local_context: Option<&HashMap<String, Value>>) -> String {
         let mut result = String::new();
         let mut current = input;
         while !current.is_empty() {

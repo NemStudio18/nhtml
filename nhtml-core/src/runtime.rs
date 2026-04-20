@@ -36,7 +36,7 @@ impl Runtime {
             return Value::String(expr[1..expr.len()-1].to_string());
         }
 
-        // 4. Opérations logiques/comparaison simples (priorité basse pour l'instant)
+        // 4. Opérations logiques/comparaison simples
         if let Some(idx) = expr.find("==") {
             let lhs = self.eval(expr[..idx].trim(), local_context);
             let rhs = self.eval(expr[idx+2..].trim(), local_context);
@@ -45,20 +45,49 @@ impl Runtime {
         if let Some(idx) = expr.find('>') {
             let lhs = self.eval(expr[..idx].trim(), local_context);
             let rhs = self.eval(expr[idx+1..].trim(), local_context);
-            if let (Some(l), Some(r)) = (lhs.as_f64(), rhs.as_f64()) {
+            if let (Some(l), Some(r)) = (self.as_f64(&lhs), self.as_f64(&rhs)) {
                 return Value::Bool(l > r);
             }
         }
         if let Some(idx) = expr.find('<') {
             let lhs = self.eval(expr[..idx].trim(), local_context);
             let rhs = self.eval(expr[idx+1..].trim(), local_context);
-            if let (Some(l), Some(r)) = (lhs.as_f64(), rhs.as_f64()) {
+            if let (Some(l), Some(r)) = (self.as_f64(&lhs), self.as_f64(&rhs)) {
                 return Value::Bool(l < r);
+            }
+        }
+
+        // 4.5 Opérations arithmétiques basiques (basique : une seule opération à la fois pour la POC)
+        if let Some(idx) = expr.find('+') {
+            let lhs = self.eval(expr[..idx].trim(), local_context);
+            let rhs = self.eval(expr[idx+1..].trim(), local_context);
+            if let (Some(l), Some(r)) = (self.as_f64(&lhs), self.as_f64(&rhs)) {
+                return Value::Number(serde_json::Number::from_f64(l + r).unwrap());
+            }
+            // Concaténation de chaînes
+            if let (Some(l), Some(r)) = (lhs.as_str(), rhs.as_str()) {
+                return Value::String(format!("{}{}", l, r));
+            }
+        }
+        if let Some(idx) = expr.find('-') {
+            let lhs = self.eval(expr[..idx].trim(), local_context);
+            let rhs = self.eval(expr[idx+1..].trim(), local_context);
+            if let (Some(l), Some(r)) = (self.as_f64(&lhs), self.as_f64(&rhs)) {
+                return Value::Number(serde_json::Number::from_f64(l - r).unwrap());
             }
         }
 
         // 5. Résolution de variable (Locale puis Globale)
         self.resolve_variable(expr, local_context)
+    }
+
+    /// Utilitaire pour forcer l'extraction d'un nombre (gère les chaînes numériques)
+    fn as_f64(&self, v: &Value) -> Option<f64> {
+        if let Some(f) = v.as_f64() { return Some(f); }
+        if let Some(s) = v.as_str() {
+            if let Ok(f) = s.parse::<f64>() { return Some(f); }
+        }
+        None
     }
 
     /// Applique une opération à l'état
@@ -72,7 +101,7 @@ impl Runtime {
                 let current_val = self.state.get(target).cloned().unwrap_or(Value::Number(0.into()));
                 let inc_val = self.eval(value, None);
                 
-                if let (Some(c), Some(i)) = (current_val.as_f64(), inc_val.as_f64()) {
+                if let (Some(c), Some(i)) = (self.as_f64(&current_val), self.as_f64(&inc_val)) {
                     self.state.insert(target.clone(), Value::Number(serde_json::Number::from_f64(c + i).unwrap()));
                 }
             },
@@ -119,5 +148,41 @@ impl Runtime {
         } else {
             Value::Null
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+
+    #[test]
+    fn test_eval_simple() {
+        let rt = Runtime::new(HashMap::new());
+        assert_eq!(rt.eval("123", None), json!(123));
+        assert_eq!(rt.eval("true", None), json!(true));
+        assert_eq!(rt.eval("'hello'", None), json!("hello"));
+    }
+
+    #[test]
+    fn test_eval_vars() {
+        let mut state = HashMap::new();
+        state.insert("counter".to_string(), json!(10));
+        state.insert("user".to_string(), json!({"name": "Naim"}));
+        let rt = Runtime::new(state);
+
+        assert_eq!(rt.eval("counter", None), json!(10));
+        assert_eq!(rt.eval("user.name", None), json!("Naim"));
+        assert_eq!(rt.eval("counter + 5", None), json!(15.0));
+    }
+
+    #[test]
+    fn test_eval_conditions() {
+        let mut state = HashMap::new();
+        state.insert("counter".to_string(), json!(15));
+        let rt = Runtime::new(state);
+
+        assert_eq!(rt.eval("counter > 10", None), json!(true));
+        assert_eq!(rt.eval("counter == 15", None), json!(true));
     }
 }
