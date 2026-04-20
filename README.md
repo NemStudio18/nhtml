@@ -105,7 +105,7 @@ Use it with:
 * ⚡ **Rust-powered engine** → ultra fast compilation
 * 🧱 **HTML-first syntax** → no new mental model
 * 🌍 **Multi-runtime** → server + browser
-* 🪶 **Ultra-light hydration** → <2KB JS
+* ✨ **Ultra-light hydration** → <2KB JS
 * 🔌 **Framework-agnostic** → works alongside anything
 
 ---
@@ -186,7 +186,7 @@ Le web moderne est devenu inutilement complexe :
 
 * ⚡ Moteur Rust ultra rapide
 * 🌍 Multi-runtime (PHP, WASM…)
-* 🪶 Runtime JS < 2Ko
+* ✨ Runtime JS < 2Ko
 * 🔌 Compatible avec vos projets existants
 
 ---
