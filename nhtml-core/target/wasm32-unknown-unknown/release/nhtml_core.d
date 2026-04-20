@@ -1,1 +1,0 @@
-C:\Users\nemst\Desktop\Nhtml\nhtml-core\target\wasm32-unknown-unknown\release\nhtml_core.wasm: C:\Users\nemst\Desktop\Nhtml\nhtml-core\src\ast.rs C:\Users\nemst\Desktop\Nhtml\nhtml-core\src\lib.rs C:\Users\nemst\Desktop\Nhtml\nhtml-core\src\parser.rs
