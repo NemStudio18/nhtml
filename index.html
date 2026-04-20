@@ -100,7 +100,7 @@ function Counter() {
     </div>
 
     <script type="module">
-        import init, { compile_wasm } from 'pkg/nhtml_core.js';
+        import init, { compile_wasm } from './pkg/nhtml_core.js';
 
         function hydrateDOM(html, manifest) {
             const root = document.getElementById('root');
@@ -169,9 +169,34 @@ function Counter() {
                 }
             }
             window._nhtmlHydrate();
+        // Hydration logic continues...
         }
 
-        window.loadExample = function() {
+        async function run() {
+            try {
+                await init(); 
+                document.getElementById('btn-compile').addEventListener('click', () => {
+                    const source = document.getElementById('editor').value;
+                    const result_json = compile_wasm(source);
+                    const result = JSON.parse(result_json);
+                    hydrateDOM(result.html, result.manifest);
+                });
+                document.getElementById('btn-compile').click();
+            } catch (e) {
+                console.error("Nhtml Runtime Error:", e);
+                const root = document.getElementById('root');
+                if (root) root.innerHTML = `<div style="color: #ef4444; background: #450a0a; padding: 1rem; border-radius: 8px; border: 1px solid #ef4444;">
+                    <strong>⚠️ Error loading Nhtml:</strong><br>
+                    ${e.message}<br><br>
+                    Check if <code>pkg/nhtml_core_bg.wasm</code> is accessible.
+                </div>`;
+            }
+        }
+        run();
+    </script>
+
+    <script>
+        function loadExample() {
             const example = `<var items='["Apples", "Bananas", "Oranges"]'>
 <var cart_count=0>
 
@@ -191,21 +216,13 @@ function Counter() {
         <button on:click="cart_count = 0" style="background:#ef4444; font-size:0.8rem;">Clear</button>
     </div>
 </div>`;
-            document.getElementById('editor').value = example;
-            document.getElementById('btn-compile').click();
+            const editor = document.getElementById('editor');
+            if (editor) {
+                editor.value = example;
+                const btn = document.getElementById('btn-compile');
+                if (btn) btn.click();
+            }
         };
-        
-        async function run() {
-            await init(); 
-            document.getElementById('btn-compile').addEventListener('click', () => {
-                const source = document.getElementById('editor').value;
-                const result_json = compile_wasm(source);
-                const result = JSON.parse(result_json);
-                hydrateDOM(result.html, result.manifest);
-            });
-            document.getElementById('btn-compile').click();
-        }
-        run();
     </script>
 </body>
 </html>
