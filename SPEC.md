@@ -55,4 +55,62 @@ Nhtml follows a **Unidirectional Data Flow** with a **JS Bridge**:
 2.  **Runtime**: Small script (2KB) that hydrates the DOM using the Manifest.
 
 ---
+
+# 🇫🇷 Spécification Nhtml v2.0
+
+Nhtml (Native HTML) est un langage de template réactif conçu pour la performance et la portabilité.
+
+## 1. Structure du Document
+Chaque fichier Nhtml doit commencer par la balise de version :
+```html
+<!nhtml 1.0>
+```
+
+## 2. Variables & État
+Les états sont déclarés via la balise `<var>`. Ils sont réactifs et globaux au document.
+```html
+<var name="count" value="0">
+<var site_name="Mon App">
+```
+
+## 3. Expressions
+Les expressions sont entourées d'accolades et évaluées par rapport à l'état interne.
+```html
+<h1>Bienvenue sur {site_name}</h1>
+<p>Compteur actuel : {count + 1}</p>
+```
+
+## 4. Structures de Contrôle
+Nhtml utilise des balises spécifiques pour la logique plutôt que des attributs.
+
+### Conditionnelles
+```html
+<if condition="user.is_logged">
+    <p>Bonjour {user.name}</p>
+</if>
+<else>
+    <a href="/login">Connexion</a>
+</else>
+```
+
+### Boucles
+```html
+<each in="{posts}" as="p">
+    <article>{p.title}</article>
+</each>
+```
+
+## 5. Gestion des Événements
+Les événements sont préfixés par `on:`. La valeur est une liste d'OpCodes générés par le compilateur.
+```html
+<button on:click="count++">Incrémenter</button>
+<button on:change="handle_change(this.value)">Mettre à jour</button>
+```
+
+## 6. Architecture & Pont (Bridge)
+Nhtml suit un **flux de données unidirectionnel** avec un **Pont JS** :
+1.  **Compilateur** : Génère l'HTML statique + un Manifeste JSON (AST).
+2.  **Runtime** : Un petit script (2Ko) qui hydrate le DOM via le Manifeste.
+
+---
 © 2026 NemStudio

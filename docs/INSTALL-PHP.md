@@ -35,17 +35,37 @@ echo "<script>window._nhtmlAST = " . json_encode($result['manifest']) . ";</scri
 
 ---
 
-# 🇫🇷 Guide d'Installation PHP
+# 🇫🇷 Guide d'Installation PHP (Côté Serveur)
 
 Ce guide explique comment intégrer les templates Nhtml dans une application PHP.
 
-## 1. Télécharger les fichiers
-- `nhtml_engine/NhtmlCompiler.php`
-- `nhtml.dll` ou `libnhtml_core.so`
+## Prérequis
+- PHP 7.4 ou supérieur.
+- Extension `ffi` activée (optionnel mais recommandé pour la vitesse).
+- Fonction `exec()` autorisée (pour le mode de secours).
 
-## 2. Exemple de code
+## Étape 1 : Téléchargement des Binaires
+Téléchargez la dernière version et copiez ces fichiers dans votre projet :
+- `nhtml_engine/NhtmlCompiler.php` (L'adaptateur)
+- `nhtml.dll` (Windows) ou `libnhtml_core.so` (Linux) (Le cœur du moteur)
+
+## Étape 2 : Implémentation Minimale
 ```php
+<?php
 require_once 'nhtml_engine/NhtmlCompiler.php';
-$result = Nhtml\NhtmlCompiler::compile($source);
+use Nhtml\NhtmlCompiler;
+
+// 1. Lire la source
+$source = file_get_contents('views/home.nhtml');
+
+// 2. Compiler (Bascule automatique entre FFI et CLI)
+$result = NhtmlCompiler::compile($source);
+
+// 3. Affichage
 echo $result['html'];
+echo "<script>window._nhtmlAST = " . json_encode($result['manifest']) . ";</script>";
 ```
+
+## Dépannage
+- **Erreur : FFI introuvable** : Installez l'extension FFI ou assurez-vous que le binaire est dans le bon chemin pour la bascule CLI.
+- **Permission Refusée** : Assurez-vous que le serveur web a les droits d'exécution sur le binaire `nhtml`.

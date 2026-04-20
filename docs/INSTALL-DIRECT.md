@@ -31,16 +31,29 @@ location ~ \.nhtml$ {
 
 # 🇫🇷 Installation Directe (Serveur)
 
-Exécutez Nhtml directement depuis votre serveur web sans PHP ni Node.js.
+Exécutez Nhtml directement depuis votre serveur web sans PHP ni Node.js. Ce mode est le plus performant pour servir des fichiers de type statique avec des fonctionnalités dynamiques.
 
-## 1. Installation du Binaire
-Placez le binaire `nhtml` dans un dossier sécurisé de votre serveur.
+## Étape 1 : Installation du Binaire
+Téléchargez le binaire Nhtml pour votre système et placez-le dans un endroit sécurisé (ex: `/usr/local/bin/nhtml` ou `C:\nhtml\nhtml.exe`).
 
-## 2. Configuration Apache
+## Étape 2 : Configuration Apache (.htaccess)
+Configuration CGI standard pour lier les fichiers `.nhtml` au compilateur.
+
 ```apache
+# .htaccess
+Options +ExecCGI
 AddHandler nhtml-handler .nhtml
 Action nhtml-handler /cgi-bin/nhtml --cgi
 ```
 
-## 3. Configuration Nginx
-Utilisez `fcgiwrap` pour faire le pont entre Nginx et le binaire.
+## Étape 3 : Configuration Nginx
+Comme Nginx ne supporte pas le CGI nativement, utilisez `fcgiwrap`.
+
+```nginx
+location ~ \.nhtml$ {
+    include fastcgi_params;
+    fastcgi_param SCRIPT_FILENAME $document_root$fastcgi_script_name;
+    fastcgi_pass unix:/var/run/fcgiwrap.socket;
+    fastcgi_param FCGI_HANDLER /usr/local/bin/nhtml;
+}
+```

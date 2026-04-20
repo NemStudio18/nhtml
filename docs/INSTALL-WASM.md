@@ -28,19 +28,30 @@ Ensure your web server serves `.wasm` files with the correct MIME type: `applica
 
 ---
 
-# 🇫🇷 Installation Navigateur (WASM)
+# 🇫🇷 Installation Navigateur (WebAssembly)
 
-Exécutez Nhtml directement dans le navigateur du visiteur.
+Exécutez Nhtml directement dans le navigateur du visiteur. Parfait pour les PWAs, les Dashboards et les architectures sans serveur.
 
-## 1. Inclure le Bootstrapper
+## Étape 1 : Inclure le Bootstrapper
+Copiez `examples/nhtml.js` et le dossier `pkg/` dans votre répertoire statique.
+
 ```html
 <script type="module" src="nhtml.js"></script>
 ```
 
-## 2. Utilisation des fichiers .nhtml
+## Étape 2 : Utilisation des fichiers .nhtml
+Vous pouvez maintenant définir vos composants directement dans l'HTML ou lier des fichiers externes.
+
 ```html
-<script type="text/nhtml" src="app.nhtml" data-target="#app"></script>
+<!-- Fichier distant -->
+<script type="text/nhtml" src="views/app.nhtml" data-target="#main-app"></script>
+
+<!-- Composant en ligne -->
+<script type="text/nhtml" data-target="#sidebar">
+    <var name="status" value="'Active'">
+    <p>Statut du système : {status}</p>
+</script>
 ```
 
-## 3. Configuration Mime-Type
-Assurez-vous que votre serveur sert les fichiers `.wasm` avec le type `application/wasm`.
+## Étape 3 : Configuration Serveur
+Assurez-vous que votre serveur web sert les fichiers `.wasm` avec le type MIME correct : `application/wasm`.
