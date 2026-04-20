@@ -2,9 +2,15 @@
 nhtml-core/target/
 **/*.rs.bk
 
-# Wasm generated artifacts (We might want to keep pkg/ depending on release strategy, 
-# but usually we ignore it and only publish releases, or we keep it. Let's keep pkg for now so NPM users can use the repo directly).
+# Wasm generated artifacts
 # nhtml-core/pkg/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.log
+.pytest_cache/
 
 # OS generated files
 .DS_Store
@@ -22,6 +28,7 @@ desktop.ini
 *.swp
 *.swo
 
-# PHP (if applicable)
+# PHP
 /vendor/
 composer.phar
+*.log
