@@ -53,10 +53,6 @@ pub fn parse_attribute(input: &str) -> IResult<&str, (String, String)> {
 /// Analyse un texte jusqu'à la prochaine expression ou balise
 pub fn parse_static_text(input: &str) -> IResult<&str, String> {
     let (input, content) = take_while(|c: char| c != '{' && c != '<')(input)?;
-    if content.is_empty() && !input.is_empty() {
-        // Si on est bloqué sur un car spéc, on vérifie si c'est une expr
-        return Err(nom::Err::Error(nom::error::Error::new(input, nom::error::ErrorKind::Tag)));
-    }
     Ok((input, content.to_string()))
 }
 
@@ -130,33 +126,70 @@ impl NhtmlParser {
         Self { ctx: ParserContext::new() }
     }
 
-    /// Analyse un bloc de contenu jusqu'à une balise de fermeture spécifique
-    pub fn parse_content_until<'a>(&mut self, input: &'a str, closing_tag: &str) -> IResult<&'a str, String> {
+    /// Analyse un bloc de contenu jusqu'à une balise de fermeture spécifique, gérant l'imbrication
+    pub fn parse_content_until<'a>(&mut self, input: &'a str, tag_name: &str) -> IResult<&'a str, String> {
         let mut result = String::new();
         let mut current = input;
-        let close_pattern = format!("</{}>", closing_tag);
+        let open_pattern = format!("<{}", tag_name);
+        let close_pattern = format!("</{}>", tag_name);
+        let mut depth = 1;
 
-        while !current.is_empty() && !current.starts_with(&close_pattern) {
-            let (next_input, captured) = parse_static_text(current)?;
-            result.push_str(&captured);
-            current = next_input;
+        while !current.is_empty() {
+            // Est-ce qu'on rencontre une ouverture imbriquée ?
+            if current.starts_with(&open_pattern) {
+                let followed_by = current[open_pattern.len()..].chars().next();
+                if followed_by.is_none() || followed_by.unwrap().is_whitespace() || followed_by.unwrap() == '>' {
+                    depth += 1;
+                    result.push('<');
+                    current = &current[1..];
+                    continue;
+                }
+            }
             
+            // Est-ce qu'on rencontre LA fermeture ?
+            if current.starts_with(&close_pattern) {
+                depth -= 1;
+                if depth == 0 {
+                    let (rem, _) = tag(close_pattern.as_str())(current)?;
+                    return Ok((rem, result));
+                } else {
+                    // C'est une fermeture imbriquée, on la traite comme du texte et on avance
+                    result.push('<');
+                    current = &current[1..];
+                    continue;
+                }
+            }
+
+            // Expressions {expr}
             if current.starts_with('{') {
                  if let Ok((rem, expr)) = parse_expression(current) {
                      let id = self.ctx.gen_id();
                      self.ctx.manifest.nodes.insert(id.clone(), Node::Text { expr });
                      result.push_str(&format!("<span id=\"{}\"></span>", id));
                      current = rem;
+                     continue;
                  }
-            } else if !current.is_empty() && !current.starts_with(&close_pattern) {
-                let mut chars = current.chars();
-                result.push(chars.next().unwrap());
-                current = chars.as_str();
+            }
+
+            // Sinon on avance
+            if let Ok((rem, captured)) = parse_static_text(current) {
+                if !captured.is_empty() {
+                    result.push_str(&captured);
+                    current = rem;
+                } else if !current.is_empty() {
+                    // Si vide (on est sur un '<'), on avance d'un char
+                    let mut chars = current.chars();
+                    result.push(chars.next().unwrap());
+                    current = chars.as_str();
+                } else {
+                    break;
+                }
+            } else {
+                break;
             }
         }
         
-        let (current, _) = tag(close_pattern.as_str())(current)?;
-        Ok((current, result))
+        Err(nom::Err::Error(nom::error::Error::new(current, nom::error::ErrorKind::Tag)))
     }
 
     pub fn parse_document(&mut self, input: &str) -> String {
@@ -223,6 +256,35 @@ impl NhtmlParser {
                     let id = self.ctx.gen_id();
                     let group = format!("{}_group", id);
                     self.ctx.manifest.nodes.insert(id.clone(), Node::If { condition, group, role: "if".to_string() });
+                    final_html.push_str(&format!("<div id=\"{}\">{}</div>", id, content));
+                    current_input = rem_after; 
+                    continue;
+                }
+            }
+
+            // 2.1. Balise <elif>
+            if current_input.starts_with("<elif") {
+                if let Ok((rem, attrs)) = parse_control_tag_open(current_input, "elif") {
+                    let condition = attrs.get("condition").cloned().unwrap_or_default();
+                    let (rem_after, content) = self.parse_content_until(rem, "elif").expect("Failed to parse elif body");
+                    
+                    let id = self.ctx.gen_id();
+                    // On partage le même groupe que le dernier if/elif (stratégie simplifiée)
+                    let group = format!("{}_group", id); 
+                    self.ctx.manifest.nodes.insert(id.clone(), Node::If { condition, group, role: "elif".to_string() });
+                    final_html.push_str(&format!("<div id=\"{}\">{}</div>", id, content));
+                    current_input = rem_after; 
+                    continue;
+                }
+            }
+
+            // 2.2. Balise <else>
+            if current_input.starts_with("<else") {
+                if let Ok((rem, _)) = parse_control_tag_open(current_input, "else") {
+                    let (rem_after, content) = self.parse_content_until(rem, "else").expect("Failed to parse else body");
+                    let id = self.ctx.gen_id();
+                    let group = format!("{}_group", id);
+                    self.ctx.manifest.nodes.insert(id.clone(), Node::If { condition: "true".to_string(), group, role: "else".to_string() });
                     final_html.push_str(&format!("<div id=\"{}\">{}</div>", id, content));
                     current_input = rem_after; 
                     continue;
@@ -349,8 +411,16 @@ impl NhtmlParser {
 
             // 6. Texte Statique
             if let Ok((rem, text)) = parse_static_text(current_input) {
-                final_html.push_str(&text);
-                current_input = rem;
+                if !text.is_empty() {
+                    final_html.push_str(&text);
+                    current_input = rem;
+                } else if !current_input.is_empty() {
+                    let mut chars = current_input.chars();
+                    final_html.push(chars.next().unwrap());
+                    current_input = chars.as_str();
+                } else {
+                    break;
+                }
             } else if !current_input.is_empty() {
                 let mut chars = current_input.chars();
                 final_html.push(chars.next().unwrap());

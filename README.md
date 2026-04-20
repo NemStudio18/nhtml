@@ -1,61 +1,51 @@
-# 🚀 NCMS — Nhtml Managed System
+# ⚛️ Nhtml
 
-![NCMS Logo](https://via.placeholder.com/150)
+**Nhtml est HTML avec la réactivité intégrée — sans framework, sans build tool, sans Node.js.**
 
-**NCMS** est un système de gestion de contenu (CMS) ultra-léger, moderne et réactif. Il utilise le moteur de template **Nhtml** pour offrir une expérience utilisateur fluide type Single Page Application (SPA) tout en restant basé sur un backend standard PHP/SQLite.
+Nhtml (Native HTML) est un langage de template compilé par un moteur Rust ultra-rapide, conçu pour apporter de l'interactivité moderne à vos applications Web sans la complexité des écosystèmes JavaScript actuels.
 
----
+```html
+<!-- Votre composant .nhtml -->
+<var count=0>
 
-## ✨ Fonctionnalités
+<div class="card">
+    <h2>Compteur : {count}</h2>
+    
+    <button on:click="count++">Incrémenter</button>
+    <button on:click="count--">Décrémenter</button>
+    
+    <if condition="count > 10">
+        <p>🔥 Score impressionnant !</p>
+    </if>
+</div>
+```
 
-- **Moteur Nhtml v2.0** : Architecture "Headless" ultra-performante.
-- **Réativité Native** : Pilotage du DOM via un Manifeste JSON (AST) et un Micro-Runtime de 3KB.
-## 🚀 État du Projet
-- **V2 Prototype (Python)** : 100% Stable. Headless, Deep Binding, Persistance.
-- **V2 Core (Rust)** : **OPÉRATIONNEL**. Parser combinatoire haute performance.
-- **Suite de Tests** : `kitchen_sink.nhtml` validée.
-- **Dashboard Admin** : Une interface d'administration complète pour gérer vos articles.
-- **Éditeur Pell Local** : Éditeur WYSIWYG intégré localement pour une stabilité maximale.
-- **Backend PHP & SQLite** : Rapide, portable et sans configuration complexe.
-- **SEO Ready** : Les métadonnées et titres sont gérés dynamiquement de manière propre.
+## Pourquoi Nhtml ?
 
----
+*   🚀 **Performance Native** : Le noyau est écrit en Rust. Compilation instantanée via FFI.
+*   🌍 **Zéro Dépendance** : Pas de `npm install`, pas de `node_modules`, pas de Webpack.
+*   💎 **Multi-Cibles** : Fonctionne sur Serveur (PHP/C/Rust) et sur Client (WebAssembly).
+*   ⛓️ **Réactivité Durable** : Un runtime JS de moins de 2 Ko pour hydrater le DOM.
 
-## 🛠️ Installation
+## Installation Rapide
 
-### Prérequis
-- **PHP 8.x** avec extension SQLite3.
-- **Python 3.x** (pour le compilateur Nhtml).
-- **Wasm Runtime** (Optionnel, intégré via Micro-Runtime JS par défaut).
+Consultez le guide complet [INSTALL.md](./INSTALL.md).
 
-### Déploiement rapide
-1. Clonez le dépôt.
-2. Initialisez la base de données :
-   ```bash
-   php NCMS/init_db.php
-   ```
-3. Générez les caches Nhtml :
-   ```bash
-   python nhtml.py NCMS/templates/admin.nhtml NCMS/public/cache/admin.html
-   ```
-4. Configurez votre serveur web pour pointer vers `NCMS/public/`.
+### PHP (Serveur)
+```php
+$result = NhtmlCompiler::compile($source);
+echo $result['html'];
+```
 
----
+### WebAssembly (Navigateur)
+```javascript
+import init, { compile_wasm } from './pkg/nhtml_core.js';
+await init();
+const res = compile_wasm(source);
+```
 
-## 📁 Structure du Projet
-
-- `/NCMS/src` : Code source PHP (Controllers, Core, Models).
-- `/NCMS/templates` : Fichiers `.nhtml` (structure réactive).
-- `/NCMS/public/cache` : Sortie HTML/JS générée par le moteur Nhtml.
-- `/NCMS/public/libs` : Bibliothèques locales (Pell).
-- `nhtml.py` : Le moteur de transpilation Nhtml.
+## Spécifications
+Le langage suit la spécification [SPEC.md](./SPEC.md) (v2.0).
 
 ---
-
-## 📜 Spécifications Nhtml
-Le projet NCMS migre vers la spécification **Nhtml v2.0 (Headless)**. Consultez le fichier `NHTML-Specification-v2.0.md` pour plus de détails sur le format du manifeste.
-
----
-
-## 🛡️ Licence
-Ce projet est sous licence MIT. Nhtml est un projet Open Source.
+© 2026 NemStudio — Propulsé par la simplicité.
