@@ -1,6 +1,10 @@
 # ⚛️ Nhtml
 
 <p align="center">
+  <img src="assets/logo.png" width="250" alt="Nhtml Logo">
+</p>
+
+<p align="center">
   <img src="https://img.shields.io/badge/Language-Rust-orange?style=flat-square&logo=rust" alt="Rust">
   <img src="https://img.shields.io/badge/Language-PHP-777bb4?style=flat-square&logo=php" alt="PHP">
   <img src="https://img.shields.io/badge/Language-JavaScript-F7DF1E?style=flat-square&logo=javascript&logoColor=black" alt="JS">
