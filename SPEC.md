@@ -54,6 +54,15 @@ Nhtml follows a **Unidirectional Data Flow** with a **JS Bridge**:
 1.  **Compiler**: Generates static HTML + a JSON Manifest (AST).
 2.  **Runtime**: Small script (2KB) that hydrates the DOM using the Manifest.
 
+## 7. Security & Roadmap (Sandbox)
+> [!WARNING]
+> Current version (v2.0) uses `new Function()` for expression evaluation in the JS Bridge. This is suitable for trusted environments but requires caution against XSS if user-input is directly injected into templates without sanitization.
+
+**Roadmap**:
+-   Full expression parser in Rust (Nhtml-Core).
+-   Logic pre-calculation on server-side.
+-   Secure JS Sandbox for client-side evaluation without `eval()` or `new Function()`.
+
 ---
 
 # 🇫🇷 Spécification Nhtml v2.0

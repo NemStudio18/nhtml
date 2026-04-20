@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Nhtml - Build interactive UI with HTML only</title>
+    <style>
+        body { font-family: 'Inter', system-ui, -apple-system, sans-serif; background: #0f172a; color: #f1f5f9; padding: 1rem; line-height: 1.5; }
+        .container { max-width: 1200px; margin: 0 auto; }
+        .card { background: #1e293b; padding: 1.5rem; border-radius: 12px; box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1); margin-bottom: 2rem; border: 1px solid #334155; }
+        .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 2rem; }
+        textarea { width: 100%; height: 350px; background: #020617; color: #38bdf8; border: 1px solid #334155; padding: 1rem; border-radius: 8px; font-family: 'Fira Code', monospace; font-size: 0.9rem; resize: vertical; }
+        #root { border: 2px dashed #475569; padding: 1.5rem; min-height: 350px; border-radius: 8px; background: #0f172a; }
+        button { background: #3b82f6; color: white; border: none; padding: 0.7rem 1.2rem; border-radius: 6px; cursor: pointer; font-weight: 600; transition: all 0.2s; }
+        button:hover { background: #2563eb; transform: translateY(-1px); }
+        h1, h2, h3 { color: #fff; }
+        pre { margin: 0; }
+        .badge { display: inline-block; padding: 0.25rem 0.75rem; border-radius: 9999px; font-size: 0.875rem; font-weight: 700; text-transform: uppercase; }
+
+        @media (max-width: 900px) {
+            .grid { grid-template-columns: 1fr; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header class="card" style="text-align: center; border-bottom: 4px solid #3b82f6; padding: 3rem 1rem;">
+            <p align="center">
+                <img src="assets/logo.png" width="180" alt="Nhtml Logo" style="margin-bottom: 1rem;">
+            </p>
+            <h1 style="font-size: 2.8rem; margin: 0; letter-spacing: -0.025em;">⚛️ Build interactive UI with HTML only</h1>
+            <p style="font-size: 1.4rem; color: #94a3b8; margin-top: 0.5rem; font-weight: 400;">No framework. No build step. No JavaScript.</p>
+            <div style="margin-top: 1.5rem;">
+                <span class="badge" style="background: #0ea5e9; color: #fff;">⚡ Runtime: &lt; 2KB JS</span>
+                <span class="badge" style="background: #10b981; color: #fff; margin-left: 0.5rem;">🚀 Rust Powered</span>
+            </div>
+            
+            <div style="margin-top: 2.5rem;">
+                <button onclick="loadExample()" style="background: #10b981; font-size: 1.1rem; padding: 1rem 2rem; box-shadow: 0 4px 14px 0 rgba(16, 185, 129, 0.39);">⚡ Load Interactive Demo</button>
+                <a href="https://github.com/NemStudio18/nhtml" style="color: #94a3b8; margin-left: 1.5rem; text-decoration: none; font-weight: 500;">View on GitHub →</a>
+            </div>
+        </header>
+
+        <section class="grid">
+            <div class="card">
+                <h3 style="margin-top: 0; display: flex; align-items: center; justify-content: space-between;">
+                    Source Nhtml
+                    <span style="font-size: 0.8rem; color: #64748b; font-weight: 400;">Editable</span>
+                </h3>
+                <textarea id="editor" spellcheck="false">
+<var counter=0>
+<var user='{"name": "Developer", "role": "Explorer"}'>
+
+<div class="demo">
+    <h2>Welcome, {user.name}!</h2>
+    
+    <p>You are an <u>{user.role}</u></p>
+
+    <div style="margin-top: 1.5rem; display: flex; gap: 10px;">
+        <button on:click="counter++">Incrémenter ({counter})</button>
+        <button on:click="counter = 0" style="background: #475569;">Reset</button>
+    </div>
+
+    <if condition="counter > 10">
+        <p style="color: #10b981; font-weight: bold; margin-top: 1rem;">🎯 Keep going! You've reached {counter}!</p>
+    </if>
+</div>
+                </textarea>
+                <button id="btn-compile" style="margin-top: 1rem; width: 100%; font-size: 1.1rem;">Compile & Mount 🔥</button>
+            </div>
+
+            <div class="card">
+                <h3 style="margin-top: 0;">Live Preview</h3>
+                <div id="root"></div>
+
+                <div style="margin-top: 2.5rem; background: #020617; padding: 1.5rem; border-radius: 8px; border: 1px solid #334155;">
+                    <h3 style="color: #64748b; font-size: 0.85rem; margin-top: 0; text-transform: uppercase; letter-spacing: 0.05em;">⚔️ Equivalent React code</h3>
+                    <pre style="color: #38bdf8; font-size: 0.85rem; overflow-x: auto; padding: 0.5rem 0;">
+function Counter() {
+  const [count, setCount] = useState(0);
+  return (
+    &lt;div&gt;
+      &lt;h2&gt;{count}&lt;/h2&gt;
+      &lt;button onClick={() =&gt; setCount(count + 1)}&gt;+&lt;/button&gt;
+      &lt;button onClick={() =&gt; setCount(0)}&gt;Reset&lt;/button&gt;
+    &lt;/div&gt;
+  );
+}
+                    </pre>
+                    <p style="font-size: 0.75rem; color: #475569; margin: 0.5rem 0 0 0; border-top: 1px solid #1e293b; padding-top: 0.5rem;">
+                        Requires: Node.js, Webpack, Babel, 40KB+ bundle.
+                    </p>
+                </div>
+            </div>
+        </section>
+
+        <footer style="text-align: center; color: #64748b; padding: 2rem 0;">
+            <p>© 2026 NemStudio — Built for simplicity. <a href="./docs/INSTALL-WASM.md" style="color: #3b82f6;">Documentation</a></p>
+        </footer>
+    </div>
+
+    <script type="module">
+        import init, { compile_wasm } from './nhtml-core/pkg/nhtml_core.js';
+
+        function hydrateDOM(html, manifest) {
+            const root = document.getElementById('root');
+            root.innerHTML = html; 
+
+            window._nhtmlState = {};
+            window._nhtmlAST = manifest;
+
+            for (const [key, config] of Object.entries(manifest.state_vars || {})) {
+                window._nhtmlState[key] = config.initial_value;
+            }
+
+            window._nhtmlEval = function(expr, localContext = {}) {
+                try {
+                    const scope = { ...window._nhtmlState, ...localContext };
+                    const fn = new Function(...Object.keys(scope), `return ${expr}`);
+                    return fn(...Object.values(scope));
+                } catch(e) { return ""; }
+            };
+
+            window._nhtmlHydrate = function() {
+                for (const [id, node] of Object.entries(manifest.nodes || {})) {
+                    const el = document.getElementById(id);
+                    if (!el) continue;
+
+                    if (node.type === "text") el.textContent = window._nhtmlEval(node.expr);
+                    else if (node.type === "html") el.innerHTML = window._nhtmlEval(node.expr);
+                    else if (node.type === "if") el.style.display = window._nhtmlEval(node.condition) ? '' : 'none';
+                    else if (node.type === "attrs" && node.bindings) {
+                        for (const [attr, val] of Object.entries(node.bindings)) {
+                            let fVal = val.replace(/\{(.*?)\}/g, (_, e) => window._nhtmlEval(e));
+                            if (attr === 'value') el.value = fVal;
+                            else el.setAttribute(attr, fVal);
+                        }
+                    }
+                }
+            };
+
+            window.nhtml = new Proxy(window._nhtmlState, {
+                set(t, p, v) { t[p] = v; window._nhtmlHydrate(); return true; },
+                get(t, p) { return t[p]; }
+            });
+
+            for (const [id, node] of Object.entries(manifest.nodes || {})) {
+                const el = document.getElementById(id);
+                if (!el || !node.events) continue;
+                for (const [eventName, ops] of Object.entries(node.events)) {
+                    el.addEventListener(eventName, (e) => {
+                        for (const op of ops) {
+                            if (op.op === 'increment') window.nhtml[op.target] += Number(op.value);
+                            else if (op.op === 'set') {
+                                let v = op.value;
+                                if (v === "this.value") v = e.target.value;
+                                else if (typeof v === "string" && isNaN(v)) v = window._nhtmlEval(v);
+                                
+                                if (op.target.includes('.')) {
+                                    const parts = op.target.split('.');
+                                    let current = window.nhtml;
+                                    for (let i = 0; i < parts.length - 1; i++) current = current[parts[i]];
+                                    current[parts[parts.length - 1]] = v;
+                                } else window.nhtml[op.target] = v;
+                            }
+                            else if (op.op === 'eval') window._nhtmlEval(op.expr, { $event: e });
+                        }
+                    });
+                }
+            }
+            window._nhtmlHydrate();
+        }
+
+        window.loadExample = function() {
+            const example = `<var items='["Apples", "Bananas", "Oranges"]'>
+<var cart_count=0>
+
+<div class="shop">
+    <h3>Nhtml Shop 🛒</h3>
+    <p>Available items: {items.length}</p>
+    
+    <each in="{items}" as="item">
+        <div style="background: #020617; padding: 12px; margin: 8px 0; border-radius: 6px; display:flex; justify-content:space-between; align-items:center;">
+            <span>{item}</span>
+            <button on:click="cart_count++" style="padding: 0.3rem 0.8rem; background:#10b981;">Add</button>
+        </div>
+    </each>
+
+    <div style="margin-top: 20px; border-top: 1px solid #334155; padding-top: 15px; display:flex; justify-content:space-between; align-items:center;">
+        <strong>Cart: {cart_count} items</strong>
+        <button on:click="cart_count = 0" style="background:#ef4444; font-size:0.8rem;">Clear</button>
+    </div>
+</div>`;
+            document.getElementById('editor').value = example;
+            document.getElementById('btn-compile').click();
+        };
+        
+        async function run() {
+            await init(); 
+            document.getElementById('btn-compile').addEventListener('click', () => {
+                const source = document.getElementById('editor').value;
+                const result_json = compile_wasm(source);
+                const result = JSON.parse(result_json);
+                hydrateDOM(result.html, result.manifest);
+            });
+            document.getElementById('btn-compile').click();
+        }
+        run();
+    </script>
+</body>
+</html>
