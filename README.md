@@ -10,7 +10,10 @@
 
 - **Moteur Nhtml v2.0** : Architecture "Headless" ultra-performante.
 - **Réativité Native** : Pilotage du DOM via un Manifeste JSON (AST) et un Micro-Runtime de 3KB.
-- **Futur Native** : Préparation au portage WebAssembly (Rust/Wasm) et Natif (.so).
+## 🚀 État du Projet
+- **V2 Prototype (Python)** : 100% Stable. Headless, Deep Binding, Persistance.
+- **V2 Core (Rust)** : **OPÉRATIONNEL**. Parser combinatoire haute performance.
+- **Suite de Tests** : `kitchen_sink.nhtml` validée.
 - **Dashboard Admin** : Une interface d'administration complète pour gérer vos articles.
 - **Éditeur Pell Local** : Éditeur WYSIWYG intégré localement pour une stabilité maximale.
 - **Backend PHP & SQLite** : Rapide, portable et sans configuration complexe.

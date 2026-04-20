@@ -1,0 +1,115 @@
+﻿{
+  "state_vars": {
+    "test_name": {
+      "initial_value": "Kitchen Sink Premium V2",
+      "persist": false
+    },
+    "counter": {
+      "initial_value": 0,
+      "persist": true
+    },
+    "complex_var": {
+      "initial_value": {
+        "items": [
+          {
+            "label": "<Danger>"
+          },
+          {
+            "label": "Safer"
+          }
+        ],
+        "active": true,
+        "regex": "/[a-z]+/g"
+      },
+      "persist": false
+    }
+  },
+  "nodes": {
+    "n_1": {
+      "type": "attrs",
+      "events": {
+        "click": [
+          {
+            "op": "increment",
+            "target": "counter",
+            "value": 1
+          }
+        ]
+      }
+    },
+    "n_2": {
+      "type": "attrs",
+      "bindings": {
+        "value": "{test_name}"
+      },
+      "events": {
+        "input": [
+          {
+            "op": "set",
+            "target": "test_name",
+            "value": "this.value"
+          }
+        ]
+      }
+    },
+    "n_3": {
+      "type": "attrs",
+      "bindings": {
+        "value": "{complex_var.regex}"
+      },
+      "events": {
+        "input": [
+          {
+            "op": "set",
+            "target": "complex_var.regex",
+            "value": "this.value"
+          }
+        ]
+      }
+    },
+    "n_4": {
+      "type": "attrs",
+      "events": {
+        "click": [
+          {
+            "op": "set",
+            "target": "test_name",
+            "value": "'L\\'\u00e9chappement de l\\'enfer works !'"
+          }
+        ]
+      }
+    },
+    "n_5": {
+      "type": "text",
+      "expr": "test_name"
+    },
+    "n_6": {
+      "type": "text",
+      "expr": "complex_var.active ? (counter > 0 ? \"Actif & Positif\" : \"Actif & Nul\") : \"Inactif\""
+    },
+    "n_7": {
+      "type": "text",
+      "expr": "counter"
+    },
+    "n_8": {
+      "type": "text",
+      "expr": "counter"
+    },
+    "n_9": {
+      "type": "text",
+      "expr": "test_name"
+    },
+    "n_10": {
+      "type": "text",
+      "expr": "complex_var.regex"
+    },
+    "n_11": {
+      "type": "each",
+      "expr_in": "complex_var.items",
+      "expr_as": "item",
+      "expr_index": "i",
+      "expr_filter": "item.label !== '<Danger>'",
+      "template": "<div class=\"card\" style=\"margin-bottom: 0.5rem; padding: 0.75rem;\">\n                [[i + 1]]. [[item.label]]\n            </div>"
+    }
+  }
+}

@@ -1,0 +1,120 @@
+{
+  "state_vars": {
+    "counter": {
+      "initial_value": 0,
+      "persist": true
+    },
+    "test_name": {
+      "initial_value": "Kitchen Sink Premium V2",
+      "persist": false
+    },
+    "complex_var": {
+      "initial_value": "{\"items\": [{\"label\":\"<Danger>\"}, {\"label\": \"Safer\"}], \"active\": true, \"regex\": \"/[a-z]+/g\"}",
+      "persist": false,
+      "is_json_string": true
+    }
+  },
+  "nodes": {
+    "n_10": {
+      "type": "text",
+      "expr": "test_name"
+    },
+    "n_2": {
+      "type": "text",
+      "expr": " complex_var.active ? (counter > 0 ? \"Actif & Positif\" : \"Actif & Nul\") : \"Inactif\" "
+    },
+    "n_6": {
+      "type": "text",
+      "expr": "item.label"
+    },
+    "n_8": {
+      "type": "attrs",
+      "bindings": {
+        "value": "{test_name}"
+      },
+      "events": {
+        "input": [
+          {
+            "op": "set",
+            "target": "test_name",
+            "value": "this.value"
+          }
+        ]
+      }
+    },
+    "n_11": {
+      "type": "text",
+      "expr": "complex_var.regex"
+    },
+    "n_5": {
+      "type": "text",
+      "expr": "i + 1"
+    },
+    "n_13": {
+      "type": "text",
+      "expr": "title"
+    },
+    "n_4": {
+      "type": "text",
+      "expr": "counter"
+    },
+    "n_9": {
+      "type": "attrs",
+      "bindings": {
+        "value": "{complex_var.regex}"
+      },
+      "events": {
+        "input": [
+          {
+            "op": "set",
+            "target": "complex_var.regex",
+            "value": "this.value"
+          }
+        ]
+      }
+    },
+    "n_14": {
+      "type": "text",
+      "expr": "desc"
+    },
+    "n_1": {
+      "type": "text",
+      "expr": "test_name"
+    },
+    "n_12": {
+      "type": "attrs",
+      "bindings": null,
+      "events": {
+        "click": [
+          {
+            "op": "set",
+            "target": "test_name",
+            "value": "'L\\'échappement de l\\'enfer works !'"
+          }
+        ]
+      }
+    },
+    "n_7": {
+      "type": "each",
+      "expr_in": "complex_var.items",
+      "expr_as": "item",
+      "expr_index": "i",
+      "expr_filter": "item.label !== '<Danger>'",
+      "template": "\n            <div class=\"card\" style=\"margin-bottom: 0.5rem; padding: 0.75rem;\">\n                <span id=\"n_5\"></span>. <span id=\"n_6\"></span>\n            </div>\n        ",
+      "tag": "div"
+    },
+    "n_3": {
+      "type": "attrs",
+      "bindings": null,
+      "events": {
+        "click": [
+          {
+            "op": "increment",
+            "target": "counter",
+            "value": "1"
+          }
+        ]
+      }
+    }
+  }
+}

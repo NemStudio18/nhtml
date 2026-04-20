@@ -35,8 +35,8 @@ class NhtmlParser:
         pattern = re.compile(r'<empty\s+for=["\']#?([^"\']+)["\'][^>]*>(.*?)</empty>', re.DOTALL | re.IGNORECASE)
         def replace_empty(m):
             var_name, content = m.group(1), m.group(2)
-            # Transpilation en <if condition="var.length == 0">
-            return f'<if condition="{var_name}.length === 0">{content}</if>'
+            # Alignement strict sur Rust
+            return f'<if condition="!({var_name} && {var_name}.length > 0)">{content}</if>'
         return pattern.sub(replace_empty, source)
 
     # ── 1. Variables ──────────────────────────────────────────────────────────
@@ -109,13 +109,18 @@ class NhtmlParser:
             attrs = parse_inline_attrs(attrs_raw)
             dynamic_attrs, static_attrs, events = {}, {}, {}
             
-            # Gestion explicite de bind:value
-            bind_value = attrs.pop("bind:value", None)
-            if bind_value:
-                var_name = bind_value.strip("{} ")
-                # OpCodes au format JSON plutôt que JS libre
-                events["input"] = [{"op": "set", "target": var_name, "value": "this.value"}]
-                dynamic_attrs["value"] = f"{{{var_name}}}"
+            # Gestion intelligente de bind:* (aligné avec Rust)
+            bind_keys = [k for k in attrs.keys() if k.startswith("bind:")]
+            for bk in bind_keys:
+                bind_val = attrs.pop(bk)
+                var_name = bind_val.strip("{} ")
+                prop_name = bk[5:]
+                event_name = "change" if prop_name == "checked" else "input"
+                
+                if event_name not in events:
+                    events[event_name] = []
+                events[event_name].append({"op": "set", "target": var_name, "value": "this.value"})
+                dynamic_attrs[prop_name] = f"{{{var_name}}}"
 
             for k, v in attrs.items():
                 ks, vs = str(k), str(v)

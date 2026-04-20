@@ -53,14 +53,28 @@ def js_to_opcodes(js_str: str) -> list:
     commands = [c.strip() for c in js_str.split(';') if c.strip()]
     
     for cmd in commands:
+        cmd_trim = cmd.strip()
+        if cmd_trim.endswith("++"):
+            target = cmd_trim[:-2].strip()
+            ops.append({"op": "increment", "target": target, "value": 1})
+            continue
+            
+        if cmd_trim.endswith("--"):
+            target = cmd_trim[:-2].strip()
+            ops.append({"op": "increment", "target": target, "value": -1})
+            continue
+            
         m_inc = re.match(r'^([\w.-]+)\s*(\+|-)=\s*(.+)$', cmd)
         if m_inc:
             target, sign, value = m_inc.groups()
-            op = 'increment' if sign == '+' else 'decrement'
+            op = 'increment' # On utilise toujours increment (+ ou -) pour s'aligner sur Rust
             try:
                 val = int(value.strip())
             except ValueError:
                 val = value.strip()
+            if sign == '-': 
+                if isinstance(val, int): val = -val
+                else: val = f"-({val})"
             ops.append({"op": op, "target": target, "value": val})
             continue
             
