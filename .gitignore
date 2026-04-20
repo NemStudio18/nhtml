@@ -32,3 +32,6 @@ desktop.ini
 /vendor/
 composer.phar
 *.log
+
+# Releases
+releases/
