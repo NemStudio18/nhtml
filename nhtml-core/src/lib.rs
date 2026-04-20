@@ -1,6 +1,8 @@
 pub mod ast;
 pub mod parser;
+pub mod runtime;
 
+use std::collections::HashMap;
 use serde::Serialize;
 
 #[derive(Serialize)]
@@ -83,10 +85,46 @@ pub mod wasm {
     #[wasm_bindgen]
     pub fn compile_wasm(source: &str) -> String {
         let result = compile(source);
-        // On retourne la réponse sous forme de string JSON
         serde_json::json!({
             "html": result.html,
             "manifest": serde_json::from_str::<serde_json::Value>(&result.manifest_json).unwrap_or(serde_json::json!({}))
+        }).to_string()
+    }
+
+    /// Nouveau bridge pour la réactivité "Zéro-JS"
+    #[wasm_bindgen]
+    pub fn dispatch_wasm(state_json: &str, op_json: &str, manifest_json: &str) -> String {
+        let mut state: HashMap<String, serde_json::Value> = serde_json::from_str(state_json).unwrap_or_default();
+        let ops: Vec<ast::OpCode> = serde_json::from_str(op_json).unwrap_or_default();
+        let manifest: ast::Manifest = serde_json::from_str(manifest_json).unwrap_or(ast::Manifest { 
+            state_vars: HashMap::new(), nodes: HashMap::new() 
+        });
+
+        let mut rt = runtime::Runtime::new(state);
+        for op in ops {
+            rt.apply_op(&op);
+        }
+
+        // Calcul des mises à jour DOM nécessaires (Diffing)
+        let mut updates = HashMap::new();
+        for (id, node) in &manifest.nodes {
+            match node {
+                ast::Node::Text { expr } => {
+                    let val = rt.eval(expr, None);
+                    updates.insert(id.clone(), val.as_str().map(|s| s.to_string()).unwrap_or(val.to_string()));
+                },
+                ast::Node::If { condition, group, .. } => {
+                    let visible = rt.eval(condition, None).as_bool().unwrap_or(false);
+                    updates.insert(id.clone(), serde_json::json!({ "visible": visible, "group": group }).to_string());
+                },
+                // Note: Each est plus complexe, sera géré par un re-rendu partiel dans une V2
+                _ => {}
+            }
+        }
+
+        serde_json::json!({
+            "state": rt.state,
+            "updates": updates
         }).to_string()
     }
 }

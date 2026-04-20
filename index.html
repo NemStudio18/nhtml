@@ -100,101 +100,52 @@ function Counter() {
     </div>
 
     <script type="module">
-        import init, { compile_wasm } from './pkg/nhtml_core.js';
+        import init, { compile_wasm, dispatch_wasm } from './pkg/nhtml_core.js';
 
-        function hydrateDOM(html, manifest) {
-            const root = document.getElementById('root');
-            root.innerHTML = html; 
+        // Bridge de réactivité natif (Rust Powered)
+        async function nhtmlDispatch(eventName, ops, targetId) {
+            const result_json = dispatch_wasm(
+                JSON.stringify(window.nhtmlState),
+                JSON.stringify(ops),
+                JSON.stringify(window.nhtmlManifest)
+            );
+            const result = JSON.parse(result_json);
+            
+            // Mise à jour de l'état global
+            window.nhtmlState = result.state;
 
-            window._nhtmlState = {};
-            window._nhtmlAST = manifest;
+            // Application des mises à jour DOM calculées par Rust
+            for (const [id, val] of Object.entries(result.updates)) {
+                const el = document.getElementById(id);
+                if (!el) continue;
 
-            for (const [key, config] of Object.entries(manifest.state_vars || {})) {
-                window._nhtmlState[key] = config.initial_value;
-            }
-
-            window._nhtmlEval = function(expr, localContext = {}) {
-                try {
-                    const scope = { ...window._nhtmlState, ...localContext };
-                    const fn = new Function(...Object.keys(scope), `return ${expr}`);
-                    return fn(...Object.values(scope));
-                } catch(e) { return ""; }
-            };
-
-            window._nhtmlHydrate = function() {
-                for (const [id, node] of Object.entries(manifest.nodes || {})) {
-                    const el = document.getElementById(id);
-                    if (!el) continue;
-
-                    if (node.type === "text") el.textContent = window._nhtmlEval(node.expr);
-                    else if (node.type === "html") el.innerHTML = window._nhtmlEval(node.expr);
-                    else if (node.type === "if") el.style.display = window._nhtmlEval(node.condition) ? '' : 'none';
-                    else if (node.type === "each") {
-                        const list = window._nhtmlEval(node.source);
-                        if (Array.isArray(list)) {
-                            el.innerHTML = list.map((item, idx) => {
-                                let t = node.template;
-                                const local = { [node.item]: item };
-                                if (node.index) local[node.index] = idx;
-                                
-                                // Remplissage des expressions {item} dans le template
-                                return t.replace(/<span id="(n_.*?)"><\/span>/g, (_, childId) => {
-                                    const childNode = manifest.nodes[childId];
-                                    if (childNode && childNode.type === "text") {
-                                        return window._nhtmlEval(childNode.expr, local);
-                                    }
-                                    return "";
-                                }).replace(/id="(n_.*?)"/g, `id="$1_${idx}"`);
-                            }).join('');
-                        }
-                    }
-                    else if (node.type === "attrs" && node.bindings) {
-                        for (const [attr, val] of Object.entries(node.bindings)) {
-                            let fVal = val.replace(/\{(.*?)\}/g, (_, e) => window._nhtmlEval(e));
-                            if (attr === 'value') el.value = fVal;
-                            else el.setAttribute(attr, fVal);
-                        }
-                    }
+                // Si c'est un objet JSON, c'est une commande spéciale (ex: visibility)
+                if (typeof val === "string" && val.startsWith('{')) {
+                    const cmd = JSON.parse(val);
+                    if (cmd.visible !== undefined) el.style.display = cmd.visible ? '' : 'none';
+                    continue;
                 }
-            };
 
-            window.nhtml = new Proxy(window._nhtmlState, {
-                set(t, p, v) { 
-                    // Sécurité : conversion numérique automatique
-                    if (!isNaN(v) && typeof v === "string" && v.trim() !== "" && !v.includes('-')) v = Number(v);
-                    t[p] = v; 
-                    window._nhtmlHydrate(); 
-                    return true; 
-                },
-                get(t, p) { return t[p]; }
-            });
+                // Sinon c'est une mise à jour de contenu (Texte)
+                if (el.tagName === "INPUT" || el.tagName === "TEXTAREA") {
+                    el.value = val;
+                } else if (el.innerHTML !== val) {
+                    el.textContent = val;
+                }
+            }
+        }
 
+        function setupInteractivity(manifest) {
             for (const [id, node] of Object.entries(manifest.nodes || {})) {
                 const el = document.getElementById(id);
                 if (!el || !node.events) continue;
+
                 for (const [eventName, ops] of Object.entries(node.events)) {
-                    el.addEventListener(eventName, (e) => {
-                        for (const op of ops) {
-                            if (op.op === 'increment') window.nhtml[op.target] += Number(op.value);
-                            else if (op.op === 'set') {
-                                let v = op.value;
-                                if (v === "this.value") v = e.target.value;
-                                else if (typeof v === "string" && isNaN(v)) v = window._nhtmlEval(v);
-                                
-                                if (op.target.includes('.')) {
-                                    const parts = op.target.split('.');
-                                    let current = window.nhtml;
-                                    for (let i = 0; i < parts.length - 1; i++) current = current[parts[i]];
-                                    current[parts[parts.length - 1]] = v;
-                                } else window.nhtml[op.target] = v;
-                            }
-                            else if (op.op === 'eval') window._nhtmlEval(op.expr, { $event: e });
-                        }
+                    el.addEventListener(eventName, async (e) => {
+                        await nhtmlDispatch(eventName, ops, id);
                     });
                 }
             }
-            window._nhtmlHydrate();
-        // Hydration logic continues...
         }
 
         async function run() {
@@ -202,18 +153,26 @@ function Counter() {
                 await init(); 
                 document.getElementById('btn-compile').addEventListener('click', () => {
                     const source = document.getElementById('editor').value;
-                    const result_json = compile_wasm(source);
-                    const result = JSON.parse(result_json);
-                    hydrateDOM(result.html, result.manifest);
+                    const result = JSON.parse(compile_wasm(source));
+                    
+                    // On injecte l'HTML pré-rendu par Rust (SSR)
+                    const root = document.getElementById('root');
+                    root.innerHTML = result.html;
+                    
+                    window.nhtmlState = {};
+                    for (const [k, v] of Object.entries(result.manifest.state_vars || {})) {
+                        window.nhtmlState[k] = v.initial_value;
+                    }
+                    window.nhtmlManifest = result.manifest;
+
+                    setupInteractivity(result.manifest);
                 });
                 document.getElementById('btn-compile').click();
             } catch (e) {
                 console.error("Nhtml Runtime Error:", e);
                 const root = document.getElementById('root');
-                if (root) root.innerHTML = `<div style="color: #ef4444; background: #450a0a; padding: 1rem; border-radius: 8px; border: 1px solid #ef4444;">
-                    <strong>⚠️ Error loading Nhtml:</strong><br>
-                    ${e.message}<br><br>
-                    Check if <code>pkg/nhtml_core_bg.wasm</code> is accessible.
+                if (root) root.innerHTML = `<div style="color: #ef4444; background: #450a0a; padding: 1rem; border-radius: 8px;">
+                    <strong>⚠️ Error:</strong> ${e.message}
                 </div>`;
             }
         }

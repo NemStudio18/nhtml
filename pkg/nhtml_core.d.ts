@@ -3,11 +3,17 @@
 
 export function compile_wasm(source: string): string;
 
+/**
+ * Nouveau bridge pour la réactivité "Zéro-JS"
+ */
+export function dispatch_wasm(state_json: string, op_json: string, manifest_json: string): string;
+
 export type InitInput = RequestInfo | URL | Response | BufferSource | WebAssembly.Module;
 
 export interface InitOutput {
     readonly memory: WebAssembly.Memory;
     readonly compile_wasm: (a: number, b: number) => [number, number];
+    readonly dispatch_wasm: (a: number, b: number, c: number, d: number, e: number, f: number) => [number, number];
     readonly __wbindgen_externrefs: WebAssembly.Table;
     readonly __wbindgen_malloc: (a: number, b: number) => number;
     readonly __wbindgen_realloc: (a: number, b: number, c: number, d: number) => number;

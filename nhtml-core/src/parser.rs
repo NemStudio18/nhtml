@@ -10,6 +10,8 @@ use nom::{
     combinator::opt,
 };
 use crate::ast::{Manifest, Node, StateVar, OpCode};
+use crate::runtime::Runtime;
+use serde_json::{self, Value, from_str};
 
 /// Contexte pour suivre l'état global pendant le parsing
 pub struct ParserContext {
@@ -119,15 +121,27 @@ pub fn parse_action(expr: &str) -> OpCode {
 /// Structure principale pour coordonner le parsing
 pub struct NhtmlParser {
     pub ctx: ParserContext,
+    pub runtime: Option<Runtime>, // Runtime optionnel pour le SSR
 }
 
 impl NhtmlParser {
     pub fn new() -> Self {
-        Self { ctx: ParserContext::new() }
+        Self { 
+            ctx: ParserContext::new(),
+            runtime: None,
+        }
+    }
+
+    /// Prépare le runtime interne à partir des variables d'état déjà parsées
+    pub fn sync_runtime(&mut self) {
+        let state: HashMap<String, Value> = self.ctx.manifest.state_vars.iter()
+            .map(|(k, v)| (k.clone(), v.initial_value.clone()))
+            .collect();
+        self.runtime = Some(Runtime::new(state));
     }
 
     /// Analyse un bloc de contenu jusqu'à une balise de fermeture spécifique, gérant l'imbrication
-    pub fn parse_content_until<'a>(&mut self, input: &'a str, tag_name: &str) -> IResult<&'a str, String> {
+    pub fn parse_content_until<'a>(&mut self, input: &'a str, tag_name: &str, local_context: Option<&HashMap<String, Value>>) -> IResult<&'a str, String> {
         let mut result = String::new();
         let mut current = input;
         let open_pattern = format!("<{}", tag_name);
@@ -160,12 +174,21 @@ impl NhtmlParser {
                 }
             }
 
-            // Expressions {expr}
+            // Expressions {expr} avec SSR
             if current.starts_with('{') {
                  if let Ok((rem, expr)) = parse_expression(current) {
                      let id = self.ctx.gen_id();
-                     self.ctx.manifest.nodes.insert(id.clone(), Node::Text { expr });
-                     result.push_str(&format!("<span id=\"{}\"></span>", id));
+                     self.ctx.manifest.nodes.insert(id.clone(), Node::Text { expr: expr.clone() });
+                     
+                     // Rendu SSR si le runtime est disponible
+                     let initial_val = if let Some(rt) = &self.runtime {
+                        rt.eval(&expr, local_context).as_str().map(|s| s.to_string())
+                            .unwrap_or_else(|| rt.eval(&expr, local_context).to_string())
+                     } else {
+                         "".to_string()
+                     };
+
+                     result.push_str(&format!("<span id=\"{}\">{}</span>", id, initial_val));
                      current = rem;
                      continue;
                  }
@@ -177,7 +200,6 @@ impl NhtmlParser {
                     result.push_str(&captured);
                     current = rem;
                 } else if !current.is_empty() {
-                    // Si vide (on est sur un '<'), on avance d'un char
                     let mut chars = current.chars();
                     result.push(chars.next().unwrap());
                     current = chars.as_str();
@@ -194,10 +216,37 @@ impl NhtmlParser {
 
     pub fn parse_document(&mut self, input: &str) -> String {
         let mut final_html = String::new();
-        let mut current_input = input;
+        
+        // PRE-PASS : On parse d'abord toutes les balises <var> pour isoler l'état initial avant le rendu
+        let mut temp_input = input;
+        while !temp_input.is_empty() {
+            if temp_input.starts_with("<var") {
+                if let Ok((rem, attrs)) = parse_var_tag_to_map(temp_input) {
+                    temp_input = rem;
+                    for (k, v) in attrs {
+                        if k == "persist" { continue; }
+                        let v_trimmed = v.trim();
+                        let value = if (v_trimmed.starts_with('{') && v_trimmed.ends_with('}')) || (v_trimmed.starts_with('[') && v_trimmed.ends_with(']')) {
+                            from_str(v_trimmed).unwrap_or_else(|_| Value::String(v.clone()))
+                        } else if v_trimmed == "true" { Value::Bool(true) }
+                        else if v_trimmed == "false" { Value::Bool(false) }
+                        else if let Ok(n) = v_trimmed.parse::<i64>() { Value::Number(n.into()) }
+                        else { Value::String(v.clone()) };
+                        self.ctx.manifest.state_vars.insert(k, StateVar { initial_value: value, persist: false });
+                    }
+                    continue;
+                }
+            }
+            if let Some(c) = temp_input.chars().next() {
+                temp_input = &temp_input[c.len_utf8()..];
+            } else { break; }
+        }
+        self.sync_runtime(); // Le runtime est prêt pour le SSR
 
+        // PASS 2 : Rendu véritable
+        let mut current_input = input;
         while !current_input.is_empty() {
-            // 0. Ignorer les directives <!nhtml ...> ou commentaires <!-- ... -->
+             // Ignorer les directives <!nhtml ...> ou commentaires <!-- ... -->
             if current_input.starts_with("<!") {
                 let res: IResult<&str, &str> = take_until(">")(current_input);
                 if let Ok((rem, _)) = res {
@@ -208,181 +257,92 @@ impl NhtmlParser {
                 }
             }
 
-            // 1. Balise <var>
+            // Ignorer <var> déjà traitées
             if current_input.starts_with("<var") {
-                 if let Ok((rem, attrs)) = parse_var_tag_to_map(current_input) {
-                    current_input = rem;
-                    let persist = attrs.contains_key("persist") && attrs.get("persist").unwrap() == "true";
-                    for (k, v) in attrs {
-                        if k == "persist" { continue; }
-                        
-                        let v_trimmed = v.trim();
-                        // Désérialisation native complète !
-                        let value = if (v_trimmed.starts_with('{') && v_trimmed.ends_with('}')) || 
-                                       (v_trimmed.starts_with('[') && v_trimmed.ends_with(']')) {
-                            // On tente de parser le JSON (objets complexes)
-                            serde_json::from_str(v_trimmed).unwrap_or_else(|_| serde_json::Value::String(v.clone()))
-                        } else if v_trimmed == "true" { 
-                            serde_json::Value::Bool(true) 
-                        } else if v_trimmed == "false" { 
-                            serde_json::Value::Bool(false) 
-                        } else if let Ok(n) = v_trimmed.parse::<i64>() { 
-                            serde_json::Value::Number(n.into()) 
-                        } else if let Ok(f) = v_trimmed.parse::<f64>() {
-                            if let Some(n) = serde_json::Number::from_f64(f) {
-                                serde_json::Value::Number(n)
-                            } else {
-                                serde_json::Value::String(v.clone())
-                            }
-                        } else { 
-                            serde_json::Value::String(v.clone()) 
-                        };
-                        
-                        self.ctx.manifest.state_vars.insert(k, StateVar {
-                            initial_value: value,
-                            persist,
-                        });
-                    }
-                    continue;
+                 if let Ok((rem, _)) = parse_var_tag_to_map(current_input) {
+                    current_input = rem; continue;
                 }
             }
-            
-            // 2. Balise <if>
+
+            // 2. Balise <if> avec SSR
             if current_input.starts_with("<if") {
                 if let Ok((rem, attrs)) = parse_control_tag_open(current_input, "if") {
                     let condition = attrs.get("condition").cloned().unwrap_or_default();
-                    let (rem_after, content) = self.parse_content_until(rem, "if").expect("Failed to parse if body");
+                    let (rem_after, content) = self.parse_content_until(rem, "if", None).expect("Failed to parse if body");
                     
                     let id = self.ctx.gen_id();
                     let group = format!("{}_group", id);
-                    self.ctx.manifest.nodes.insert(id.clone(), Node::If { condition, group, role: "if".to_string() });
-                    final_html.push_str(&format!("<div id=\"{}\">{}</div>", id, content));
-                    current_input = rem_after; 
-                    continue;
-                }
-            }
-
-            // 2.1. Balise <elif>
-            if current_input.starts_with("<elif") {
-                if let Ok((rem, attrs)) = parse_control_tag_open(current_input, "elif") {
-                    let condition = attrs.get("condition").cloned().unwrap_or_default();
-                    let (rem_after, content) = self.parse_content_until(rem, "elif").expect("Failed to parse elif body");
+                    self.ctx.manifest.nodes.insert(id.clone(), Node::If { condition: condition.clone(), group, role: "if".to_string() });
                     
-                    let id = self.ctx.gen_id();
-                    // On partage le même groupe que le dernier if/elif (stratégie simplifiée)
-                    let group = format!("{}_group", id); 
-                    self.ctx.manifest.nodes.insert(id.clone(), Node::If { condition, group, role: "elif".to_string() });
-                    final_html.push_str(&format!("<div id=\"{}\">{}</div>", id, content));
-                    current_input = rem_after; 
-                    continue;
-                }
-            }
-
-            // 2.2. Balise <else>
-            if current_input.starts_with("<else") {
-                if let Ok((rem, _)) = parse_control_tag_open(current_input, "else") {
-                    let (rem_after, content) = self.parse_content_until(rem, "else").expect("Failed to parse else body");
-                    let id = self.ctx.gen_id();
-                    let group = format!("{}_group", id);
-                    self.ctx.manifest.nodes.insert(id.clone(), Node::If { condition: "true".to_string(), group, role: "else".to_string() });
-                    final_html.push_str(&format!("<div id=\"{}\">{}</div>", id, content));
-                    current_input = rem_after; 
-                    continue;
-                }
-            }
-
-            // 3. Balise <each>
-            if current_input.starts_with("<each") {
-                if let Ok((rem, attrs)) = parse_control_tag_open(current_input, "each") {
-                    // Correction #4 : Supprimer les {} de l'expression source
-                    let source = attrs.get("in").cloned().unwrap_or_default();
-                    let source = source.trim_matches(|c| c == '{' || c == '}').to_string();
-                    let item = attrs.get("as").cloned().unwrap_or_else(|| "item".to_string());
-                    let index = attrs.get("index").cloned();
-                    let filter = attrs.get("filter").cloned();
-                    let tag_name = attrs.get("tag").cloned().unwrap_or_else(|| "div".to_string());
-
-                    let (rem_after, template) = self.parse_content_until(rem, "each").expect("Failed to parse each body");
+                    // SSR: Masquer si la condition initiale est fausse
+                    let is_visible = self.runtime.as_ref().map(|rt| rt.eval(&condition, None).as_bool().unwrap_or(false)).unwrap_or(true);
+                    let style = if is_visible { "" } else { " style=\"display: none;\"" };
                     
-                    let id = self.ctx.gen_id();
-                    self.ctx.manifest.nodes.insert(id.clone(), Node::Each {
-                        source, item, template, index, filter, tag: tag_name,
-                    });
-                    final_html.push_str(&format!("<div id=\"{}\"></div>", id));
+                    final_html.push_str(&format!("<div id=\"{}\"{}>{}</div>", id, style, content));
                     current_input = rem_after; continue;
                 }
             }
 
-            // 3.5. Balise <empty> (alias logique vers <if condition="!(arr && arr.length > 0)">)
-            if current_input.starts_with("<empty") {
-                if let Ok((rem, attrs)) = parse_control_tag_open(current_input, "empty") {
-                    let source = attrs.get("for").cloned().unwrap_or_default();
-                    let source = source.trim_matches(|c| c == '{' || c == '}').to_string();
-                    let condition = format!("!({var} && {var}.length > 0)", var=source);
-                    
-                    let (rem_after, content) = self.parse_content_until(rem, "empty").expect("Failed to parse empty body");
+            // 3. Balise <each> avec Rendu SSR Natif !
+            if current_input.starts_with("<each") {
+                if let Ok((rem, attrs)) = parse_control_tag_open(current_input, "each") {
+                    let source_expr = attrs.get("in").cloned().unwrap_or_default().trim_matches(|c| c == '{' || c == '}').to_string();
+                    let item_var = attrs.get("as").cloned().unwrap_or_else(|| "item".to_string());
+                    let tag_name = attrs.get("tag").cloned().unwrap_or_else(|| "div".to_string());
+
+                    let (rem_after, template_raw) = self.parse_content_until(rem, "each", None).expect("Failed to parse each body");
                     
                     let id = self.ctx.gen_id();
-                    let group = format!("{}_group", id);
-                    self.ctx.manifest.nodes.insert(id.clone(), Node::If { condition, group, role: "if".to_string() });
-                    final_html.push_str(&format!("<div id=\"{}\">{}</div>", id, content));
-                    current_input = rem_after; 
-                    continue;
-                }
-            }
+                    self.ctx.manifest.nodes.insert(id.clone(), Node::Each {
+                        source: source_expr.clone(), item: item_var.clone(), template: template_raw.clone(),
+                        index: attrs.get("index").cloned(), filter: None, tag: tag_name.clone(),
+                    });
 
-            // 4. Balises opaques (style, script) - On ne parse PAS l'intérieur pour éviter les conflits { }
-            if current_input.starts_with("<style") || current_input.starts_with("<script") {
-                let tag_name = if current_input.starts_with("<style") { "style" } else { "script" };
-                if let Ok((rem, (name, attrs, _))) = parse_any_tag(current_input) {
-                    let attr_str = attrs.iter().map(|(k,v)| format!("{}=\"{}\"", k, v)).collect::<Vec<_>>().join(" ");
-                    final_html.push_str(&format!("<{} {}>", name, attr_str));
-                    let end_tag = format!("</{}>", tag_name);
-                    let res: IResult<&str, &str> = take_until(end_tag.as_str())(rem);
-                    if let Ok((rem_after, content)) = res {
-                        final_html.push_str(content);
-                        final_html.push_str(&end_tag);
-                        let res_final: IResult<&str, &str> = tag(end_tag.as_str())(rem_after);
-                        if let Ok((rem_final, _)) = res_final {
-                            current_input = rem_final; continue;
+                    // SSR: Rendu immédiat
+                    let mut rendered_loop = String::new();
+                    if let Some(rt) = &self.runtime {
+                        if let Some(list) = rt.eval(&source_expr, None).as_array() {
+                            for (idx, val) in list.iter().enumerate() {
+                                let mut local = HashMap::new();
+                                local.insert(item_var.clone(), val.clone());
+                                if let Some(idx_var) = attrs.get("index") {
+                                    local.insert(idx_var.clone(), Value::Number(idx.into()));
+                                }
+                                let mut sub_parser = NhtmlParser::new();
+                                sub_parser.ctx.next_id = self.ctx.next_id + (idx * 100); 
+                                sub_parser.runtime = Some(Runtime::new(rt.state.clone()));
+                                let rendered_item = sub_parser.parse_document_internal(&template_raw, Some(&local));
+                                rendered_loop.push_str(&rendered_item);
+                            }
                         }
                     }
+                    final_html.push_str(&format!("<div id=\"{}\">{}</div>", id, rendered_loop));
+                    current_input = rem_after; continue;
                 }
             }
 
-            // 5. Balise HTML standard avec attributs réactifs
+            // Expressions {expr}
+            if current_input.starts_with('{') {
+                if let Ok((rem, expr)) = parse_expression(current_input) {
+                    let id = self.ctx.gen_id();
+                    self.ctx.manifest.nodes.insert(id.clone(), Node::Text { expr: expr.clone() });
+                    let val = self.runtime.as_ref().map(|rt| rt.eval(&expr, None).to_string()).unwrap_or_default();
+                    final_html.push_str(&format!("<span id=\"{}\">{}</span>", id, val.trim_matches('"')));
+                    current_input = rem; continue;
+                }
+            }
+
+            // Balise HTML standard
             if current_input.starts_with('<') && !current_input.starts_with("</") {
                 if let Ok((rem, (tag_name, attrs, self_closing))) = parse_any_tag(current_input) {
                     let mut reactive_bindings = HashMap::new();
                     let mut reactive_events = HashMap::new();
                     let mut static_attrs = Vec::new();
-
                     for (k, v) in attrs {
-                        if k.starts_with("bind:") {
-                            let attr_name = k[5..].to_string();
-                            reactive_bindings.insert(attr_name.clone(), v.clone());
-                            // Two-way binding : génération de l'event montant (DOM → state)
-                            let var_name = strip_braces(&v).to_string();
-                            // Événement selon la propriété liée
-                            let event_name = match attr_name.as_str() {
-                                "checked" => "change",
-                                _ => "input",
-                            };
-                            reactive_events
-                                .entry(event_name.to_string())
-                                .or_insert_with(Vec::new)
-                                .push(OpCode::Set { target: var_name, value: "this.value".to_string() });
-                            static_attrs.push(format!("{}=\"{}\"", k, v));
-                        } else if k.starts_with("on:") {
-                            // Phase 4.5 résolue : Parsing sémantique des actions
-                            let opcode = parse_action(&v);
-                            reactive_events.insert(k[3..].to_string(), vec![opcode]);
-                            static_attrs.push(format!("{}=\"{}\"", k, v));
-                        } else {
-                            static_attrs.push(format!("{}=\"{}\"", k, v));
-                        }
+                        if k.starts_with("bind:") { reactive_bindings.insert(k[5..].to_string(), v.clone()); }
+                        else if k.starts_with("on:") { reactive_events.insert(k[3..].to_string(), vec![parse_action(&v)]); }
+                        else { static_attrs.push(format!("{}=\"{}\"", k, v)); }
                     }
-
                     if !reactive_bindings.is_empty() || !reactive_events.is_empty() {
                         let id = self.ctx.gen_id();
                         self.ctx.manifest.nodes.insert(id.clone(), Node::Attrs {
@@ -391,43 +351,48 @@ impl NhtmlParser {
                         });
                         static_attrs.push(format!("id=\"{}\"", id));
                     }
-
                     let attr_str = if static_attrs.is_empty() { "".to_string() } else { format!(" {}", static_attrs.join(" ")) };
                     final_html.push_str(&format!("<{}{}{}>", tag_name, attr_str, if self_closing { "/" } else { "" }));
                     current_input = rem; continue;
                 }
             }
 
-            // 5. Expressions {expr}
-            if current_input.starts_with('{') {
-                if let Ok((rem, expr)) = parse_expression(current_input) {
-                    let id = self.ctx.gen_id();
-                    self.ctx.manifest.nodes.insert(id.clone(), Node::Text { expr });
-                    final_html.push_str(&format!("<span id=\"{}\"></span>", id));
-                    current_input = rem;
-                    continue;
-                }
-            }
-
-            // 6. Texte Statique
             if let Ok((rem, text)) = parse_static_text(current_input) {
-                if !text.is_empty() {
-                    final_html.push_str(&text);
-                    current_input = rem;
-                } else if !current_input.is_empty() {
-                    let mut chars = current_input.chars();
-                    final_html.push(chars.next().unwrap());
-                    current_input = chars.as_str();
-                } else {
-                    break;
-                }
+                final_html.push_str(&text);
+                current_input = rem;
             } else if !current_input.is_empty() {
-                let mut chars = current_input.chars();
-                final_html.push(chars.next().unwrap());
-                current_input = chars.as_str();
+                if let Some(c) = current_input.chars().next() {
+                    final_html.push(c);
+                    current_input = &current_input[c.len_utf8()..];
+                } else { break; }
             }
         }
         final_html
+    }
+
+    fn parse_document_internal(&mut self, input: &str, local_context: Option<&HashMap<String, Value>>) -> String {
+        let mut result = String::new();
+        let mut current = input;
+        while !current.is_empty() {
+            if current.starts_with('{') {
+                if let Ok((rem, expr)) = parse_expression(current) {
+                    let id = self.ctx.gen_id();
+                    let val = self.runtime.as_ref().map(|rt| rt.eval(&expr, local_context).to_string()).unwrap_or_default();
+                    result.push_str(&format!("<span id=\"{}\">{}</span>", id, val.trim_matches('"')));
+                    current = rem; continue;
+                }
+            }
+            if let Ok((rem, text)) = parse_static_text(current) {
+                result.push_str(&text);
+                current = rem;
+            } else if !current.is_empty() {
+                if let Some(c) = current.chars().next() {
+                    result.push(c);
+                    current = &current[c.len_utf8()..];
+                } else { break; }
+            } else { break; }
+        }
+        result
     }
 }
 
