@@ -5,70 +5,205 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/Language-Rust-orange?style=flat-square&logo=rust" alt="Rust">
-  <img src="https://img.shields.io/badge/Language-PHP-777bb4?style=flat-square&logo=php" alt="PHP">
-  <img src="https://img.shields.io/badge/Language-JavaScript-F7DF1E?style=flat-square&logo=javascript&logoColor=black" alt="JS">
-  <img src="https://img.shields.io/badge/Version-2.0-brightgreen?style=flat-square" alt="Version">
-  <img src="https://img.shields.io/badge/License-MIT-blue?style=flat-square" alt="License">
+  <img src="https://img.shields.io/badge/Language-Rust-orange?style=flat-square&logo=rust" />
+  <img src="https://img.shields.io/badge/Language-PHP-777bb4?style=flat-square&logo=php" />
+  <img src="https://img.shields.io/badge/Runtime-<2KB_JS-yellow?style=flat-square" />
+  <img src="https://img.shields.io/badge/Zero-Dependencies-success?style=flat-square" />
+  <img src="https://img.shields.io/badge/License-MIT-blue?style=flat-square" />
 </p>
 
-**Nhtml is HTML with built-in reactivity — no framework, no build tools, no Node.js.**
+---
 
-Nhtml (Native HTML) is a template language compiled by an ultra-fast Rust engine, designed to bring modern interactivity to your web applications without the complexity of today's JavaScript ecosystems.
+## ⚡ HTML. But reactive.
+
+**Nhtml is HTML with built-in reactivity — no framework, no build step, no Node.js.**
+
+Write interactive interfaces using **pure HTML syntax**, compiled by a **Rust engine**, and hydrated with **<2KB of JavaScript**.
+
+---
+
+## 🔥 Why Nhtml exists
+
+Modern web dev is overkill for most use cases:
+
+* ❌ React / Vue → heavy, complex, JS everywhere
+* ❌ Build tools → slow, fragile, hard to maintain
+* ❌ Simple UI → requires full SPA stack
+
+👉 **Nhtml solves this.**
+
+> You get interactivity without leaving HTML.
+
+---
+
+## 🧠 Example
 
 ```html
-<!-- Your .nhtml component -->
 <var count=0>
 
 <div class="card">
-    <h2>Counter: {count}</h2>
-    
-    <button on:click="count++">Increment</button>
-    <button on:click="count--">Decrement</button>
-    
-    <if condition="count > 10">
-        <p>🔥 Impressive score!</p>
-    </if>
+  <h2>Counter: {count}</h2>
+
+  <button on:click="count++">+</button>
+  <button on:click="count--">-</button>
+
+  <if condition="count > 10">
+    <p>🔥 Impressive</p>
+  </if>
 </div>
 ```
 
-## Why Nhtml?
+👉 No framework
+👉 No virtual DOM
+👉 No state management
 
-*   🚀 **Native Performance**: Core written in Rust. Instant compilation via FFI.
-*   🌍 **Zero Dependencies**: No `npm install`, no `node_modules`, no Webpack.
-*   💎 **Multi-Target**: Works on Server (PHP/C/Rust) and Client (WebAssembly).
-*   ⛓️ **Sustainable Reactivity**: Under 2KB JS runtime to hydrate the DOM.
+Just HTML.
 
-## Quick Installation
+---
 
-Full guides are available in the [docs/](./docs/) directory.
+## ⚔️ Nhtml vs React (real talk)
 
-*   [**PHP Installation (Server)**](./docs/INSTALL-PHP.md)
-*   [**Direct Server Installation (Apache/Nginx)**](./docs/INSTALL-DIRECT.md)
-*   [**Browser Installation (WASM)**](./docs/INSTALL-WASM.md)
+| Feature        | React       | Nhtml     |
+| -------------- | ----------- | --------- |
+| Setup          | ⚠️ Required | ✅ None    |
+| JS Required    | ✅ Yes       | ❌ No      |
+| Bundle Size    | ❌ 40KB+     | ✅ <2KB    |
+| Complexity     | ❌ High      | ✅ Low     |
+| Learning Curve | ❌ Medium    | ✅ Minimal |
+
+---
+
+## 🧩 Where Nhtml shines
+
+✔ Dashboards
+✔ CRUD interfaces
+✔ CMS / Admin panels
+✔ Server-rendered apps
+✔ Progressive enhancement
+
+👉 Anywhere React is **overkill**
+
+---
+
+## 🔌 Works everywhere
+
+Nhtml is not a framework. It’s a **rendering engine**.
+
+Use it with:
+
+* PHP (native integration)
+* Rust (core runtime)
+* WebAssembly (browser)
+* Node / Python (via rendering layer)
+
+👉 Drop it into existing projects.
+
+---
+
+## 🚀 Key features
+
+* ⚡ **Rust-powered engine** → ultra fast compilation
+* 🧱 **HTML-first syntax** → no new mental model
+* 🌍 **Multi-runtime** → server + browser
+* 🪶 **Ultra-light hydration** → <2KB JS
+* 🔌 **Framework-agnostic** → works alongside anything
+
+---
+
+## ⚡ Installation
+
+See full guides in [`docs/`](./docs/):
+
+* [PHP (server-side rendering)](./docs/INSTALL-PHP.md)
+* [Apache / Nginx direct integration](./docs/INSTALL-DIRECT.md)
+* [Browser (WASM)](./docs/INSTALL-WASM.md)
+
+---
+
+## 🧪 Real-world usage
+
+👉 See **NCMS** (real CMS built with Nhtml):
+[https://github.com/NemStudio18/NCMS](https://github.com/NemStudio18/NCMS)
+
+---
+
+## 🎯 Philosophy
+
+> The web was meant to be simple.
+
+Nhtml brings back:
+
+* HTML as the source of truth
+* Minimal runtime
+* No toolchain
+* No unnecessary abstraction
 
 ---
 
 # 🇫🇷 Version Française
 
-**Nhtml est du HTML avec réactivité intégrée — sans framework, sans outils de build, sans Node.js.**
+## ⚡ HTML. Mais réactif.
 
-Nhtml (Native HTML) est un langage de template compilé par un moteur Rust ultra-rapide. Il a été conçu pour apporter l'interactivité moderne à vos applications web tout en supprimant la complexité des écosystèmes JavaScript actuels.
+**Nhtml est du HTML avec réactivité intégrée — sans framework, sans build, sans Node.js.**
+
+👉 Vous écrivez du HTML
+👉 Vous obtenez une interface interactive
+
+---
 
 ## Pourquoi Nhtml ?
 
-*   🚀 **Performance Native** : Cœur écrit en Rust. Compilation instantanée via FFI.
-*   🌍 **Zéro Dépendance** : Pas de `npm install`, pas de `node_modules`, pas de Webpack.
-*   💎 **Multi-Cible** : Fonctionne sur Serveur (PHP/C/Rust) et Client (WebAssembly).
-*   ⛓️ **Réactivité Légère** : Moins de 2Ko de runtime JS pour l'hydratation du DOM.
+Le web moderne est devenu inutilement complexe :
 
-## Installation Rapide
+* React / Vue → lourds
+* Tooling → fragile
+* JS partout → difficile à maintenir
 
-Des guides complets sont disponibles dans le dossier [docs/](./docs/).
-
-*   [**Installation PHP (Serveur)**](./docs/INSTALL-PHP.md)
-*   [**Installation Serveur Direct (Apache/Nginx)**](./docs/INSTALL-DIRECT.md)
-*   [**Installation Navigateur (WASM)**](./docs/INSTALL-WASM.md)
+👉 **Nhtml simplifie tout.**
 
 ---
-© 2026 NemStudio — Powered by simplicity.
+
+## 🧠 Exemple
+
+```html
+<var count=0>
+
+<div class="card">
+  <h2>Compteur : {count}</h2>
+
+  <button on:click="count++">+</button>
+  <button on:click="count--">-</button>
+
+  <if condition="count > 10">
+    <p>🔥 Impressionnant</p>
+  </if>
+</div>
+```
+
+---
+
+## Points forts
+
+* ⚡ Moteur Rust ultra rapide
+* 🌍 Multi-runtime (PHP, WASM…)
+* 🪶 Runtime JS < 2Ko
+* 🔌 Compatible avec vos projets existants
+
+---
+
+## Cas d’usage
+
+* Admin panels
+* CMS
+* Interfaces CRUD
+* Apps SSR
+
+---
+
+## Installation
+
+Voir [`/docs/`](./docs/) pour les guides complets.
+
+---
+
+© 2026 NemStudio — Built for simplicity.
