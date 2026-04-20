@@ -59,7 +59,7 @@
     <!-- On simule le chargement du module wasm, une fois wasm-pack prêt. -->
     <script type="module">
         // IMPORT DU WASM BINDINGS (Sera actif une fois wasm-pack executé par l'utilisateur)
-        // import init, { compile_wasm } from './nhtml-core/pkg/nhtml_core.js';
+        import init, { compile_wasm } from './nhtml-core/pkg/nhtml_core.js';
 
         // ── MICRO-RUNTIME JS DE HYDRO/BRIDGE ───────────────────────────────
         function hydrateDOM(html, manifest) {
@@ -138,8 +138,7 @@
             // Premier rendu
             window._nhtmlHydrate();
         }
-
-        /* 
+        
         async function run() {
             await init(); 
             document.getElementById('btn-compile').addEventListener('click', () => {
@@ -148,10 +147,12 @@
                 const result = JSON.parse(result_json);
                 hydrateDOM(result.html, result.manifest);
             });
+            console.log("WASM prêt. Cliquez sur Compiler & Mount.");
+            // On compile automatiquement la première fois pour le confort visuel
+            document.getElementById('btn-compile').click();
         }
         run();
-        */
-        console.log("Prêt pour wasm-pack ! Décommentez la fonction 'run()' lorsque le .wasm est packagé.");
+
     </script>
 </body>
 </html>
