@@ -129,6 +129,19 @@ function Counter() {
                     if (node.type === "text") el.textContent = window._nhtmlEval(node.expr);
                     else if (node.type === "html") el.innerHTML = window._nhtmlEval(node.expr);
                     else if (node.type === "if") el.style.display = window._nhtmlEval(node.condition) ? '' : 'none';
+                    else if (node.type === "each") {
+                        const list = window._nhtmlEval(node.source);
+                        if (Array.isArray(list)) {
+                            el.innerHTML = list.map((item, idx) => {
+                                let t = node.template;
+                                const local = { [node.item]: item };
+                                if (node.index) local[node.index] = idx;
+                                // Rendu récursif simple pour le playground
+                                return t.replace(/\{(.*?)\}/g, (_, e) => window._nhtmlEval(e, local))
+                                        .replace(/id="n_(.*?)"/g, `id="n_$1_${idx}"`); // Unique IDs per row
+                            }).join('');
+                        }
+                    }
                     else if (node.type === "attrs" && node.bindings) {
                         for (const [attr, val] of Object.entries(node.bindings)) {
                             let fVal = val.replace(/\{(.*?)\}/g, (_, e) => window._nhtmlEval(e));
@@ -140,7 +153,13 @@ function Counter() {
             };
 
             window.nhtml = new Proxy(window._nhtmlState, {
-                set(t, p, v) { t[p] = v; window._nhtmlHydrate(); return true; },
+                set(t, p, v) { 
+                    // Sécurité : conversion numérique automatique
+                    if (!isNaN(v) && typeof v === "string" && v.trim() !== "" && !v.includes('-')) v = Number(v);
+                    t[p] = v; 
+                    window._nhtmlHydrate(); 
+                    return true; 
+                },
                 get(t, p) { return t[p]; }
             });
 
