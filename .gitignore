@@ -1,0 +1,27 @@
+# Rust / Cargo
+nhtml-core/target/
+**/*.rs.bk
+
+# Wasm generated artifacts (We might want to keep pkg/ depending on release strategy, 
+# but usually we ignore it and only publish releases, or we keep it. Let's keep pkg for now so NPM users can use the repo directly).
+# nhtml-core/pkg/
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+desktop.ini
+
+# IDEs
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# PHP (if applicable)
+/vendor/
+composer.phar
