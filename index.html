@@ -136,9 +136,15 @@ function Counter() {
                                 let t = node.template;
                                 const local = { [node.item]: item };
                                 if (node.index) local[node.index] = idx;
-                                // Rendu récursif simple pour le playground
-                                return t.replace(/\{(.*?)\}/g, (_, e) => window._nhtmlEval(e, local))
-                                        .replace(/id="n_(.*?)"/g, `id="n_$1_${idx}"`); // Unique IDs per row
+                                
+                                // Remplissage des expressions {item} dans le template
+                                return t.replace(/<span id="(n_.*?)"><\/span>/g, (_, childId) => {
+                                    const childNode = manifest.nodes[childId];
+                                    if (childNode && childNode.type === "text") {
+                                        return window._nhtmlEval(childNode.expr, local);
+                                    }
+                                    return "";
+                                }).replace(/id="(n_.*?)"/g, `id="$1_${idx}"`);
                             }).join('');
                         }
                     }
