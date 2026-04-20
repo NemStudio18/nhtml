@@ -1,28 +1,30 @@
-# Architecture Technique : nhtml-core (Rust)
+# Architecture Technique Principale : Nhtml V2
 
-## 1. Objectifs
-L'objectif de `nhtml-core` est de porter la logique de compilation et de runtime Nhtml v2 (Headless) dans un langage système performant.
-- **Multicible** : Un seul code source pour générer une bibliothèque dynamique (`.so` / `.dll`) et un module WebAssembly (`.wasm`).
-- **Performance** : Remplacer le moteur de recherche par regex (Python) par un véritable analyseur syntaxique (Parser).
-- **Stabilité** : Utilisation du typage fort de Rust pour garantir l'intégrité de l'AST.
+## 1. Objectifs Headless Multi-Cibles
+L'objectif de la V2 est de compiler les templates côté serveur ou client, pour produire un couple **(HTML Pur + Manifeste JSON)** ingérant état, réactivité et cycle de vie. Le noyau dur est développé en Rust (`nhtml-core`).
 
-## 2. Structure des Modules (Projetés)
+**Trois stratégies de déploiement (Le Pilier Multi-Plateformes) :**
+- **Librairie Dynamique (FFI)** : Compilation via C (`.dll` / `.so`). Exploitée par `NhtmlCompiler.php` sur le serveur pour by-passer les lenteurs de démarrage de processus via `FFI`.
+- **Exécutable Standalone (CLI)** : Binaire `.exe` / ELF pour servir de fallback serveur (via `exec()`) en cas d'hébergement restrictif.
+- **WebAssembly (WASM)** : Transpilation `wasm32-unknown-unknown` empaquetée via `wasm-pack`. Permet la compilation *directement dans le navigateur Google Chrome/Firefox* pour des applications 100% SPA.
+
+## 2. Structure des Modules Nhtml-Core
 
 ### 2.1 Parser (`nhtml_parser`)
-Implémentation terminée en utilisant la bibliothèque `nom`.
-- **Mécanisme** : Le parser utilise une descente récursive pour capturer les blocs imbriqués (`<if>`, `<each>`).
-- **Détection** : Scan automatique des balises HTML pour identifier les attributs réactifs (`on:`, `bind:`).
+Analyseur syntaxique fort en Rust utilisant des règles de caractères stricts.
+- **Extraction des OpCodes** : Remplace les "évaluations Javascript sauvages (`eval`)" par des commandes sûres (`Increment`, `Set`, `Call`).
+- **Support des Rétrocompatibilités** : Gère nativement les anciennes balises `<empty for="...">` en les transpilant à la volée vers une expression conditionnelle if `!(source.length > 0)`.
 
 ### 2.2 AST & State (`nhtml_ast`)
-- `struct Manifest` : Le conteneur principal de l'état et des nœuds réactifs.
-- `enum Node` : `Text`, `If`, `Each`, `Attrs`. 
-- **Sécurisation** : Utilisation de `serde` pour une sérialisation JSON compatible avec le runtime JS/Vasm.
+- `struct Manifest` : Le conteneur principal de l'état (JSON natif complet grâce à `serde_json`) et de l'arbre comportemental.
+- Protège la déclaration des nœuds : `Text`, `If`, `Each`, `Attrs`. 
 
-### 2.3 Runtime & Renderer (`nhtml_runtime`)
-- **Mode Serveur** : Générateur de String (SSR) ultra-rapide.
-- **Mode Client (Wasm)** : Utilisation de `web-sys` pour manipuler le DOM du navigateur via les IDs `n_x`.
+### 2.3 Bridge / RunTime JS
+Le binaire/WASM ne manipulant pas le DOM directement pour des raisons de Sandbox web :
+- **Runtime Musclier minimal** : Nhtml v2 injecte une mini librairie JavaScript.
+- Son seul rôle : se brancher sur le Manifest JSON (`window._nhtmlAST`), écouter les clics des utilisateurs, envoyer les directives au state Proxy (`window.nhtml`) et hydrater les nœuds ciblés dans le DOM en temps reél.
 
-## 3. Roadmap de Développement
-1.  **Skeleton** : Initialisation avec `cargo` et définition des structures `ast`.
-2.  **Parser POC** : Un parser capable de lire les balises `<var>` et de générer le JSON.
-3.  **Wasm Bridge** : Première preuve de concept d'hydratation du DOM depuis Rust.
+## 3. Workflow de Distribution
+Le projet est déployable en l'état de deux manières distinctes :
+* **Distribution Serveur** : Le noyau `nhtml_core.dll` ainsi que `NhtmlCompiler.php` peuvent être poussé par Composer/Packagist ou copiés à la main dans l'écosystème PHP cible comme des extensions silencieuses.
+* **Distribution Web (npm)** : Le dossier `pkg/` généré par wasm-pack contient le wrapper Javascript propre servant de module standard (`import init from './pkg/nhtml_core.js'`). Il peut être injecté sur npmjs.org.

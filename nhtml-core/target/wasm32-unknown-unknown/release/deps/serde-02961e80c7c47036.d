@@ -1,0 +1,14 @@
+C:\Users\nemst\Desktop\Nhtml\nhtml-core\target\wasm32-unknown-unknown\release\deps\serde-02961e80c7c47036.d: C:\Users\nemst\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\serde-1.0.228\src\lib.rs C:\Users\nemst\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\serde-1.0.228\src\integer128.rs C:\Users\nemst\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\serde-1.0.228\src\private\mod.rs C:\Users\nemst\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\serde-1.0.228\src\private\de.rs C:\Users\nemst\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\serde-1.0.228\src\private\ser.rs C:\Users\nemst\Desktop\Nhtml\nhtml-core\target\wasm32-unknown-unknown\release\build\serde-12a2ced44e31d3e0\out/private.rs
+
+C:\Users\nemst\Desktop\Nhtml\nhtml-core\target\wasm32-unknown-unknown\release\deps\libserde-02961e80c7c47036.rlib: C:\Users\nemst\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\serde-1.0.228\src\lib.rs C:\Users\nemst\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\serde-1.0.228\src\integer128.rs C:\Users\nemst\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\serde-1.0.228\src\private\mod.rs C:\Users\nemst\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\serde-1.0.228\src\private\de.rs C:\Users\nemst\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\serde-1.0.228\src\private\ser.rs C:\Users\nemst\Desktop\Nhtml\nhtml-core\target\wasm32-unknown-unknown\release\build\serde-12a2ced44e31d3e0\out/private.rs
+
+C:\Users\nemst\Desktop\Nhtml\nhtml-core\target\wasm32-unknown-unknown\release\deps\libserde-02961e80c7c47036.rmeta: C:\Users\nemst\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\serde-1.0.228\src\lib.rs C:\Users\nemst\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\serde-1.0.228\src\integer128.rs C:\Users\nemst\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\serde-1.0.228\src\private\mod.rs C:\Users\nemst\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\serde-1.0.228\src\private\de.rs C:\Users\nemst\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\serde-1.0.228\src\private\ser.rs C:\Users\nemst\Desktop\Nhtml\nhtml-core\target\wasm32-unknown-unknown\release\build\serde-12a2ced44e31d3e0\out/private.rs
+
+C:\Users\nemst\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\serde-1.0.228\src\lib.rs:
+C:\Users\nemst\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\serde-1.0.228\src\integer128.rs:
+C:\Users\nemst\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\serde-1.0.228\src\private\mod.rs:
+C:\Users\nemst\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\serde-1.0.228\src\private\de.rs:
+C:\Users\nemst\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\serde-1.0.228\src\private\ser.rs:
+C:\Users\nemst\Desktop\Nhtml\nhtml-core\target\wasm32-unknown-unknown\release\build\serde-12a2ced44e31d3e0\out/private.rs:
+
+# env-dep:OUT_DIR=C:\\Users\\nemst\\Desktop\\Nhtml\\nhtml-core\\target\\wasm32-unknown-unknown\\release\\build\\serde-12a2ced44e31d3e0\\out
