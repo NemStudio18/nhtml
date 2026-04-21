@@ -105,6 +105,14 @@ impl Runtime {
                     self.state.insert(target.clone(), Value::Number(serde_json::Number::from_f64(c + i).unwrap()));
                 }
             },
+            OpCode::Push { target, value } => {
+                let val = self.eval(value, None);
+                if let Some(current_val) = self.state.get_mut(target) {
+                    if let Some(arr) = current_val.as_array_mut() {
+                        arr.push(val);
+                    }
+                }
+            },
             _ => {} // Call et Eval non gérés nativement pour l'instant
         }
     }
@@ -184,5 +192,17 @@ mod tests {
 
         assert_eq!(rt.eval("counter > 10", None), json!(true));
         assert_eq!(rt.eval("counter == 15", None), json!(true));
+    }
+    #[test]
+    fn test_push_operation() {
+        let mut state = HashMap::new();
+        state.insert("list".to_string(), serde_json::json!(["a", "b"]));
+        let mut rt = Runtime::new(state);
+        
+        rt.apply_op(&OpCode::Push { target: "list".to_string(), value: "\"c\"".to_string() });
+        
+        let list = rt.state.get("list").unwrap().as_array().unwrap();
+        assert_eq!(list.len(), 3);
+        assert_eq!(list[2], "c");
     }
 }

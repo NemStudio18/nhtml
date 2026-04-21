@@ -101,6 +101,15 @@ pub fn parse_action(expr: &str) -> OpCode {
         let value = expr[idx + 1..].trim().to_string();
         return OpCode::Set { target, value };
     }
+    // Array Push : list.push(item)
+    if expr.ends_with(')') {
+        if let Some(idx) = expr.find(".push(") {
+            let target = expr[..idx].trim().to_string();
+            let value_part = expr[idx + 6..expr.len() - 1].trim();
+            return OpCode::Push { target, value: value_part.to_string() };
+        }
+    }
+
     // Call
     if expr.ends_with(')') {
         if let Some(idx) = expr.find('(') {
@@ -357,15 +366,20 @@ impl NhtmlParser {
                 }
             }
 
+            // Fallback : avancer d'un caractère pour éviter les boucles infinies
+            // (catch-all pour </div>, </p>, etc. et tout texte non géré)
             if let Ok((rem, text)) = parse_static_text(current_input) {
-                final_html.push_str(&text);
-                current_input = rem;
-            } else if !current_input.is_empty() {
-                if let Some(c) = current_input.chars().next() {
-                    final_html.push(c);
-                    current_input = &current_input[c.len_utf8()..];
-                } else { break; }
+                if !text.is_empty() {
+                    final_html.push_str(&text);
+                    current_input = rem;
+                    continue;
+                }
             }
+            // Si parse_static_text n'a rien consommé (ex: commence par '<' ou '{'), avancer d'un char
+            if let Some(c) = current_input.chars().next() {
+                final_html.push(c);
+                current_input = &current_input[c.len_utf8()..];
+            } else { break; }
         }
         final_html
     }
@@ -382,14 +396,17 @@ impl NhtmlParser {
                     current = rem; continue;
                 }
             }
+            // Fallback : avancer d'un caractère dans tous les cas
             if let Ok((rem, text)) = parse_static_text(current) {
-                result.push_str(&text);
-                current = rem;
-            } else if !current.is_empty() {
-                if let Some(c) = current.chars().next() {
-                    result.push(c);
-                    current = &current[c.len_utf8()..];
-                } else { break; }
+                if !text.is_empty() {
+                    result.push_str(&text);
+                    current = rem;
+                    continue;
+                }
+            }
+            if let Some(c) = current.chars().next() {
+                result.push(c);
+                current = &current[c.len_utf8()..];
             } else { break; }
         }
         result

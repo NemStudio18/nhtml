@@ -73,4 +73,6 @@ pub enum OpCode {
     },
     #[serde(rename = "eval")]
     Eval { expr: String },
+    #[serde(rename = "push")]
+    Push { target: String, value: String },
 }

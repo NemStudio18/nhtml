@@ -181,8 +181,8 @@ mod tests {
         
         let result = compile(nhtml);
         
-        // Vérifications
-        assert!(result.html.contains("<div on:click=\"counter++\" id=\"n_"));
+        // Vérifications : on ne cherche plus l'événement dans l'HTML, mais l'ID généré pour la délégation
+        assert!(result.html.contains("<div id=\"n_"));
         assert!(result.manifest_json.contains("\"test\""));
     }
 }
