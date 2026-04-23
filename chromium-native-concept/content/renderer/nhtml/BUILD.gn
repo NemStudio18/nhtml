@@ -1,0 +1,30 @@
+# content/renderer/nhtml/BUILD.gn
+import("//build/config/features.gni")
+
+source_set("nhtml_renderer") {
+  sources = [
+    "nhtml_document_loader.cc",
+    "nhtml_document_loader.h",
+    "nhtml_event_listener.cc",
+    "nhtml_event_listener.h",
+    "nhtml_interpreter.cc",
+    "nhtml_interpreter.h",
+    "nhtml_local_action_runner.cc",
+    "nhtml_local_action_runner.h",
+    "nhtml_node_table.cc",
+    "nhtml_node_table.h",
+    "nhtml_socket_writer.cc",
+    "nhtml_socket_writer.h",
+    "nhtml_stream_assembler.cc",
+    "nhtml_stream_assembler.h",
+  ]
+
+  deps = [
+    "//base",
+    "//content/common/nhtml:nhtml_common",
+    "//content/public/renderer",
+    "//third_party/blink/public:blink",
+    "//v8",
+  ]
+}
+

@@ -1,57 +1,55 @@
-# Browser Installation (WebAssembly)
+# 🦀 NHTML Browser Polyfill (WASM) Guide v0.2.2
 
-Run Nhtml directly in the visitor's browser. Perfect for PWAs, Dashboards, and zero-server architectures.
+In the industrial architecture, the browser acts as a **lightweight terminal**. The WebAssembly Polyfill is the engine that connects to the Gateway and renders binary updates.
 
-## Step 1: Include the Bootstrapper
-Copy `examples/nhtml.js` and the `pkg/` folder to your static directory.
+## Prerequisites
+- NHTML Gateway running on your server (Port 8080 by default).
+- Browsers with WASM support (98% of modern traffic).
 
-```html
-<script type="module" src="nhtml.js"></script>
-```
-
-## Step 2: Use .nhtml Files
-You can now define your components directly in HTML or link external files.
+## Step 1: Include the Polyfill
+Add the bootstrapper to your main HTML page. This will automatically load the WASM engine.
 
 ```html
-<!-- Remote file -->
-<script type="text/nhtml" src="views/app.nhtml" data-target="#main-app"></script>
-
-<!-- Inline component -->
-<script type="text/nhtml" data-target="#sidebar">
-    <var name="status" value="'Active'">
-    <p>System Status: {status}</p>
-</script>
+<script src="dist/nhtml-polyfill.js"></script>
 ```
 
-## Step 3: Server Configuration
-Ensure your web server serves `.wasm` files with the correct MIME type: `application/wasm`.
+## Step 2: Initialize Connection
+The Polyfill needs to know where the Gateway is. It uses WebSocket to receive NBPS binary packets.
+
+```javascript
+// Automatically connect to the local gateway
+Nhtml.connect("ws://your-server:8080/gateway");
+
+// The Polyfill now handles HELLO, PATCH, and EVENT packets automatically.
+```
+
+## Step 3: Interactive Elements
+Elements with a `data-n-id` (NodeID) are automatically tracked by the Polyfill. When a user interacts with them, an **EVENT** packet is sent to the Gateway.
 
 ---
 
-# 🇫🇷 Installation Navigateur (WebAssembly)
+# 🇫🇷 Guide Polyfill Navigateur NHTML (WASM) v0.2.2
 
-Exécutez Nhtml directement dans le navigateur du visiteur. Parfait pour les PWAs, les Dashboards et les architectures sans serveur.
+Dans l'architecture industrielle, le navigateur est un **terminal léger**. Le Polyfill WebAssembly est le moteur qui se connecte au Gateway et exécute les ordres binaires.
 
-## Étape 1 : Inclure le Bootstrapper
-Copiez `examples/nhtml.js` et le dossier `pkg/` dans votre répertoire statique.
-
-```html
-<script type="module" src="nhtml.js"></script>
-```
-
-## Étape 2 : Utilisation des fichiers .nhtml
-Vous pouvez maintenant définir vos composants directement dans l'HTML ou lier des fichiers externes.
+## Étape 1 : Inclure le Polyfill
+Ajoutez le script de démarrage à votre page HTML.
 
 ```html
-<!-- Fichier distant -->
-<script type="text/nhtml" src="views/app.nhtml" data-target="#main-app"></script>
-
-<!-- Composant en ligne -->
-<script type="text/nhtml" data-target="#sidebar">
-    <var name="status" value="'Active'">
-    <p>Statut du système : {status}</p>
-</script>
+<script src="dist/nhtml-polyfill.js"></script>
 ```
 
-## Étape 3 : Configuration Serveur
-Assurez-vous que votre serveur web sert les fichiers `.wasm` avec le type MIME correct : `application/wasm`.
+## Étape 2 : Initialisation
+Le Polyfill se connecte au Gateway via WebSocket pour recevoir le flux NBPS.
+
+```javascript
+Nhtml.connect("ws://votre-serveur:8080/gateway");
+```
+
+## Étape 3 : Fonctionnement
+- **HELLO** : Le Polyfill s'identifie auprès du serveur.
+- **PATCH** : Le moteur WASM applique les mutations DOM binaires à une vitesse native.
+- **EVENT** : Les clics et saisies sont capturés et renvoyés au Gateway de manière sécurisée.
+
+---
+**Status :** Industriel. Cette méthode garantit une latence minimale et une sécurité maximale (P3).

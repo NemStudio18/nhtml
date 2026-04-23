@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NHTML v0.2.2 | Protocol Demo</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;700&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg: #050505;
+            --card: rgba(255, 255, 255, 0.03);
+            --accent: #00ff88;
+            --text: #ffffff;
+            --subtext: #888888;
+        }
+
+        body {
+            background-color: var(--bg);
+            color: var(--text);
+            font-family: 'Outfit', sans-serif;
+            margin: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            overflow: hidden;
+        }
+
+        .container {
+            position: relative;
+            z-index: 10;
+            text-align: center;
+            padding: 40px;
+            background: var(--card);
+            backdrop-filter: blur(20px);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            border-radius: 32px;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+            width: 320px;
+        }
+
+        h1 {
+            font-size: 0.9rem;
+            text-transform: uppercase;
+            letter-spacing: 0.2rem;
+            color: var(--subtext);
+            margin-bottom: 40px;
+        }
+
+        .counter-container {
+            margin: 40px 0;
+            position: relative;
+        }
+
+        .counter {
+            font-size: 8rem;
+            font-weight: 700;
+            background: linear-gradient(180deg, #fff 0%, #444 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            line-height: 1;
+            font-family: 'JetBrains Mono', monospace;
+        }
+
+        .label {
+            font-size: 0.8rem;
+            color: var(--accent);
+            text-transform: uppercase;
+            margin-top: 10px;
+            font-weight: 700;
+        }
+
+        button {
+            background: var(--text);
+            color: var(--bg);
+            border: none;
+            padding: 18px 32px;
+            border-radius: 16px;
+            font-family: 'Outfit', sans-serif;
+            font-weight: 700;
+            font-size: 1rem;
+            cursor: pointer;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            width: 100%;
+            margin-top: 20px;
+        }
+
+        button:hover {
+            transform: translateY(-2px);
+            background: var(--accent);
+            box-shadow: 0 10px 20px -5px rgba(0, 255, 136, 0.3);
+        }
+
+        button:active {
+            transform: translateY(1px);
+        }
+
+        .status {
+            margin-top: 30px;
+            font-size: 0.7rem;
+            color: var(--subtext);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+        }
+
+        .dot {
+            width: 6px;
+            height: 6px;
+            background: var(--accent);
+            border-radius: 50%;
+            box-shadow: 0 0 10px var(--accent);
+        }
+
+        /* Background Effects */
+        .glow {
+            position: absolute;
+            width: 400px;
+            height: 400px;
+            background: radial-gradient(circle, rgba(0, 255, 136, 0.1) 0%, transparent 70%);
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            z-index: 1;
+        }
+    </style>
+</head>
+<body>
+    <div class="glow"></div>
+    <div class="container">
+        <h1>NHTML Protocol v0.2.2</h1>
+        
+        <div class="counter-container">
+            <div class="counter" n-id="counter_value">0</div>
+            <div class="label">Stateless State</div>
+        </div>
+
+        <button n-id="btn_increment" n-click="increment">INCREMENT</button>
+
+        <div class="status">
+            <div class="dot"></div>
+            BINARY WS : ACTIVE
+        </div>
+    </div>
+
+    <script type="module">
+        import { initNhtml } from './polyfill/bridge.js';
+        initNhtml('ws://' + window.location.hostname + ':8080');
+    </script>
+</body>
+</html>

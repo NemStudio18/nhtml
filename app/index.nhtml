@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NHTML v0.2.1 - Demo Officielle</title>
+    <style>
+        :root { --mouse-x: 0; }
+        body { 
+            font-family: system-ui, -apple-system, sans-serif; 
+            background: #0f172a; 
+            color: #f8fafc; 
+            display: flex; 
+            flex-direction: column;
+            justify-content: center; 
+            align-items: center; 
+            min-height: 100vh; 
+            margin: 0; 
+        }
+        .card { 
+            background: #1e293b; 
+            padding: 2.5rem; 
+            border-radius: 1.5rem; 
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5); 
+            text-align: center; 
+            border: 1px solid #334155;
+            max-width: 400px;
+            width: 90%;
+        }
+        h1 { font-size: 3rem; margin: 0 0 1.5rem 0; color: #3b82f6; }
+        .btn { 
+            background: #3b82f6; 
+            color: white; 
+            border: none; 
+            padding: 1rem 2rem; 
+            border-radius: 0.75rem; 
+            cursor: pointer; 
+            font-size: 1.1rem;
+            font-weight: 600; 
+            transition: all 0.2s;
+            width: 100%;
+        }
+        .btn:active { transform: scale(0.95); }
+        
+        .box { 
+            margin-top: 2rem; 
+            padding: 1.5rem; 
+            border: 2px dashed #475569; 
+            border-radius: 1rem; 
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            color: #94a3b8;
+            cursor: default;
+        }
+        /* Cette classe sera ajoutée via n-hover localement */
+        .highlight { 
+            background: #3b82f6; 
+            color: white; 
+            border-style: solid;
+            border-color: #60a5fa;
+            transform: translateY(-5px);
+            box-shadow: 0 10px 20px -5px rgba(59, 130, 246, 0.5);
+        }
+
+        .tracker { 
+            margin-top: 1.5rem; 
+            font-size: 0.9rem; 
+            color: #64748b; 
+            padding: 0.5rem;
+            background: #0f172a;
+            border-radius: 0.5rem;
+        }
+        .dot {
+            display: inline-block;
+            width: 10px;
+            height: 10px;
+            background: #3b82f6;
+            border-radius: 50%;
+            /* Déplacement contrôlé par la variable CSS --mouse-x via n-mousemove */
+            transform: translateX(calc(var(--mouse-x) * 50px));
+        }
+    </style>
+</head>
+<body>
+
+    <div class="card">
+        <!-- n-id : L'adresse de cet élément pour les patchs binaires -->
+        <h1 n-id="display-count">0</h1>
+        
+        <p style="color: #64748b; margin-bottom: 2rem;">Protocole NHTML v0.2.1 actif</p>
+
+        <!-- n-click : Interaction Serveur (PHP) via Gateway -->
+        <button n-click="counter.php" class="btn">
+            Incrémenter
+        </button>
+
+        <div style="height: 1px; background: #334155; margin: 2rem 0;"></div>
+
+        <!-- n-hover / n-leave : LOCAL ACTIONS (0ms de latence) -->
+        <div n-id="interactive-box" 
+             n-hover="addClass:highlight" 
+             n-leave="removeClass:highlight" 
+             class="box">
+            Survol local (Natif)
+        </div>
+
+        <!-- n-mousemove : Tracking souris via variable CSS locale -->
+        <div n-id="mouse-tracker"
+             n-mousemove="setVar:--mouse-x"
+             class="tracker">
+            Tracking : <span class="dot"></span>
+        </div>
+    </div>
+
+    <p style="margin-top: 2rem; color: #475569; font-size: 0.8rem;">
+        Aucun JavaScript développeur n'a été utilisé pour cette page.
+    </p>
+
+</body>
+</html>

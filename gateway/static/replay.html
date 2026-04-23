@@ -1,0 +1,303 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NHTML | Replay Engine</title>
+    <style>
+        :root {
+            --bg: #050505;
+            --surface: rgba(255, 255, 255, 0.05);
+            --accent: #00f2ff;
+            --text: #ffffff;
+            --text-dim: rgba(255, 255, 255, 0.5);
+            --glass: blur(12px);
+        }
+
+        body {
+            margin: 0;
+            padding: 0;
+            background: var(--bg);
+            color: var(--text);
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            overflow: hidden;
+            display: flex;
+            height: 100vh;
+        }
+
+        /* --- Header --- */
+        header {
+            position: fixed;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: var(--surface);
+            backdrop-filter: var(--glass);
+            padding: 10px 25px;
+            border-radius: 100px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            z-index: 1000;
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+        }
+
+        .logo {
+            font-weight: 800;
+            letter-spacing: -1px;
+            background: linear-gradient(90deg, #fff, var(--accent));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .session-id {
+            font-family: monospace;
+            font-size: 0.8rem;
+            color: var(--text-dim);
+            background: rgba(255, 255, 255, 0.05);
+            padding: 4px 10px;
+            border-radius: 5px;
+        }
+
+        /* --- Main Viewer --- */
+        #viewport {
+            flex: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 40px;
+            perspective: 1000px;
+        }
+
+        .frame {
+            width: 100%;
+            max-width: 1000px;
+            height: 80%;
+            background: #fff;
+            border-radius: 15px;
+            box-shadow: 0 30px 60px rgba(0, 0, 0, 0.8);
+            overflow: auto;
+            position: relative;
+            transition: transform 0.5s ease;
+        }
+
+        /* --- Side Panel (Inspector) --- */
+        #inspector {
+            width: 350px;
+            background: var(--surface);
+            backdrop-filter: var(--glass);
+            border-left: 1px solid rgba(255, 255, 255, 0.1);
+            display: flex;
+            flex-direction: column;
+            padding: 20px;
+            gap: 15px;
+        }
+
+        .panel-title {
+            font-size: 0.9rem;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            color: var(--accent);
+            margin-bottom: 10px;
+        }
+
+        .event-list {
+            flex: 1;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .event-card {
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            padding: 10px;
+            border-radius: 8px;
+            font-size: 0.8rem;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .event-card:hover {
+            background: rgba(255, 255, 255, 0.08);
+            border-color: var(--accent);
+        }
+
+        .event-card.active {
+            background: rgba(0, 242, 255, 0.1);
+            border-color: var(--accent);
+        }
+
+        /* --- Controls Bar --- */
+        .controls {
+            position: fixed;
+            bottom: 30px;
+            left: 50px;
+            right: 400px;
+            background: var(--surface);
+            backdrop-filter: var(--glass);
+            border-radius: 20px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            padding: 15px 30px;
+            display: flex;
+            align-items: center;
+            gap: 20px;
+            box-shadow: 0 15px 40px rgba(0, 0, 0, 0.6);
+        }
+
+        .btn {
+            background: none;
+            border: none;
+            color: #fff;
+            cursor: pointer;
+            font-size: 1.2rem;
+            transition: transform 0.2s ease;
+        }
+
+        .btn:hover {
+            transform: scale(1.1);
+            color: var(--accent);
+        }
+
+        .timeline-container {
+            flex: 1;
+            height: 4px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 2px;
+            position: relative;
+            cursor: pointer;
+        }
+
+        .timeline-progress {
+            position: absolute;
+            height: 100%;
+            background: var(--accent);
+            width: 30%;
+            border-radius: 2px;
+            box-shadow: 0 0 15px var(--accent);
+        }
+
+        .speed-selector {
+            font-size: 0.8rem;
+            font-weight: 700;
+            color: var(--text-dim);
+            cursor: pointer;
+        }
+
+        .speed-selector.active {
+            color: var(--accent);
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <div class="logo">NHTML REPLAY</div>
+        <div class="session-id" id="sid">SID: loading...</div>
+    </header>
+
+    <main id="viewport">
+        <div class="frame" id="canvas">
+            <!-- L'UI rejouée s'affichera ici -->
+        </div>
+    </main>
+
+    <div class="controls">
+        <button class="btn" id="playBtn">▶</button>
+        <div class="timeline-container">
+            <div class="timeline-progress" id="progress"></div>
+        </div>
+        <div class="speed-selector active">1X</div>
+        <div class="speed-selector">2X</div>
+        <div class="speed-selector">4X</div>
+    </div>
+
+    <aside id="inspector">
+        <div class="panel-title">Packet Inspector</div>
+        <div class="event-list" id="eventList">
+            <div class="event-card">
+                <div><strong>PATCH</strong> [OpCount: 3]</div>
+                <div style="color: var(--text-dim)">+240ms</div>
+            </div>
+            <div class="event-card active">
+                <div><strong>EVENT</strong> [NodeID: 42]</div>
+                <div style="color: var(--text-dim)">+1.2s</div>
+            </div>
+        </div>
+    </aside>
+
+    <script>
+        const sid = window.location.pathname.split('/').pop();
+        document.getElementById('sid').innerText = `SID: ${sid}`;
+
+        const eventList = document.getElementById('eventList');
+        const progress = document.getElementById('progress');
+        const playBtn = document.getElementById('playBtn');
+
+        // Connexion WebSocket
+        const ws = new WebSocket(`ws://${window.location.host}/replay_ws/${sid}`);
+
+        ws.onopen = () => {
+            addLog("System", "Connexion au flux de rejeu établie.", "info");
+        };
+
+        ws.onmessage = (event) => {
+            const data = event.data;
+
+            if (data.startsWith("INIT:")) {
+                const nodesJson = data.substring(5);
+                const nodes = JSON.parse(nodesJson);
+                renderInitialState(nodes);
+                addLog("System", `État initial chargé (${nodes.length} nodes).`, "info");
+                return;
+            }
+
+            addLog("REPLAY", data, "accent");
+            
+            // Simulation visuelle de l'action sur le node (si présent)
+            if (data.includes("Node")) {
+                const nid = data.split("Node ").pop();
+                const el = document.querySelector(`[data-n-id="${nid}"]`);
+                if (el) {
+                    el.style.outline = "2px solid var(--accent)";
+                    setTimeout(() => el.style.outline = "none", 500);
+                }
+            }
+
+            // Mise à jour factice de la timeline
+            let currentWidth = parseFloat(progress.style.width) || 0;
+            if (currentWidth < 100) {
+                progress.style.width = (currentWidth + 5) + "%";
+            }
+        };
+
+        function renderInitialState(nodes) {
+            const canvas = document.getElementById('canvas');
+            canvas.innerHTML = ""; // Clear
+            nodes.forEach(n => {
+                const div = document.createElement('div');
+                div.setAttribute('data-n-id', n.id);
+                div.style.padding = "10px";
+                div.style.border = "1px solid #eee";
+                div.style.margin = "5px";
+                div.style.borderRadius = "5px";
+                div.innerText = `Node #${n.id}: ${n.val}`;
+                canvas.appendChild(div);
+            });
+        }
+
+        ws.onclose = () => {
+            addLog("System", "Fin du rejeu (Flux fermé).", "warn");
+            playBtn.innerText = "↺";
+        };
+
+        function addLog(type, msg, styleClass) {
+            const card = document.createElement('div');
+            card.className = 'event-card';
+            card.innerHTML = `<div><strong style="color: var(--${styleClass})">${type}</strong> ${msg}</div>`;
+            eventList.prepend(card);
+        }
+    </script>
+</body>
+</html>

@@ -1,59 +1,60 @@
-# Direct Server Installation (Zero-Bridge)
+# 🚀 NHTML Direct Binary Installation (Standalone)
 
-Run Nhtml directly from your web server without PHP or Node.js. This mode is the fastest for serving static-like files with dynamic features.
+Run the NHTML Gateway as a high-performance standalone binary. This is the recommended way to deploy NHTML in production.
 
-## Step 1: Binary Setup
-Download the Nhtml binary for your OS and place it in a secure location (e.g., `/usr/local/bin/nhtml` or `C:\nhtml\nhtml.exe`).
+## Step 1: Download & Install
+Download the latest `gateway` binary for your OS (Windows/Linux/MacOS).
 
-## Step 2: Apache Setup (.htaccess)
-Standard CGI setup to map `.nhtml` files to the compiler.
-
-```apache
-# .htaccess
-Options +ExecCGI
-AddHandler nhtml-handler .nhtml
-Action nhtml-handler /cgi-bin/nhtml --cgi
+```bash
+# Example for Linux
+chmod +x gateway
+sudo mv gateway /usr/local/bin/nhtml
 ```
 
-## Step 3: Nginx Setup
-Since Nginx doesn't support CGI natively, use `fcgiwrap`.
+## Step 2: Running the Gateway
+The Gateway acts as a Supervisor. It handles connections, persistence, and can even launch your PHP background processes.
+
+### Production Mode
+```bash
+nhtml start --port 8080 --db ./sessions.db
+```
+
+### Development Mode (with Watcher)
+```bash
+nhtml dev --watch ./templates
+```
+
+## Step 3: Reverse Proxy (Optional)
+If you are using Nginx, you can proxy the WebSocket traffic to the Gateway.
 
 ```nginx
-location ~ \.nhtml$ {
-    include fastcgi_params;
-    fastcgi_param SCRIPT_FILENAME $document_root$fastcgi_script_name;
-    fastcgi_pass unix:/var/run/fcgiwrap.socket;
-    fastcgi_param FCGI_HANDLER /usr/local/bin/nhtml;
+location /gateway {
+    proxy_pass http://localhost:8080;
+    proxy_http_version 1.1;
+    proxy_set_header Upgrade $http_upgrade;
+    proxy_set_header Connection "Upgrade";
 }
 ```
 
 ---
 
-# 🇫🇷 Installation Directe (Serveur)
+# 🇫🇷 Installation Directe du Binaire NHTML (v0.2.2)
 
-Exécutez Nhtml directement depuis votre serveur web sans PHP ni Node.js. Ce mode est le plus performant pour servir des fichiers de type statique avec des fonctionnalités dynamiques.
+Exécutez le Gateway NHTML comme un service binaire haute performance. C'est la méthode recommandée pour la production.
 
-## Étape 1 : Installation du Binaire
-Téléchargez le binaire Nhtml pour votre système et placez-le dans un endroit sécurisé (ex: `/usr/local/bin/nhtml` ou `C:\nhtml\nhtml.exe`).
+## Étape 1 : Installation
+Placez le binaire `gateway` dans votre PATH.
 
-## Étape 2 : Configuration Apache (.htaccess)
-Configuration CGI standard pour lier les fichiers `.nhtml` au compilateur.
+## Étape 2 : Lancement
+Le Gateway est autonome. Il gère les sockets, la base de données SQLite et la sécurité P3.
 
-```apache
-# .htaccess
-Options +ExecCGI
-AddHandler nhtml-handler .nhtml
-Action nhtml-handler /cgi-bin/nhtml --cgi
-```
+- **Mode Production** : `nhtml start`
+- **Mode Développeur** : `nhtml dev` (Active le rechargement automatique et les logs détaillés).
 
-## Étape 3 : Configuration Nginx
-Comme Nginx ne supporte pas le CGI nativement, utilisez `fcgiwrap`.
+## Étape 3 : Diagnostic Intégré
+Utilisez les outils fournis pour surveiller votre instance :
+- `nhtml db-dump` : Voir l'état des sessions.
+- `nhtml inspect <hex>` : Analyser un paquet binaire suspect.
 
-```nginx
-location ~ \.nhtml$ {
-    include fastcgi_params;
-    fastcgi_param SCRIPT_FILENAME $document_root$fastcgi_script_name;
-    fastcgi_pass unix:/var/run/fcgiwrap.socket;
-    fastcgi_param FCGI_HANDLER /usr/local/bin/nhtml;
-}
-```
+---
+**Status :** Industriel. Cette méthode offre les meilleures performances et une isolation complète de l'application.
