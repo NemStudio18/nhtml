@@ -1,4 +1,4 @@
-# ⚛️ NHTML — Native HTML Framework
+# 🛰️ NHTML — The Server-Driven DOM Protocol
 
 <p align="center">
   <img src="assets/logo.png" width="250" alt="NHTML Logo">

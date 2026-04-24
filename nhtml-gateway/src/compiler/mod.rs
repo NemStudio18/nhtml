@@ -334,7 +334,7 @@ impl NhtmlCompiler {
             let selector = if let Some(ref nid) = n.n_id {
                 format!("[n-id={}]", nid)
             } else {
-                format!("[data-nhtml-id=\"{}\"]", node.id)
+                format!("[n-id=\"_gen_{}\"]", node.id)
             };
 
             // ── Construire les Local Actions ───────────────────────────────────
