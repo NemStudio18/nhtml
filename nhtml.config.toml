@@ -1,0 +1,16 @@
+[ports]
+# Port pour les WebSockets NHTML (défaut: 8080)
+ws = 8080
+
+# Port pour le serveur web HTTP (injection auto) (défaut: 3000)
+http = 3000
+
+# Port pour le serveur PHP en arrière-plan (défaut: 8000)
+php = 8000
+
+# Port pour le Dashboard DevTools (défaut: 8081)
+devtools = 8081
+
+[dev]
+# Activer le live-reload par défaut sans taper --dev (défaut: false)
+auto_reload = false

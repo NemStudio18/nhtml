@@ -5,6 +5,7 @@ mod watcher;
 mod session;
 mod proto;
 mod decoder;
+mod config;
 
 use clap::{Parser, Subcommand};
 use tokio::net::TcpListener;
@@ -42,17 +43,17 @@ enum Commands {
     Start {
         #[arg(long)]
         dev: bool,
-        #[arg(long, default_value_t = 8080)]
-        ws_port: u16,
-        #[arg(long, default_value_t = 8000)]
-        php_port: u16,
+        #[arg(long)]
+        ws_port: Option<u16>,
+        #[arg(long)]
+        php_port: Option<u16>,
     },
     DbDump,
     Inspect { hex: String },
     Validate { path: String },
     Devtools {
-        #[arg(long, default_value_t = 8081)]
-        port: u16,
+        #[arg(long)]
+        port: Option<u16>,
     },
     Bench { path: String },
 }
@@ -60,32 +61,40 @@ enum Commands {
 #[tokio::main]
 async fn main() {
     let cli = Cli::parse();
+    let config_file = config::NhtmlConfig::load();
 
     match &cli.command {
         Commands::New { name } => { cli::create_new_project(name); }
         Commands::Start { dev, ws_port, php_port } => {
             let (tx_monitor, _) = broadcast::channel::<MonitoringEvent>(100);
-            if *dev {
+            
+            let is_dev = *dev || config_file.dev.and_then(|d| d.auto_reload).unwrap_or(false);
+            let final_ws_port = ws_port.or(config_file.ports.as_ref().and_then(|p| p.ws)).unwrap_or(8080);
+            let final_php_port = php_port.or(config_file.ports.as_ref().and_then(|p| p.php)).unwrap_or(8000);
+            let final_http_port = config_file.ports.as_ref().and_then(|p| p.http).unwrap_or(3000);
+
+            if is_dev {
                 let tx_monitor_for_devtools = tx_monitor.clone();
-                let devtools_port = 8081u16;
+                let devtools_port = config_file.ports.as_ref().and_then(|p| p.devtools).unwrap_or(8081);
                 tokio::spawn(async move {
                     crate::cli::run_devtools_on_port(tx_monitor_for_devtools, devtools_port).await;
                 });
             }
-            start_gateway(*dev, *ws_port, *php_port, tx_monitor).await;
+            start_gateway(is_dev, final_ws_port, final_php_port, final_http_port, tx_monitor).await;
         }
         Commands::DbDump => { cli::dump_database(); }
         Commands::Inspect { hex } => { cli::inspect_message(hex); }
         Commands::Validate { path } => { cli::validate_file(path); }
         Commands::Devtools { port } => {
+            let final_port = port.or(config_file.ports.as_ref().and_then(|p| p.devtools)).unwrap_or(8081);
             let (tx_monitor, _) = broadcast::channel::<MonitoringEvent>(100);
-            cli::run_devtools_on_port(tx_monitor, *port).await;
+            cli::run_devtools_on_port(tx_monitor, final_port).await;
         }
         Commands::Bench { path } => { cli::run_benchmark(path); }
     }
 }
 
-async fn start_gateway(is_debug: bool, ws_port: u16, php_port: u16, tx_monitor: broadcast::Sender<MonitoringEvent>) {
+async fn start_gateway(is_debug: bool, ws_port: u16, php_port: u16, http_port: u16, tx_monitor: broadcast::Sender<MonitoringEvent>) {
     if is_debug {
         println!("🚀 NHTML Gateway démarré en mode DEBUG (--dev)");
     } else {
@@ -103,8 +112,8 @@ async fn start_gateway(is_debug: bool, ws_port: u16, php_port: u16, tx_monitor: 
         session::SessionManager::new().await.expect("Échec de l'initialisation de SQLite")
     );
 
-    let addr = "127.0.0.1:8080";
-    let listener = TcpListener::bind(&addr).await.expect("Impossible de lier le port WS 8080");
+    let addr = format!("127.0.0.1:{}", ws_port);
+    let listener = TcpListener::bind(&addr).await.expect("Impossible de lier le port WS");
     println!("📍 Gateway (WebSocket) à l'écoute sur : ws://{}", addr);
 
     // --- SERVEUR HTTP AVEC AUTO-INJECTION ---
@@ -118,16 +127,15 @@ async fn start_gateway(is_debug: bool, ws_port: u16, php_port: u16, tx_monitor: 
                 let body = std::fs::read_to_string("../examples/assets/js/fzstd.min.js").unwrap_or_default();
                 (StatusCode::OK, [(header::CONTENT_TYPE, "application/javascript")], body)
             }))
-            .fallback(get(|req: AxumRequest| async move {
+            .fallback(get(move |req: AxumRequest| async move {
                 let path = req.uri().path().trim_start_matches('/').to_string();
                 let file_path = if path.is_empty() { "counter/index.nhtml".to_string() } else { path };
 
                 if let Ok(mut content) = std::fs::read_to_string(&file_path) {
                     if file_path.ends_with(".nhtml") {
-                        let injection = concat!(
-                            "\n    <script src=\"/_nhtml/fzstd.js\"></script>",
-                            "\n    <script src=\"/_nhtml/bridge.js\"></script>",
-                            "\n    <script>const nhtml = new NHTMLBridge({ ws: 'ws://' + window.location.hostname + ':8080?sid=AUTO', debug: true });</script>"
+                        let injection = format!(
+                            "\n    <script src=\"/_nhtml/fzstd.js\"></script>\n    <script src=\"/_nhtml/bridge.js\"></script>\n    <script>const nhtml = new NHTMLBridge({{ ws: 'ws://' + window.location.hostname + ':{}?sid=AUTO', debug: true }});</script>",
+                            ws_port
                         );
                         content = content.replace("</head>", &format!("{}\n</head>", injection));
                     }
@@ -136,9 +144,10 @@ async fn start_gateway(is_debug: bool, ws_port: u16, php_port: u16, tx_monitor: 
                 (StatusCode::NOT_FOUND, [(header::CONTENT_TYPE, "text/plain")], "404 Not Found".to_string()).into_response()
             }));
 
-        let http_listener = tokio::net::TcpListener::bind("127.0.0.1:3000").await
-            .expect("Impossible de lier le port HTTP 3000");
-        println!("🌍 Serveur Web NHTML : http://127.0.0.1:3000");
+        let http_addr = format!("127.0.0.1:{}", http_port);
+        let http_listener = tokio::net::TcpListener::bind(&http_addr).await
+            .unwrap_or_else(|_| panic!("Impossible de lier le port HTTP {}", http_port));
+        println!("🌍 Serveur Web NHTML : http://{}", http_addr);
         axum::serve(http_listener, app).await.unwrap();
     });
 

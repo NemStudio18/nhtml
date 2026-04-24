@@ -20,8 +20,8 @@
 ## 🔜 Phase 5 — Release Publique
 - [ ] Split en 3 repos : `nhtml-core` (MIT), `nhtml-gateway` (AGPL), `nhtml-cloud` (Privé)
 - [ ] PHP-WASM : Packaging de PHP compilé en WASM pour le mode sans serveur
-- [ ] `nhtml.config.toml` : Configuration déclarative des ports et chemins
-- [ ] Reverse Proxy Doc : Config Nginx/Apache prête à copier-coller
+- [x] `nhtml.config.toml` : Configuration déclarative des ports et chemins
+- [x] Reverse Proxy Doc : Config Nginx/Apache prête à copier-coller
 - [ ] GitHub Pages : Landing page + docs publiques
 
 ---
