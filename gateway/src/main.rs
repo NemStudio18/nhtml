@@ -120,13 +120,14 @@ async fn start_gateway(is_debug: bool, ws_port: u16, php_port: u16, http_port: u
     tokio::spawn(async move {
         let app = Router::new()
             .route("/_nhtml/bridge.js", get(|| async {
-                let body = std::fs::read_to_string("counter/polyfill/bridge.js").unwrap_or_default();
+                let body = std::fs::read_to_string("../examples/assets/js/bridge.js").unwrap_or_default();
                 (StatusCode::OK, [(header::CONTENT_TYPE, "application/javascript")], body)
             }))
             .route("/_nhtml/fzstd.js", get(|| async {
                 let body = std::fs::read_to_string("../examples/assets/js/fzstd.min.js").unwrap_or_default();
                 (StatusCode::OK, [(header::CONTENT_TYPE, "application/javascript")], body)
             }))
+            .nest_service("/_nhtml/php-wasm", tower_http::services::ServeDir::new("../examples/assets/js/php-wasm"))
             .fallback(get(move |req: AxumRequest| async move {
                 let path = req.uri().path().trim_start_matches('/').to_string();
                 let file_path = if path.is_empty() { "counter/index.nhtml".to_string() } else { path };

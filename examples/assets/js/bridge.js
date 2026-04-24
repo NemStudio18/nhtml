@@ -6,7 +6,8 @@ import init, { NhtmlPolyfill } from '../pkg/nhtml_polyfill.js';
 
 let polyfill = null;
 let socket = null;
-let transportMode = "WS"; // "WS" ou "HTTP"
+let transportMode = "WS"; // "WS", "HTTP", ou "WASM"
+let phpWasmEngine = null;
 let reconnectAttempts = 0;
 const MAX_BACKOFF = 30000;
 
@@ -62,7 +63,69 @@ function injectHud() {
     window.nhtml_stats = { pkts: 0, size: 0 };
 }
 
-async function sendBinary(data) {
+async function loadPhpWasm() {
+    if (phpWasmEngine) return;
+    console.log("%c[NHTML] 🪶 Chargement du moteur PHP-WASM (Local)...", "color: #ff00ff; font-weight: bold;");
+    const { PhpWeb } = await import('./php-wasm/PhpWeb.mjs');
+    phpWasmEngine = new PhpWeb();
+    console.log("%c[NHTML] 🪶 PHP-WASM est prêt !", "color: #ff00ff; font-weight: bold;");
+}
+
+function applyJsonPatches(patches) {
+    console.log(`%c[NHTML] 🪶 PATCH WASM Reçu | Ops: ${patches.length}`, "color: #ff00ff; font-weight: bold;");
+    for (const p of patches) {
+        const el = document.querySelector(`[n-id="${p.nid}"]`);
+        if (!el) continue;
+        
+        if (p.op === 'set_text') {
+            el.textContent = p.value;
+            el.classList.remove('nhtml-patch-glow'); void el.offsetWidth; el.classList.add('nhtml-patch-glow');
+        } else if (p.op === 'set_html') {
+            el.innerHTML = p.value;
+            el.classList.remove('nhtml-patch-glow'); void el.offsetWidth; el.classList.add('nhtml-patch-glow');
+        } else if (p.op === 'set_class') {
+            el.className = p.value;
+        } else if (p.op === 'set_attr') {
+            el.setAttribute(p.attr, p.value);
+        } else if (p.op === 'append_html') {
+            el.insertAdjacentHTML('beforeend', p.value);
+        } else if (p.op === 'remove_node') {
+            el.remove();
+        }
+    }
+}
+
+async function sendBinary(data, jsonPayload = null) {
+    if (transportMode === "WASM") {
+        if (!jsonPayload) return;
+        const modeEl = document.getElementById('nhtml-hud-mode');
+        if (modeEl) modeEl.innerText = "(WASM)";
+        
+        try {
+            await loadPhpWasm();
+            let appCode = await fetch('app.php').then(r => r.text());
+            
+            // Mock php://input to pass the JSON payload directly into the PHP script
+            let safePayload = jsonPayload.replace(/'/g, "\\'");
+            let executionCode = appCode.replace(/file_get_contents\s*\(\s*['"]php:\/\/input['"]\s*\)/g, `'${safePayload}'`);
+            
+            const output = await phpWasmEngine.run(executionCode);
+            try {
+                // Strip anything before the JSON array in case of PHP warnings/notices
+                const jsonStart = output.indexOf('[');
+                if (jsonStart !== -1) {
+                    const patches = JSON.parse(output.substring(jsonStart));
+                    applyJsonPatches(patches);
+                }
+            } catch (e) {
+                console.error("[NHTML] 🪶 Erreur parsing JSON PHP:", output);
+            }
+        } catch (err) {
+            console.error("[NHTML] 🪶 Erreur d'exécution PHP-WASM:", err);
+        }
+        return;
+    }
+
     const type = new Uint8Array(data)[0];
     console.log(`%c[NBPS] OUT: 0x${type.toString(16).padStart(2,'0')} (${data.byteLength} bytes)`, "color: #ffaa00; font-weight: bold;");
     
@@ -82,12 +145,22 @@ async function sendBinary(data) {
                 headers: { 'Content-Type': 'application/octet-stream', 'X-NHTML-Session': window.nhtml_session_id },
                 body: data
             });
+            
+            // Si le serveur HTTP ne gère pas le POST (ex: GitHub Pages renvoie 405), on passe en WASM
+            if (response.status === 405 || response.status === 404) {
+                console.warn("[NHTML] Hébergement statique détecté. Bascule définitive sur PHP-WASM !");
+                transportMode = "WASM";
+                return sendBinary(data, jsonPayload); // Retry with WASM
+            }
+
             const buffer = await response.arrayBuffer();
             if (buffer.byteLength > 0) {
                 processMessage(new Uint8Array(buffer));
             }
         } catch (e) {
-            console.error("[NHTML] Erreur transport HTTP:", e);
+            console.warn("[NHTML] Serveur injoignable, bascule sur PHP-WASM !");
+            transportMode = "WASM";
+            return sendBinary(data, jsonPayload);
         }
     }
 }
@@ -270,6 +343,27 @@ document.addEventListener('click', (e) => {
         const view = new DataView(buffer);
         view.setUint8(0, 0x02);
         view.setUint32(1, id_num);
-        sendBinary(buffer);
+        
+        // Prepare JSON payload for potential WASM fallback
+        const jsonPayload = JSON.stringify({ nhtml_event: 'click', node_id: nid });
+        sendBinary(buffer, jsonPayload);
+    }
+});
+
+// Capturer aussi les inputs pour 03-live-form et 04-style-lab
+document.addEventListener('input', (e) => {
+    const target = e.target;
+    const nid = target.getAttribute('id'); // We use IDs in live-form / style-lab
+    if (nid) {
+        // Prepare JSON payload for potential WASM fallback
+        const formData = {};
+        formData[nid] = target.value;
+        const jsonPayload = JSON.stringify({ nhtml_event: 'input', node_id: nid, form_data: formData });
+        
+        // Mock binary buffer (0x02 is EVENT)
+        const buffer = new ArrayBuffer(5);
+        new DataView(buffer).setUint8(0, 0x02);
+        
+        sendBinary(buffer, jsonPayload);
     }
 });
