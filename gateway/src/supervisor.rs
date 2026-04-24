@@ -1,16 +1,38 @@
 use tokio::process::Command;
 use tokio::signal;
+use std::path::Path;
 
 pub async fn start_php_server(port: u16) {
-    println!("⚙️ Supervisor: Lancement de PHP-in-a-Box sur le port {}...", port);
+    // --- Algorithme de détection du binaire ---
+    let php_bin = if Path::new("./php.exe").exists() {
+        "./php.exe".to_string()
+    } else if Path::new("./php/php.exe").exists() {
+        "./php/php.exe".to_string()
+    } else if Path::new("./bin/php.exe").exists() {
+        "./bin/php.exe".to_string()
+    } else {
+        "php".to_string() // Fallback PATH
+    };
 
-    let mut child = Command::new("php")
+    println!("⚙️ Supervisor: Tentative de lancement avec : {}", php_bin);
+
+    let child_res = Command::new(&php_bin)
         .arg("-S")
         .arg(format!("127.0.0.1:{}", port))
-        .spawn()
-        .expect("❌ Échec du lancement de PHP. Vérifiez que PHP est installé et dans le PATH.");
+        .arg("router.php")
+        .spawn();
 
-    println!("✅ Supervisor: Serveur PHP opérationnel.");
+    let mut child = match child_res {
+        Ok(c) => {
+            println!("✅ Supervisor: Serveur PHP opérationnel sur le port {}.", port);
+            c
+        },
+        Err(e) => {
+            eprintln!("❌ Supervisor: Impossible de lancer PHP ({}).", e);
+            eprintln!("👉 Installez PHP ou placez un dossier 'php/' contenant le binaire à côté du Gateway.");
+            return;
+        }
+    };
 
     // Gestion propre de l'arrêt (Ctrl+C) pour éviter les processus zombies
     tokio::spawn(async move {

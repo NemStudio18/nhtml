@@ -1,6 +1,13 @@
 use wasm_bindgen::prelude::*;
 use std::collections::HashMap;
 
+// Constants from Spec v0.2.3
+const OP_SET_TEXT: u8 = 0x01;
+const OP_SET_ATTR: u8 = 0x02;
+const OP_ADD_CLASS: u8 = 0x04;
+const OP_DEL_CLASS: u8 = 0x05;
+const OP_REPLACE_INNER: u8 = 0x0A;
+
 // Imports from JS Bridge
 #[wasm_bindgen]
 extern "C" {
@@ -36,7 +43,7 @@ pub struct NhtmlPolyfill {
 impl NhtmlPolyfill {
     #[wasm_bindgen(constructor)]
     pub fn new() -> Self {
-        log("NHTML Polyfill v0.2.1 initialized.");
+        log("NHTML Polyfill v0.2.3 initialized.");
         Self {
             buffer: Vec::new(),
             node_table: HashMap::new(),
@@ -51,23 +58,22 @@ impl NhtmlPolyfill {
 
     fn process_buffer(&mut self) {
         // Simple assembler loop
-        while self.buffer.len() >= 3 {
+        while self.buffer.len() >= 5 {
             let pkt_type = self.buffer[0];
-            let length = if pkt_type == 0x07 { // B-TREE has 4-byte length
-                if self.buffer.len() < 5 { break; }
-                let l = u32::from_be_bytes([self.buffer[1], self.buffer[2], self.buffer[3], self.buffer[4]]) as usize;
-                l + 5
-            } else {
-                let l = u16::from_be_bytes([self.buffer[1], self.buffer[2]]) as usize;
-                l + 3
-            };
+            
+            // Spec v0.2.3: Packet length is ALWAYS 4 bytes (u32) for all types
+            let payload_len = u32::from_be_bytes([
+                self.buffer[1], self.buffer[2], self.buffer[3], self.buffer[4]
+            ]) as usize;
+            
+            let total_len = 1 + 4 + payload_len;
 
-            if self.buffer.len() < length {
+            if self.buffer.len() < total_len {
                 break; // Incomplete packet
             }
 
-            let packet = self.buffer[..length].to_vec();
-            self.buffer.drain(..length);
+            let packet = self.buffer[..total_len].to_vec();
+            self.buffer.drain(..total_len);
 
             self.parse_packet(&packet);
         }
@@ -77,7 +83,7 @@ impl NhtmlPolyfill {
         let pkt_type = packet[0];
         match pkt_type {
             0x01 => self.parse_hello(packet),
-            0x02 => self.parse_patch(packet),
+            0x03 => self.parse_patch(packet), // Spec v0.2.3: PATCH is 0x03
             0x04 => self.parse_bind(packet),
             0x07 => self.parse_btree(packet),
             _ => log(&format!("Unknown packet type: 0x{:02X}", pkt_type)),
@@ -89,9 +95,9 @@ impl NhtmlPolyfill {
     }
 
     fn parse_btree(&mut self, packet: &[u8]) {
-        if packet.len() < 13 { return; } // header size: type(1) + len(4) + comp(1) + uncomp_len(4) + crc(4)
+        if packet.len() < 14 { return; } // type(1) + len(4) + comp(1) + uncomp(4) + crc(4)
         
-        let mut cursor = 5; // Skip type and total packet length
+        let mut cursor = 5; 
         let compression_flag = packet[cursor]; cursor += 1;
         let uncompressed_len = u32::from_be_bytes([packet[cursor], packet[cursor+1], packet[cursor+2], packet[cursor+3]]) as usize; cursor += 4;
         let expected_crc = u32::from_be_bytes([packet[cursor], packet[cursor+1], packet[cursor+2], packet[cursor+3]]); cursor += 4;
@@ -130,15 +136,12 @@ impl NhtmlPolyfill {
         }
         
         log(&format!("B-TREE décompressé et vérifié avec succès ! ({} bytes)", decompressed.len()));
-        
-        // TODO: Parser l'arbre DOM décompressé (JSON ou binaire selon la spec B-TREE)
-        // et construire le DOM initial via des appels JS.
     }
 
     fn parse_bind(&mut self, packet: &[u8]) {
-        if packet.len() < 5 { return; }
+        if packet.len() < 7 { return; }
         
-        let mut cursor = 3; // Skip header (1 byte type + 2 bytes length)
+        let mut cursor = 5; // Skip header (type + u32 len)
         
         let node_id = u16::from_be_bytes([packet[cursor], packet[cursor+1]]);
         cursor += 2;
@@ -154,10 +157,8 @@ impl NhtmlPolyfill {
         let _n_model = Self::read_str8(packet, &mut cursor);
         let _n_text = Self::read_str8(packet, &mut cursor);
         
-        // Stocker le mapping node_id -> nid
         self.node_table.insert(node_id, nid.clone());
         
-        // Extension v0.2.1 : Local Actions
         if cursor < packet.len() {
             let local_action_count = packet[cursor];
             cursor += 1;
@@ -171,7 +172,6 @@ impl NhtmlPolyfill {
                 let flags = packet[cursor]; cursor += 1;
                 let _threshold = packet[cursor]; cursor += 1;
                 
-                // Appel vers le JS Bridge
                 nhtml_register_local_action(&nid, action_type, trigger_type, &param, flags);
             }
         }
@@ -188,49 +188,60 @@ impl NhtmlPolyfill {
     }
 
     fn parse_patch(&mut self, packet: &[u8]) {
-        if packet.len() < 4 { return; }
-        let mut cursor = 3; // Skip header
+        if packet.len() < 7 { return; }
+        let mut cursor = 5; // Skip header
         
-        let op_count = packet[cursor]; cursor += 1;
+        let op_count = u16::from_be_bytes([packet[cursor], packet[cursor+1]]) as usize;
+        cursor += 2;
         
         for _ in 0..op_count {
-            if cursor + 5 > packet.len() { break; }
-            let op_type = packet[cursor]; cursor += 1;
+            if cursor + 7 > packet.len() { break; }
+            
+            // Format v0.2.3: [TargetID:2] [OpType:1] [Version:4] [DataLen:2] [Data]
             let target_id = u16::from_be_bytes([packet[cursor], packet[cursor+1]]); cursor += 2;
-            let data_len = u16::from_be_bytes([packet[cursor], packet[cursor+1]]) as usize; cursor += 2;
+            let op_type = packet[cursor]; cursor += 1;
+            let _version = u32::from_be_bytes([packet[cursor], packet[cursor+1], packet[cursor+2], packet[cursor+3]]); cursor += 4;
             
-            if cursor + data_len > packet.len() { break; }
-            let data = &packet[cursor..cursor+data_len];
-            cursor += data_len;
-            
-            // Resolve node ID
+            // Les strings (Data) commencent par u16 len dans read_str16
             let nid = match self.node_table.get(&target_id) {
                 Some(id) => id,
                 None => {
                     log(&format!("PATCH ignored: unknown node_id {}", target_id));
+                    // On doit quand même avancer le curseur de la longueur des données !
+                    let data_len = u16::from_be_bytes([packet[cursor], packet[cursor+1]]) as usize;
+                    cursor += 2 + data_len;
                     continue;
                 }
             };
             
-            // Apply operation
             match op_type {
-                0x01 => { // SET_TEXT
-                    let mut d_cursor = 0;
-                    let text = Self::read_str16(data, &mut d_cursor);
+                OP_SET_TEXT => {
+                    let text = Self::read_str16(packet, &mut cursor);
                     nhtml_set_text(nid, &text);
                 },
-                0x04 => { // ADD_CLASS
-                    let mut d_cursor = 0;
-                    let class = Self::read_str16(data, &mut d_cursor);
+                OP_SET_ATTR => {
+                    let key = Self::read_str8(packet, &mut cursor);
+                    let val = Self::read_str16(packet, &mut cursor);
+                    nhtml_set_attr(nid, &key, &val);
+                },
+                OP_ADD_CLASS => {
+                    let class = Self::read_str16(packet, &mut cursor);
                     nhtml_add_class(nid, &class);
                 },
-                0x05 => { // DEL_CLASS
-                    let mut d_cursor = 0;
-                    let class = Self::read_str16(data, &mut d_cursor);
+                OP_DEL_CLASS => {
+                    let class = Self::read_str16(packet, &mut cursor);
                     nhtml_remove_class(nid, &class);
                 },
-                // Autres opérations à ajouter...
-                _ => log(&format!("Unsupported PATCH op_type: {}", op_type)),
+                OP_REPLACE_INNER => {
+                    let html = Self::read_str16(packet, &mut cursor);
+                    nhtml_replace_inner(nid, &html);
+                },
+                _ => {
+                    log(&format!("Unsupported PATCH op_type: {}", op_type));
+                    // Skip data if unknown
+                    let data_len = u16::from_be_bytes([packet[cursor], packet[cursor+1]]) as usize;
+                    cursor += 2 + data_len;
+                }
             }
         }
     }
@@ -245,3 +256,4 @@ impl NhtmlPolyfill {
         s
     }
 }
+

@@ -9,8 +9,9 @@ pub const PKT_EVENT  : u8 = 0x02;
 pub const PKT_PATCH  : u8 = 0x03;
 pub const PKT_BIND   : u8 = 0x04;
 pub const PKT_SYNC   : u8 = 0x05;
-pub const PKT_PING   : u8 = 0x09;
 pub const PKT_BTREE  : u8 = 0x07;
+pub const PKT_PING   : u8 = 0x09;
+pub const PKT_LOG    : u8 = 0x10;
 pub const PKT_ERR    : u8 = 0x7F;
 
 pub const OP_SET_TEXT      : u8 = 0x01;
@@ -98,9 +99,9 @@ fn push_str16(buf: &mut Vec<u8>, s: &str) {
 }
 
 fn wrap_packet(pkt_type: u8, payload: Vec<u8>) -> Vec<u8> {
-    let mut out = Vec::with_capacity(3 + payload.len());
+    let mut out = Vec::with_capacity(5 + payload.len());
     out.push(pkt_type);
-    push_u16(&mut out, payload.len() as u16);
+    push_u32(&mut out, payload.len() as u32);
     out.extend_from_slice(&payload);
     out
 }
@@ -108,13 +109,10 @@ fn wrap_packet(pkt_type: u8, payload: Vec<u8>) -> Vec<u8> {
 // ─── HELLO ─────────────────────────────────────────────────────────────────
 
 pub fn hello(session_id: u32, keepalive_ms: u16) -> Vec<u8> {
-    let mut p = Vec::new();
-    p.push(0u8);  // version_major
-    p.push(1u8);  // version_minor
-    p.push(0x01); // flags: compression=zstd
-    push_u32(&mut p, session_id);
-    push_u16(&mut p, keepalive_ms);
-    wrap_packet(PKT_HELLO, p)
+    let mut payload = Vec::new();
+    push_u32(&mut payload, session_id);
+    push_u16(&mut payload, keepalive_ms);
+    wrap_packet(PKT_HELLO, payload)
 }
 
 // ─── BIND ──────────────────────────────────────────────────────────────────
@@ -131,7 +129,7 @@ pub struct LocalActionEntry {
 
 pub struct BindParams<'a> {
     pub node_id        : u16,
-    pub n_id           : &'a str,
+    pub nid           : &'a str,
     pub selector       : &'a str,
     pub listen_mask    : u8,
     pub behavior_flags : u8,
@@ -145,7 +143,7 @@ pub struct BindParams<'a> {
 pub fn bind(p: BindParams) -> Vec<u8> {
     let mut payload = Vec::new();
     push_u16(&mut payload, p.node_id);
-    push_str8(&mut payload, p.n_id);
+    push_str8(&mut payload, p.nid);
     push_str8(&mut payload, p.selector);
     payload.push(p.listen_mask);
     payload.push(p.behavior_flags);
@@ -173,7 +171,7 @@ pub struct PatchOp {
     pub op_type   : u8,
     pub target_id : u16,
     pub version   : u32,
-    pub data      : Vec<u8>,  // op_data pré-sérialisé
+    pub data      : Vec<u8>,  // op_data pré-sérialisé (inclut la longueur interne si nécessaire)
 }
 
 impl PatchOp {
@@ -183,13 +181,18 @@ impl PatchOp {
         Self { op_type: OP_SET_TEXT, target_id, version, data }
     }
 
+    pub fn replace_inner(target_id: u16, version: u32, html: &str) -> Self {
+        let mut data = Vec::new();
+        push_str16(&mut data, html);
+        Self { op_type: OP_REPLACE_INNER, target_id, version, data }
+    }
+
     pub fn set_attr(target_id: u16, version: u32, key: &str, val: &str) -> Self {
         let mut data = Vec::new();
         push_str8(&mut data, key);
         push_str16(&mut data, val);
-        Self { op_type: OP_SET_ATTR, target_id, version: 0, data }
+        Self { op_type: OP_SET_ATTR, target_id, version, data }
     }
-
 }
 
 pub fn patch(ops: &[PatchOp]) -> Vec<u8> {
@@ -198,9 +201,7 @@ pub fn patch(ops: &[PatchOp]) -> Vec<u8> {
     for op in ops {
         push_u16(&mut payload, op.target_id); // TargetID (u16)
         payload.push(op.op_type);             // OpType (u8)
-        push_u32(&mut payload, op.version);   // NodeVersion (u32) - NEW!
-        
-        // On insère directement les données (qui contiennent déjà leurs longueurs internes)
+        push_u32(&mut payload, op.version);   // NodeVersion (u32)
         payload.extend_from_slice(&op.data);
     }
     wrap_packet(PKT_PATCH, payload)
@@ -256,5 +257,12 @@ pub fn err(severity: u8, code: u8, ref_id: u16, message: &str) -> Vec<u8> {
 // ─── PING ──────────────────────────────────────────────────────────────────
 
 pub fn ping(sequence: u8) -> Vec<u8> {
-    vec![PKT_PING, 0x00, 0x02, 0x00, sequence]
+    wrap_packet(PKT_PING, vec![sequence])
+}
+
+pub fn log_msg(severity: u8, message: &str) -> Vec<u8> {
+    let mut payload = Vec::new();
+    payload.push(severity);
+    push_str16(&mut payload, message);
+    wrap_packet(PKT_LOG, payload)
 }

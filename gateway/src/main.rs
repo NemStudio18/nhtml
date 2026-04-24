@@ -11,6 +11,16 @@ use tokio::net::TcpListener;
 use futures_util::{StreamExt, SinkExt};
 use tokio::sync::broadcast;
 use tokio_tungstenite::{accept_hdr_async, tungstenite::Message};
+use serde::{Serialize, Deserialize};
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct MonitoringEvent {
+    pub session_id: String,
+    pub direction: String, // "IN" ou "OUT"
+    pub pkt_type: u8,
+    pub size: usize,
+    pub timestamp: i64,
+}
 
 #[derive(Parser)]
 #[command(name = "nhtml", about = "Le Gateway Native-HTML (v0.2.2)")]
@@ -46,11 +56,8 @@ enum Commands {
         /// Le chemin du fichier binaire
         path: String,
     },
-    /// Rejoue une session utilisateur (Time Travel)
-    Replay {
-        /// L'ID de la session à rejouer
-        session_id: String,
-    },
+    /// Ouvre les DevTools NHTML (Dashboard, Time Travel, etc.)
+    Devtools,
 }
 
 #[tokio::main]
@@ -73,8 +80,8 @@ async fn main() {
         Commands::Validate { path } => {
             cli::validate_file(path);
         }
-        Commands::Replay { session_id } => {
-            cli::run_replay(session_id.clone()).await;
+        Commands::Devtools => {
+            cli::run_devtools().await;
         }
     }
 }
@@ -82,10 +89,25 @@ async fn main() {
 async fn start_gateway(is_debug: bool) {
     if is_debug {
         println!("🚀 NHTML Gateway démarré en mode DEBUG (--dev)");
+        
+        // Magie de l'expérience développeur : Lancer les DevTools automatiquement !
+        let (tx_monitor, _) = broadcast::channel::<MonitoringEvent>(100);
+        let rx_monitor = tx_monitor.clone();
+
+        tokio::spawn(async move {
+            crate::cli::run_devtools(rx_monitor).await;
+        });
+        
+        start_gateway(true, tx_monitor).await;
     } else {
         println!("🌐 NHTML Gateway démarré en mode PRODUCTION");
+        // En prod, on peut quand même lancer le gateway sans moniteur ou avec un moniteur vide
+        let (tx_monitor, _) = broadcast::channel::<MonitoringEvent>(1);
+        start_gateway(false, tx_monitor).await;
     }
+}
 
+async fn start_gateway(is_debug: bool, tx_monitor: broadcast::Sender<MonitoringEvent>) {
     // 1. Démarrage du Supervisor (PHP)
     let php_port = 8000;
     tokio::spawn(supervisor::start_php_server(php_port));
@@ -111,7 +133,8 @@ async fn start_gateway(is_debug: bool) {
         let is_debug = is_debug;
         let mut rx_reload = tx_reload.subscribe();
         let manager = session_manager.clone();
-        
+        let tx_monitor = tx_monitor.clone();
+
         tokio::spawn(async move {
             let mut session_id = uuid::Uuid::new_v4().to_string();
 
@@ -135,6 +158,7 @@ async fn start_gateway(is_debug: bool) {
             };
 
             let (mut ws_sender, mut ws_receiver) = ws_stream.split();
+            let tx_monitor = tx_monitor.clone();
             
             println!("🔌 Nouvelle connexion client WS (Session: {})", session_id);
 
@@ -163,15 +187,35 @@ async fn start_gateway(is_debug: bool) {
                                         }
                                     }
 
-                                    if let Some(patch_data) = handle_binary_packet(&data, is_debug, php_port, &session_id, &manager).await {
-                                        if is_debug {
-                                            let decoded = decoder::decode(&patch_data);
-                                            println!("📤 OUT DEC: {:?}", decoded);
-                                            println!("📤 OUT HEX: {:02X?}", patch_data);
-                                        }
-                                        match ws_sender.send(Message::Binary(patch_data)).await {
-                                            Ok(_) => { if is_debug { println!("✅ Message envoyé avec succès au client."); } }
-                                            Err(e) => { println!("❌ Erreur fatale lors de l'envoi WS: {:?}", e); break; }
+                                    // Envoi au Monitor
+                                    let _ = tx_monitor.send(MonitoringEvent {
+                                        session_id: session_id.clone(),
+                                        direction: "IN".to_string(),
+                                        pkt_type: data[0],
+                                        size: data.len(),
+                                        timestamp: chrono::Utc::now().timestamp_millis(),
+                                    });
+
+                                            if let Some(packets) = handle_binary_packet(&data, is_debug, php_port, &session_id, &manager).await {
+                                        for patch_data in packets {
+                                            // Envoi au Monitor
+                                            let _ = tx_monitor.send(MonitoringEvent {
+                                                session_id: session_id.clone(),
+                                                direction: "OUT".to_string(),
+                                                pkt_type: patch_data[0],
+                                                size: patch_data.len(),
+                                                timestamp: chrono::Utc::now().timestamp_millis(),
+                                            });
+
+                                            if is_debug {
+                                                let decoded = decoder::decode(&patch_data);
+                                                println!("📤 OUT DEC: {:?}", decoded);
+                                                println!("📤 OUT HEX: {:02X?}", patch_data);
+                                            }
+                                            match ws_sender.send(Message::Binary(patch_data)).await {
+                                                Ok(_) => { if is_debug { println!("✅ Message envoyé avec succès au client."); } }
+                                                Err(e) => { println!("❌ Erreur fatale lors de l'envoi WS: {:?}", e); break; }
+                                            }
                                         }
                                     }
                                 }
@@ -206,10 +250,10 @@ async fn handle_binary_packet(
     php_port: u16,
     session_id: &str,
     manager: &session::SessionManager
-) -> Option<Vec<u8>> {
+) -> Option<Vec<Vec<u8>>> {
     if data.is_empty() { return None; }
     
-    let pkt_type = data[0];
+    let mut response_packets = Vec::new();
     match pkt_type {
         0x01 => { // HELLO — Handshake & State Sync
             let last_ver = if data.len() >= 5 {
@@ -223,7 +267,8 @@ async fn handle_binary_packet(
 
             if !all_nodes.is_empty() {
                 if debug { println!("📦 Full-Path : Envoi du B-TREE Snapshot ({} nœuds)", all_nodes.len()); }
-                return Some(proto::btree(&all_nodes));
+                response_packets.push(proto::btree(&all_nodes));
+                return Some(response_packets);
             }
 
             // 2. Si aucun nœud (nouvelle session), on appelle PHP init
@@ -258,21 +303,28 @@ async fn handle_binary_packet(
                                             binary_ops.push(proto::PatchOp::set_text(node_id, new_ver, &val_str));
                                         }
                                     }
+                                } else if p.get("op") == Some(&serde_json::json!("log")) {
+                                    if let Some(val) = p.get("value") {
+                                        let msg = val.as_str().unwrap_or("");
+                                        response_packets.push(proto::log_msg(1, msg)); // Severity 1 = INFO
+                                    }
                                 }
                             }
                         }
                     }
 
                     if !binary_ops.is_empty() {
-                        return Some(proto::patch(&binary_ops));
+                        response_packets.push(proto::patch(&binary_ops));
                     }
                     
-                    // Fallback : si PHP ne renvoie rien d'utile, on renvoie au moins un ACK binaire vide
-                    // pour éviter la déconnexion du client.
-                    return Some(vec![0x01, 0x00, 0x00, 0x00, 0x00]); 
+                    if response_packets.is_empty() {
+                        response_packets.push(vec![0x01, 0x00, 0x00, 0x00, 0x00]);
+                    }
+                    return Some(response_packets);
                 }
             }
-            Some(vec![0x01, 0x00, 0x00, 0x00, 0x00])
+            response_packets.push(vec![0x01, 0x00, 0x00, 0x00, 0x00]);
+            Some(response_packets)
         },
         0x02 => { // EVENT
             if data.len() >= 5 {

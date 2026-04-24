@@ -1,61 +1,43 @@
-# 🛠️ Roadmap : Écosystème d'Outils NHTML (v0.2.2+)
+# 🛠️ Roadmap : Écosystème d'Outils NHTML (v0.3.0)
 
 Ce document définit la stratégie de développement des outils entourant le protocole NHTML pour faciliter son adoption, son débogage et l'expérience développeur (DX).
 
 ---
 
-## 📅 Phase 1 : Fondations DevTools (1-2 semaines)
-*Priorité : Rendre le flux binaire transparent et inspectable.*
+## 📅 Phase 1 : Fondations DevTools (TERMINÉE 🟢)
+- [x] **Core Decoder** : Module Rust/JS binaire NBPS v0.3.1.
+- [x] **CLI Inspect** : Commande `nhtml inspect` fonctionnelle.
+- [x] **NHTML Glow** : Diff Highlighter visuel dans le DOM.
+- [x] **Packet HUD** : Statistiques temps réel in-page.
 
-### 🔍 1.1 Décodeur de Messages Binaires (Très Haute)
-- [x] **Core Decoder** : Module Rust/JS capable de traduire tout paquet NBPS en JSON structuré.
-- [x] **CLI Inspect** : Commande `nhtml inspect` pour dumper un flux binaire en temps réel.
-- [ ] **Web Inspector UI** : Interface intégrée au Polyfill pour visualiser les échanges dans le navigateur.
+## 📅 Phase 2 : Industrialisation & Transport (TERMINÉE 🟢)
+- [x] **Event Logging** : Archivage SQLite des sessions.
+- [x] **PHP Log Bridge** : Redirection des logs serveur vers le client (OpCode `0x10`).
+- [x] **Protocol v0.3.1** : Headers universels 4 octets et NodeVersion.
+- [x] **Auto-PHP Supervisor** : Détection et lancement automatique de PHP par le Gateway.
 
-### 🌳 1.2 Visualiseur d'État du DOM (Très Haute)
-- [x] **Snapshot Explorer (CLI)** : Commande `db-dump` améliorée pour explorer l'état SQLite.
-- [ ] **Diff Highlighter** : Coloration des zones du DOM impactées par le dernier `PATCH`.
+## 📅 Phase 3 : DevTools Pro & Diagnostic (En cours 🔵)
+*Priorité : Transformer le Dashboard en station de contrôle industrielle.*
 
----
+### 🏆 Phase 3 : DevTools Pro (v0.3.1) - 80%
+1.  **Network Monitor (Binaire)** : **[DONE]** Table live affichant chaque paquet transitant par le Gateway.
+2.  **Node Inspector** : **[DONE]** Inspection interactive des noeuds dans le Replay (ID, Version, State).
+3.  **State Diff Viewer** : [IN PROGRESS] Visualisation des mutations avant/après.
+4.  **HTTP Fallback** : **[DONE]** Transport hybride WebSocket/POST opérationnel.
 
-## 📅 Phase 2- [x] Industrialisation du Moteur de Replay (v0.2.3)
-- [x] Résolution des conflits de ports (Gateway: 8080, Replay: 8081)
-- [x] Portabilité totale via embedding des ressources (include_str!)
-- [x] Détection dynamique de la base de données SQLite
-- [x] **Modular Refactor** : Structure du CLI refactorisée en modules (`cli.rs`).
-- [ ] **`nhtml generate`** : Création automatique de composants et de messages types.
-- [ ] **Dev Server** : Amélioration du superviseur avec support auto-certificat SSL.
+### 🟡 Accélération Workflow
+- [ ] **Handler Tracer** : Timeline verticale (EVENT -> PHP Handler -> PatchOps) pour profiler la performance du backend.
+- [ ] **Session Comparator** : Comparer deux sessions côte à côte pour détecter des régressions d'UI.
 
-### ⏱️ 2.2 Enregistreur de Sessions / Time Travel (Très Haute)
-- [x] **Event Logging** : Archivage systématique dans SQLite opérationnel.
-- [ ] **Persistence Replay** : Utilisation du log SQLite pour rejouer une session utilisateur bit-à-bit.
-- [ ] **Seek Bar** : Curseur temporel pour naviguer entre les états passés du DOM.
-
----
-
-## 📅 Phase 3 : SDKs & Intégration IDE (1-2 semaines)
-*Priorité : Intégration profonde dans le workflow des développeurs.*
-
-### 📦 3.1 SDKs Officiels (Très Haute)
-- [x] **PHP SDK v0.2.2** : Bibliothèque binaire NBPS validée.
-- [ ] **JS SDK** : Client standalone pour intégration hors Polyfill standard.
-
-### 🔌 3.2 Plugins IDE (Haute)
-- [ ] **VSCode Extension** : Surlignage `.nhtml`, autocomplétion des OpCodes et intégration de l'inspecteur.
-
----
-
-## 📅 Phase 4 : Diagnostic & Performance (1 semaine)
-*Priorité : Optimisation et robustesse.*
-
-### 📊 4.1 Moniteur de Performances
-- [ ] **Latency Tracker** : Mesure du RTT click-to-patch.
-- [ ] **Bandwidth Stats** : Comparaison en temps réel Binaire vs JSON.
+## 📅 Phase 4 : Déploiement & Optimisation (En attente ⚪)
+- [ ] **Payload Tester** : Interface style "Postman" pour injecter des paquets EVENT arbitraires.
+- [ ] **Compression Stats** : Rapport détaillé sur les ratios de compression Zstd/Huffman sur les snapshots B-TREE.
+- [ ] **VSCode Extension** : Linter et autocomplétion pour `.nhtml`.
 
 ---
 
 ## 🏗️ État Actuel du Développement
-- **Phase 1** : 🟢 **70%** (Décodeur et CLI Inspect OK)
-- **Phase 2** : 🟡 **40%** (Logging OK, Refactor CLI OK)
-- **Phase 3** : 🟡 **20%** (SDK PHP Binaire OK)
+- **Phase 1** : 🟢 **100%**
+- **Phase 2** : 🟢 **100%**
+- **Phase 3** : 🔵 **20%** (Time Travel & Replay OK)
 - **Phase 4** : ⚪ En attente

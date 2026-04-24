@@ -44,6 +44,18 @@ impl SessionManager {
                 )",
                 [],
             )?;
+            
+            conn.execute(
+                "CREATE TABLE IF NOT EXISTS patch_history (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    session_id TEXT,
+                    timestamp TEXT,
+                    node_id INTEGER,
+                    value TEXT,
+                    version INTEGER
+                )",
+                [],
+            )?;
             Ok(())
         }).await?;
 
@@ -72,8 +84,24 @@ impl SessionManager {
             conn.execute(
                 "INSERT OR REPLACE INTO nodes (session_id, node_id, tag, value, version) 
                  VALUES (?1, ?2, IFNULL((SELECT tag FROM nodes WHERE session_id=?1 AND node_id=?2), ''), ?3, ?4)",
-                rusqlite::params![session_id, node_id, value, new_version],
+                rusqlite::params![session_id.clone(), node_id, value.clone(), new_version],
             )?;
+            
+            // 3. Archiver l'état dans l'historique pour le Time Travel
+            conn.execute(
+                "INSERT INTO patch_history (session_id, timestamp, node_id, value, version) 
+                 VALUES (?1, datetime('now'), ?2, ?3, ?4)",
+                rusqlite::params![session_id.clone(), node_id, value, new_version],
+            )?;
+            
+            // 4. Garde-fou : Limiter à 1000 patches par session
+            conn.execute(
+                "DELETE FROM patch_history WHERE session_id = ?1 AND id NOT IN (
+                    SELECT id FROM patch_history WHERE session_id = ?1 ORDER BY id DESC LIMIT 1000
+                )",
+                rusqlite::params![session_id],
+            )?;
+            
             Ok(new_version)
         }).await
     }

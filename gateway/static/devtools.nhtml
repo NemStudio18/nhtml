@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NHTML DevTools Pro</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;700&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg: #050505;
+            --surface: rgba(255, 255, 255, 0.05);
+            --accent: #ff007f;
+            --text: #ffffff;
+            --text-dim: rgba(255, 255, 255, 0.5);
+            --green: #0f0;
+        }
+        body {
+            margin: 0; background: var(--bg); color: var(--text);
+            font-family: 'Outfit', sans-serif;
+            height: 100vh; display: flex; flex-direction: column; overflow: hidden;
+        }
+        header {
+            padding: 15px 25px; background: var(--surface); border-bottom: 1px solid rgba(255,255,255,0.1);
+            display: flex; justify-content: space-between; align-items: center;
+        }
+        .title { font-weight: 700; color: var(--accent); letter-spacing: 2px; font-size: 0.9rem; }
+        
+        .tabs { display: flex; gap: 20px; }
+        .tab { 
+            cursor: pointer; padding-bottom: 5px; border-bottom: 2px solid transparent; 
+            color: var(--text-dim); transition: 0.3s; font-size: 0.8rem; font-weight: bold;
+        }
+        .tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+
+        main { flex: 1; display: flex; overflow: hidden; }
+        
+        /* Dashboard / Sessions */
+        #pane-sessions { padding: 40px; max-width: 900px; margin: 0 auto; width: 100%; overflow-y: auto; }
+        .session-btn { 
+            background: var(--surface); border: 1px solid rgba(255,255,255,0.1); 
+            width: 100%; text-align: left; padding: 15px 25px; border-radius: 12px;
+            color: var(--text); font-family: 'JetBrains Mono', monospace; cursor: pointer;
+            margin-bottom: 10px; transition: 0.2s;
+        }
+        .session-btn:hover { background: rgba(255,0,127,0.15); border-color: var(--accent); transform: translateX(5px); }
+
+        /* Network Monitor */
+        #pane-network { flex: 1; display: flex; flex-direction: column; }
+        .net-header { 
+            display: grid; grid-template-columns: 80px 100px 100px 1fr; gap: 10px; 
+            padding: 10px 20px; background: rgba(255,255,255,0.02); 
+            font-size: 0.7rem; font-weight: bold; color: var(--text-dim); text-transform: uppercase;
+        }
+        #net-table { flex: 1; overflow-y: auto; padding: 0 10px; }
+
+        /* Replay UI */
+        #pane-replay { flex: 1; display: none; flex-direction: column; }
+
+        button {
+            background: var(--accent); color: #fff; border: none; padding: 8px 16px;
+            border-radius: 6px; font-family: 'JetBrains Mono', monospace; font-weight: bold; cursor: pointer;
+        }
+        
+        .log-entry { font-family: 'JetBrains Mono', monospace; font-size: 11px; padding: 4px 0; border-bottom: 1px solid rgba(255,255,255,0.05); }
+    </style>
+</head>
+<body>
+    <header>
+        <div class="title">NHTML DEVTOOLS PRO <span style="font-weight:300; opacity:0.5; font-size:0.7rem;">v0.3.1</span></div>
+        <div class="tabs">
+            <div class="tab active" onclick="switchTab('sessions')">SESSIONS</div>
+            <div class="tab" onclick="switchTab('network')">NETWORK LIVE</div>
+        </div>
+        <div style="font-size:0.7rem; color:var(--green);">● SYSTEM ONLINE</div>
+    </header>
+
+    <main>
+        <!-- PANE: SESSIONS -->
+        <div id="pane-sessions" n-id="400">
+            <h2 style="font-weight: 300; margin-bottom: 30px;">Historique des sessions</h2>
+            <div n-id="500" style="display: flex; flex-direction: column;">
+                Chargement de la base SQLite...
+            </div>
+        </div>
+
+        <!-- PANE: NETWORK -->
+        <div id="pane-network" style="display: none;">
+            <div class="net-header">
+                <span>DIR</span>
+                <span>TYPE</span>
+                <span>SIZE</span>
+                <span>SESSION ID / CONTEXT</span>
+            </div>
+            <div id="net-table" n-id="600">
+                <!-- Les paquets arrivent ici en temps réel via PATCH -->
+            </div>
+        </div>
+
+        <!-- PANE: REPLAY -->
+        <div id="pane-replay" n-id="401">
+            <div style="padding: 10px 20px; background: rgba(255,0,127,0.1); border-bottom: 1px solid var(--accent); display: flex; align-items: center; gap: 20px;">
+                <button n-id="203" n-click="back" style="background: none; border: 1px solid var(--accent);">CLOSE REPLAY</button>
+                <div n-id="301" style="font-family: 'JetBrains Mono'; color: var(--text-dim); font-size: 0.7rem;">SID: -</div>
+            </div>
+            <div style="display: flex; flex: 1; overflow: hidden; padding: 20px; gap: 20px;">
+                <div id="canvas-container" style="flex: 2; background: #000; border: 1px solid rgba(255,255,255,0.1); border-radius: 12px; display: flex; justify-content: center; align-items: center; position: relative;">
+                    <div id="replay_canvas" n-id="100" style="width: 320px; height: 480px; background: rgba(255,255,255,0.03); border: 1px dashed var(--accent); border-radius: 20px; padding: 20px;">
+                        En attente...
+                    </div>
+                </div>
+                <div id="inspector" style="flex: 1; background: var(--surface); border-radius: 12px; padding: 20px; display: flex; flex-direction: column;">
+                    <h4 style="margin-top:0; color:var(--accent);">EVENT LOG</h4>
+                    <div id="event_list" n-id="101" style="overflow-y: auto; flex: 1; color: var(--text-dim);"></div>
+                </div>
+            </div>
+            <div class="controls" style="padding: 20px; background: var(--surface); border-top: 1px solid rgba(255,255,255,0.1); display: flex; align-items: center; gap: 20px;">
+                <button n-id="201" n-click="step_forward">STEP FORWARD</button>
+                <button n-id="202" n-click="reset_replay" style="background: #333;">RESET</button>
+                <div style="flex: 1; height: 6px; background: rgba(255,255,255,0.1); border-radius: 3px;">
+                    <div n-id="102" style="height: 100%; background: var(--accent); width: 0%; border-radius: 3px; transition: 0.3s;"></div>
+                </div>
+                <div n-id="302" style="font-family: 'JetBrains Mono'; font-size: 0.8rem;">0 / 0</div>
+            </div>
+        </div>
+    </main>
+
+    <script>
+        function switchTab(id) {
+            document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+            document.querySelector(`.tab[onclick="switchTab('${id}')"]`).classList.add('active');
+            
+            document.getElementById('pane-sessions').style.display = (id === 'sessions') ? 'block' : 'none';
+            document.getElementById('pane-network').style.display = (id === 'network') ? 'flex' : 'none';
+        }
+
+        // Auto-scroll pour le Network Monitor
+        const netTable = document.getElementById('net-table');
+        const observer = new MutationObserver(() => {
+            netTable.scrollTop = netTable.scrollHeight;
+            // Limiter à 100 paquets pour la perf
+            if (netTable.children.length > 100) netTable.removeChild(netTable.firstChild);
+        });
+        observer.observe(netTable, { childList: true });
+    </script>
+
+    <script type="module">
+        import { initNhtml } from '/counter/polyfill/bridge.js';
+        initNhtml('ws://127.0.0.1:8081/ws');
+    </script>
+</body>
+</html>

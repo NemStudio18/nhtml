@@ -141,6 +141,9 @@ pub fn validate_file(path: &str) {
     }
 }
 
+use std::sync::Arc;
+use tokio::sync::Mutex;
+use tokio::sync::broadcast;
 use axum::{
     routing::get,
     Router,
@@ -148,36 +151,57 @@ use axum::{
     response::Html,
 };
 
-pub async fn run_replay(session_id: String) {
-    println!("⏱️ Initialisation du Replay pour la session : {}", session_id);
+pub async fn run_devtools(tx_monitor: broadcast::Sender<crate::MonitoringEvent>) {
+    println!("⏱️ Initialisation des DevTools NHTML...");
     
-    let sid_for_html = session_id.clone();
-    let sid_for_ws = session_id.clone();
-
     let app = Router::new()
-        .route("/replay/:sid", get(move |AxumPath(sid): AxumPath<String>| async move {
-            let html = include_str!("../static/replay.html");
-            // Injecter le SID dans le titre ou une variable globale si besoin, 
-            // mais replay.html le récupère déjà via l'URL.
-            Html(html.to_string())
-        }))
-        .route("/replay_ws/:sid", get(move |ws: WebSocketUpgrade, AxumPath(sid): AxumPath<String>| {
-            async move {
-                ws.on_upgrade(move |socket| handle_replay_ws(socket, sid))
-            }
+        .route("/", get(|| async { Html(include_str!("../static/devtools.nhtml").to_string()) }))
+        .route("/ws", get(move |ws: WebSocketUpgrade| {
+            let tx = tx_monitor.clone();
+            async move { ws.on_upgrade(move |socket| handle_devtools_ws(socket, tx)) }
         }));
 
     let addr = "127.0.0.1:8081";
     let listener = tokio::net::TcpListener::bind(addr).await.expect("Impossible de lier le port 8081");
-    println!("🚀 Interface de rejeu disponible sur http://{}/replay/{}", addr, session_id);
+    println!("🚀 DevTools NHTML disponibles sur http://{}", addr);
     
     axum::serve(listener, app).await.unwrap();
 }
 
-async fn handle_replay_ws(mut socket: WebSocket, session_id: String) {
-    println!("🔌 Client Replay connecté pour : {}", session_id);
+async fn handle_devtools_ws(socket: WebSocket, tx_monitor: broadcast::Sender<crate::MonitoringEvent>) {
+    use futures_util::{StreamExt, SinkExt};
+    println!("🔌 Client DevTools NHTML connecté");
+    let (mut ws_sender, mut ws_receiver) = socket.split();
+    let mut rx_packet = tx_monitor.subscribe();
+
+    // Boucle de relai Monitoring (GATEWAY -> DASHBOARD)
+    let mut monitor_task = tokio::spawn(async move {
+        while let Ok(event) = rx_packet.recv().await {
+            // Pour l'instant on envoie tout, on filtrera par session plus tard
+            let row_html = format!(
+                "<div class='net-row' style='display: grid; grid-template-columns: 80px 100px 100px 1fr; gap: 10px; padding: 5px; border-bottom: 1px solid rgba(255,255,255,0.05); font-family: monospace; font-size: 11px;'>
+                    <span style='color: {}'>{}</span>
+                    <span>0x{:02X}</span>
+                    <span>{} B</span>
+                    <span style='color: var(--text-dim)'>{}</span>
+                </div>",
+                if event.direction == "IN" { "#0f0" } else { "#ff007f" },
+                event.direction,
+                event.pkt_type,
+                event.size,
+                event.session_id
+            );
+
+            let mut ops = Vec::new();
+            ops.push(proto::PatchOp::set_text(600, 1, &row_html)); // APPEND (simulé par prepend ici)
+            
+            let pkt = proto::patch(&ops);
+            if let Err(_) = ws_sender.send(WsMessage::Binary(pkt)).await {
+                break;
+            }
+        }
+    });
     
-    // 1. Déterminer le chemin de la base de données
     let paths = ["nhtml_sessions.db", "gateway/nhtml_sessions.db", "../nhtml_sessions.db", "../../nhtml_sessions.db"];
     let mut db_path = "nhtml_sessions.db".to_string();
     for p in paths {
@@ -187,51 +211,210 @@ async fn handle_replay_ws(mut socket: WebSocket, session_id: String) {
         }
     }
 
-    let (initial_nodes, events) = {
-        let conn = rusqlite::Connection::open(db_path).unwrap();
-
-        // Collecter les nodes
-        let mut stmt_nodes = conn.prepare("SELECT node_id, value FROM nodes WHERE session_id = ?").unwrap();
-        let node_rows = stmt_nodes.query_map([&session_id], |row| {
-            Ok((row.get::<_, u32>(0)?, row.get::<_, String>(1)?))
-        }).unwrap();
-        let mut initial_nodes = Vec::new();
-        for n in node_rows {
-            let (id, val) = n.unwrap();
-            initial_nodes.push(format!("{{\"id\": {}, \"val\": \"{}\"}}", id, val));
-        }
-
-        // Collecter les événements
-        let mut stmt_events = conn.prepare("SELECT event_type, node_id FROM event_log WHERE session_id = ? ORDER BY id ASC").unwrap();
-        let event_rows = stmt_events.query_map([&session_id], |row| {
-            Ok((row.get::<_, String>(0)?, row.get::<_, u32>(1)?))
-        }).unwrap();
-        let mut events = Vec::new();
-        for e in event_rows {
-            events.push(e.unwrap());
-        }
-        
-        (initial_nodes, events)
+    let sessions: Vec<String> = {
+        if let Ok(conn) = rusqlite::Connection::open(&db_path) {
+            if let Ok(mut stmt) = conn.prepare("SELECT DISTINCT session_id FROM patch_history") {
+                if let Ok(rows) = stmt.query_map([], |row| row.get::<_, String>(0)) {
+                    rows.flatten().collect()
+                } else { Vec::new() }
+            } else { Vec::new() }
+        } else { Vec::new() }
     };
 
-    // 2. Envoyer l'état initial
-    let init_msg = format!("INIT: [{}]", initial_nodes.join(","));
-    if socket.send(WsMessage::Text(init_msg)).await.is_err() {
-        return;
-    }
-
-    // 3. Streamer les événements
-    for (ev_type, nid) in events {
-        // Simulation de délai
-        tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
-        
-        let msg = format!("Replay: {} on Node {}", ev_type, nid);
-        if socket.send(WsMessage::Text(msg)).await.is_err() {
-            break;
-        }
+    use crate::proto;
+    
+    enum State {
+        Dashboard,
+        Replay { session_id: String, history: Vec<(u32, String, u32)>, step: usize, total: usize },
     }
     
-    println!("🏁 Replay terminé pour : {}", session_id);
+    let mut current_state = State::Dashboard;
+
+    let ws_sender = Arc::new(Mutex::new(ws_sender));
+    let sender_for_monitor = ws_sender.clone();
+
+    // Boucle de relai Monitoring (GATEWAY -> DASHBOARD)
+    tokio::spawn(async move {
+        while let Ok(event) = rx_packet.recv().await {
+            // Pour enrichir l'info, on peut décoder un échantillon si c'est IN ou OUT
+            // On va essayer de reconstruire un paquet binaire minimal pour le décodeur si besoin
+            // MAIS : le MonitoringEvent n'a pas les DATA brutes pour l'instant.
+            // On va devoir modifier MonitoringEvent pour inclure un extrait ou le type décodé.
+            
+            let type_name = match event.pkt_type {
+                0x01 => "HELLO",
+                0x02 => "EVENT",
+                0x03 => "PATCH",
+                0x07 => "B-TREE",
+                0x09 => "RELOAD",
+                0x10 => "LOG",
+                _ => "UNKNOWN"
+            };
+
+            let mut info = format!("SID: {}...", &event.session_id[0..8]);
+            
+            // On pourrait ajouter des détails ici si on avait les bytes.
+            // Pour l'instant on reste sur les métadonnées.
+
+            let row_html = format!(
+                "<div class='net-row' style='display: grid; grid-template-columns: 80px 100px 100px 1fr; gap: 10px; padding: 5px; border-bottom: 1px solid rgba(255,255,255,0.05); font-family: monospace; font-size: 11px;'>
+                    <span style='color: {}'>{}</span>
+                    <span style='font-weight:bold; color:{}'>{}</span>
+                    <span>{} B</span>
+                    <span style='color: var(--text-dim)'>{}</span>
+                </div>",
+                if event.direction == "IN" { "#0f0" } else { "#ff007f" },
+                event.direction,
+                if event.direction == "IN" { "var(--text)" } else { "var(--accent)" },
+                type_name,
+                event.size,
+                info
+            );
+
+            let mut ops = Vec::new();
+            ops.push(crate::proto::PatchOp::replace_inner(600, 1, &row_html)); 
+            
+            let pkt = crate::proto::patch(&ops);
+            let mut s = sender_for_monitor.lock().await;
+            if let Err(_) = s.send(WsMessage::Binary(pkt)).await {
+                break;
+            }
+        }
+    });
+
+    let mut current_state = State::Dashboard;
+
+    while let Some(Ok(msg)) = ws_receiver.next().await {
+        if let WsMessage::Binary(data) = msg {
+            if data.is_empty() { continue; }
+            match data[0] {
+                0x01 => { // HELLO
+                    let mut ops = Vec::new();
+                    let mut html_list = String::new();
+                    if sessions.is_empty() {
+                        html_list.push_str("<div style='color:#ff5555; padding:20px;'>Aucune session n'a encore été enregistrée dans la BDD.</div>");
+                    } else {
+                        for (i, s) in sessions.iter().enumerate() {
+                            html_list.push_str(&format!(
+                                "<button n-id=\"{}\" n-click=\"load\" class=\"session-btn\">▶ Charger la session : {}</button>",
+                                1000 + i, s
+                            ));
+                        }
+                    }
+                    ops.push(crate::proto::PatchOp::replace_inner(500, 1, &html_list)); 
+                    
+                    let pkt = crate::proto::patch(&ops);
+                    let mut s = ws_sender.lock().await;
+                    let _ = s.send(WsMessage::Binary(pkt)).await;
+                },
+                0x02 => { // EVENT
+                    if data.len() >= 5 {
+                        let nid = u32::from_be_bytes([data[1], data[2], data[3], data[4]]);
+                        match &mut current_state {
+                            State::Dashboard => {
+                                if nid >= 1000 && (nid - 1000) < sessions.len() as u32 {
+                                    let selected_session = sessions[(nid - 1000) as usize].clone();
+                                    let mut history = Vec::new();
+                                    if let Ok(conn) = rusqlite::Connection::open(&db_path) {
+                                        if let Ok(mut stmt) = conn.prepare("SELECT node_id, value, version FROM patch_history WHERE session_id = ? ORDER BY id ASC") {
+                                            if let Ok(rows) = stmt.query_map([&selected_session], |row| {
+                                                Ok((row.get::<_, u32>(0)?, row.get::<_, String>(1)?, row.get::<_, u32>(2)?))
+                                            }) {
+                                                for r in rows.flatten() {
+                                                    history.push(r);
+                                                }
+                                            }
+                                        }
+                                    }
+                                    let total = history.len();
+                                    let mut ops = Vec::new();
+                                    ops.push(crate::proto::PatchOp::set_attr(400, 1, "style", "display: none;"));
+                                    ops.push(crate::proto::PatchOp::set_attr(401, 1, "style", "display: flex; flex-direction: column; flex: 1;"));
+                                    ops.push(crate::proto::PatchOp::set_text(301, 1, &format!("SID: {}", selected_session)));
+                                    ops.push(crate::proto::PatchOp::set_text(302, 1, &format!("Step 0 / {}", total)));
+                                    ops.push(crate::proto::PatchOp::set_attr(102, 1, "style", "width: 0%;"));
+                                    ops.push(crate::proto::PatchOp::set_text(100, 1, "En attente du flux..."));
+                                    ops.push(crate::proto::PatchOp::set_text(101, 1, ""));
+                                    
+                                    let pkt = crate::proto::patch(&ops);
+                                    let mut s = ws_sender.lock().await;
+                                    let _ = s.send(WsMessage::Binary(pkt)).await;
+                                    current_state = State::Replay { session_id: selected_session, history, step: 0, total };
+                                }
+                            },
+                            State::Replay { session_id, history, step, total } => {
+                                if nid == 203 {
+                                    current_state = State::Dashboard;
+                                    let mut ops = Vec::new();
+                                    ops.push(crate::proto::PatchOp::set_attr(400, 1, "style", "display: block;"));
+                                    ops.push(crate::proto::PatchOp::set_attr(401, 1, "style", "display: none;"));
+                                    let pkt = crate::proto::patch(&ops);
+                                    let mut s = ws_sender.lock().await;
+                                    let _ = s.send(WsMessage::Binary(pkt)).await;
+                                    continue;
+                                }
+                                
+                                // --- LOGIQUE INSPECTOR ---
+                                if nid < 200 || nid > 210 {
+                                    // C'est probablement un clic d'inspection sur un élément du canvas !
+                                    let mut ops = Vec::new();
+                                    let mut details = format!("<div style='color:var(--accent); font-weight:bold; margin-bottom:10px;'>NODE INSPECTOR</div>");
+                                    details.push_str(&format!("<div class='log-entry'>ID Binaire : #{}</div>", nid));
+                                    
+                                    // Chercher l'état actuel de ce noeud dans la session
+                                    if let Ok(conn) = rusqlite::Connection::open(&db_path) {
+                                        if let Ok(mut stmt) = conn.prepare("SELECT value, version FROM nodes WHERE session_id = ? AND node_id = ?") {
+                                            if let Ok(mut rows) = stmt.query([&session_id, &nid]) {
+                                                if let Some(row) = rows.next().unwrap_or(None) {
+                                                    let val: String = row.get(0).unwrap();
+                                                    let ver: u32 = row.get(1).unwrap();
+                                                    details.push_str(&format!("<div class='log-entry' style='color:var(--green)'>Valeur Live : '{}'</div>", val));
+                                                    details.push_str(&format!("<div class='log-entry'>Version : {}</div>", ver));
+                                                }
+                                            }
+                                        }
+                                    }
+                                    
+                                    ops.push(crate::proto::PatchOp::set_text(101, 1, &details));
+                                    let pkt = crate::proto::patch(&ops);
+                                    let mut s = ws_sender.lock().await;
+                                    let _ = s.send(WsMessage::Binary(pkt)).await;
+                                    continue;
+                                }
+
+                                if nid == 201 {
+                                    if *step < *total {
+                                        let (step_nid, step_val, step_ver) = history[*step].clone();
+                                        *step += 1;
+                                        let mut ops = Vec::new();
+                                        ops.push(crate::proto::PatchOp::set_text(100, 1, &format!("<div style='color: var(--accent); margin-bottom: 10px;'>=> Modification du Noeud [{}]</div><div style='font-size: 1.5rem;'>{}</div><div style='color: var(--text-dim); margin-top: 10px;'>(Version interne: {})</div>", step_nid, step_val, step_ver)));
+                                        let pct = if *total > 0 { (*step as f32 / *total as f32) * 100.0 } else { 100.0 };
+                                        ops.push(crate::proto::PatchOp::set_attr(102, 1, "style", &format!("width: {:.1}%", pct)));
+                                        ops.push(crate::proto::PatchOp::set_text(302, 1, &format!("Step {} / {}", *step, *total)));
+                                        ops.push(crate::proto::PatchOp::set_text(101, 1, &format!("<div class='log-entry'>Etape {} : Noeud {} mis à jour -> '{}'</div>", *step, step_nid, step_val)));
+                                        let pkt = crate::proto::patch(&ops);
+                                        let mut s = ws_sender.lock().await;
+                                        let _ = s.send(WsMessage::Binary(pkt)).await;
+                                    }
+                                } else if nid == 202 {
+                                    *step = 0;
+                                    let mut ops = Vec::new();
+                                    ops.push(crate::proto::PatchOp::set_text(100, 1, "Replay réinitialisé."));
+                                    ops.push(crate::proto::PatchOp::set_attr(102, 1, "style", "width: 0%"));
+                                    ops.push(crate::proto::PatchOp::set_text(302, 1, &format!("Step 0 / {}", *total)));
+                                    ops.push(crate::proto::PatchOp::set_text(101, 1, "<div class='log-entry'>Logs réinitialisés.</div>"));
+                                    let pkt = crate::proto::patch(&ops);
+                                    let mut s = ws_sender.lock().await;
+                                    let _ = s.send(WsMessage::Binary(pkt)).await;
+                                }
+                            }
+                        }
+                    }
+                },
+                _ => {}
+            }
+        }
+    }
 }
 
 use tokio::net::TcpListener;

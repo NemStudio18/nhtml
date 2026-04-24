@@ -49,6 +49,11 @@ elseif ($event === 'click') {
         
         // On renvoie le patch UI au Gateway
         $patches[] = [
+            'op'    => 'log',
+            'value' => "Incrémentation réussie : nouveau compteur = $counter"
+        ];
+
+        $patches[] = [
             'op'    => 'set_text',
             'nid'   => 'counter_value',
             'value' => (string)$counter
