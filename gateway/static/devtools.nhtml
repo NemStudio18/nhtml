@@ -126,12 +126,44 @@
     </main>
 
     <script>
+        let selectedForCompare = null;
+
         function switchTab(id) {
+            selectedForCompare = null;
             document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
             document.querySelector(`.tab[onclick="switchTab('${id}')"]`).classList.add('active');
             
             document.getElementById('pane-sessions').style.display = (id === 'sessions') ? 'block' : 'none';
             document.getElementById('pane-network').style.display = (id === 'network') ? 'flex' : 'none';
+        }
+
+        function startCompare(sid, btn) {
+            if (!selectedForCompare) {
+                selectedForCompare = sid;
+                btn.innerText = "SÉLECT. CIBLE...";
+                btn.style.background = "var(--green)";
+            } else {
+                if (selectedForCompare === sid) {
+                    selectedForCompare = null;
+                    btn.innerText = "CMP";
+                    btn.style.background = "var(--surface)";
+                    return;
+                }
+                // Envoyer la commande de comparaison 0x04
+                const encoder = new TextEncoder();
+                const sid1 = encoder.encode(selectedForCompare);
+                const sid2 = encoder.encode(sid);
+                const pkt = new Uint8Array(1 + 1 + sid1.length + 1 + sid2.length);
+                pkt[0] = 0x04;
+                pkt[1] = sid1.length;
+                pkt.set(sid1, 2);
+                pkt[2 + sid1.length] = sid2.length;
+                pkt.set(sid2, 3 + sid1.length);
+                
+                window.nhtml_socket.send(pkt);
+                selectedForCompare = null;
+                btn.innerText = "CMP";
+            }
         }
 
         // Auto-scroll pour le Network Monitor

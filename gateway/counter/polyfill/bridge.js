@@ -187,6 +187,7 @@ function connect(wsUrl) {
 
     socket.onopen = () => {
         console.log("[NHTML] WebSocket connecté.");
+        window.nhtml_socket = socket;
         transportMode = "WS";
         reconnectAttempts = 0;
         const hello = new Uint8Array(5 + window.nhtml_session_id.length);

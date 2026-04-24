@@ -251,23 +251,29 @@ async fn handle_devtools_ws(socket: WebSocket, tx_monitor: broadcast::Sender<cra
                 _ => "UNKNOWN"
             };
 
-            let mut info = format!("SID: {}...", &event.session_id[0..8]);
-            
-            // On pourrait ajouter des détails ici si on avait les bytes.
-            // Pour l'instant on reste sur les métadonnées.
+            let latency_html = if let Some(lat) = event.latency_ms {
+                let color = if lat > 100 { "#ff8800" } else { "var(--green)" };
+                format!("<span style='color: {}; font-size: 0.7rem; margin-left: 10px;'>{}ms</span>", color, lat)
+            } else { "".to_string() };
+
+            let handler_html = if let Some(h) = event.handler {
+                format!("<span style='background: rgba(255,255,255,0.1); padding: 2px 5px; border-radius: 3px; font-size: 0.6rem; margin-right: 10px;'>{}</span>", h)
+            } else { "".to_string() };
 
             let row_html = format!(
-                "<div class='net-row' style='display: grid; grid-template-columns: 80px 100px 100px 1fr; gap: 10px; padding: 5px; border-bottom: 1px solid rgba(255,255,255,0.05); font-family: monospace; font-size: 11px;'>
+                "<div class='net-row' style='display: grid; grid-template-columns: 80px 100px 100px 1fr; gap: 10px; padding: 8px 20px; border-bottom: 1px solid rgba(255,255,255,0.05); font-family: monospace; font-size: 11px; align-items: center;'>
                     <span style='color: {}'>{}</span>
                     <span style='font-weight:bold; color:{}'>{}</span>
-                    <span>{} B</span>
-                    <span style='color: var(--text-dim)'>{}</span>
+                    <span>{} B {}</span>
+                    <span style='color: var(--text-dim); display: flex; align-items: center;'>{}{}</span>
                 </div>",
                 if event.direction == "IN" { "#0f0" } else { "#ff007f" },
                 event.direction,
                 if event.direction == "IN" { "var(--text)" } else { "var(--accent)" },
                 type_name,
                 event.size,
+                latency_html,
+                handler_html,
                 info
             );
 
@@ -296,8 +302,11 @@ async fn handle_devtools_ws(socket: WebSocket, tx_monitor: broadcast::Sender<cra
                     } else {
                         for (i, s) in sessions.iter().enumerate() {
                             html_list.push_str(&format!(
-                                "<button n-id=\"{}\" n-click=\"load\" class=\"session-btn\">▶ Charger la session : {}</button>",
-                                1000 + i, s
+                                "<div style='display:flex; gap:10px; margin-bottom:10px;'>
+                                    <button n-id=\"{}\" n-click=\"load\" class=\"session-btn\" style='flex:1; margin-bottom:0;'>▶ Charger : {}</button>
+                                    <button onclick=\"startCompare('{}', this)\" style='background:var(--surface); border:1px solid rgba(255,255,255,0.1); width:60px; font-size:0.6rem; cursor:pointer;'>CMP</button>
+                                </div>",
+                                1000 + i, s, s
                             ));
                         }
                     }
@@ -354,22 +363,44 @@ async fn handle_devtools_ws(socket: WebSocket, tx_monitor: broadcast::Sender<cra
                                     continue;
                                 }
                                 
-                                // --- LOGIQUE INSPECTOR ---
+                                // --- LOGIQUE STATE DIFF VIEWER ---
                                 if nid < 200 || nid > 210 {
-                                    // C'est probablement un clic d'inspection sur un élément du canvas !
                                     let mut ops = Vec::new();
-                                    let mut details = format!("<div style='color:var(--accent); font-weight:bold; margin-bottom:10px;'>NODE INSPECTOR</div>");
-                                    details.push_str(&format!("<div class='log-entry'>ID Binaire : #{}</div>", nid));
+                                    let mut details = format!("<div style='color:var(--accent); font-weight:bold; margin-bottom:15px; border-bottom:1px solid var(--accent); padding-bottom:5px;'>STATE DIFF VIEWER</div>");
+                                    details.push_str(&format!("<div style='font-family:monospace; margin-bottom:10px;'>Node ID: <span style='color:var(--accent)'>#{}</span></div>", nid));
                                     
-                                    // Chercher l'état actuel de ce noeud dans la session
+                                    // Chercher l'historique des 2 derniers changements pour ce noeud
                                     if let Ok(conn) = rusqlite::Connection::open(&db_path) {
-                                        if let Ok(mut stmt) = conn.prepare("SELECT value, version FROM nodes WHERE session_id = ? AND node_id = ?") {
-                                            if let Ok(mut rows) = stmt.query([&session_id, &nid]) {
-                                                if let Some(row) = rows.next().unwrap_or(None) {
-                                                    let val: String = row.get(0).unwrap();
-                                                    let ver: u32 = row.get(1).unwrap();
-                                                    details.push_str(&format!("<div class='log-entry' style='color:var(--green)'>Valeur Live : '{}'</div>", val));
-                                                    details.push_str(&format!("<div class='log-entry'>Version : {}</div>", ver));
+                                        if let Ok(mut stmt) = conn.prepare("SELECT value, version, timestamp FROM patch_history WHERE session_id = ? AND node_id = ? ORDER BY id DESC LIMIT 2") {
+                                            if let Ok(rows) = stmt.query_map([&session_id, &nid.to_string()], |row| {
+                                                Ok((row.get::<_, String>(0)?, row.get::<_, u32>(1)?, row.get::<_, String>(2)?))
+                                            }) {
+                                                let history: Vec<_> = rows.flatten().collect();
+                                                
+                                                if history.is_empty() {
+                                                    details.push_str("<div style='color:var(--text-dim); font-size:0.8rem;'>Aucun historique de mutation pour ce noeud.</div>");
+                                                } else if history.len() == 1 {
+                                                    let (val, ver, ts) = &history[0];
+                                                    details.push_str(&format!("<div style='background:rgba(0,255,0,0.1); padding:10px; border-radius:5px;'>
+                                                        <div style='font-size:0.7rem; color:var(--text-dim); margin-bottom:5px;'>INITIAL STATE (v{}) - {}</div>
+                                                        <div style='font-family:monospace; color:var(--green)'>'{}'</div>
+                                                    </div>", ver, ts, val));
+                                                } else {
+                                                    let (new_val, new_ver, new_ts) = &history[0];
+                                                    let (old_val, old_ver, _) = &history[1];
+                                                    
+                                                    details.push_str(&format!("<div style='display:flex; flex-direction:column; gap:10px;'>
+                                                        <div style='background:rgba(255,255,255,0.03); padding:10px; border-radius:5px; border-left:3px solid var(--text-dim);'>
+                                                            <div style='font-size:0.6rem; color:var(--text-dim);'>PREVIOUS (v{})</div>
+                                                            <div style='font-family:monospace; opacity:0.6;'>'{}'</div>
+                                                        </div>
+                                                        <div style='text-align:center; color:var(--accent); font-size:1.2rem;'>↓</div>
+                                                        <div style='background:rgba(0,255,0,0.1); padding:10px; border-radius:5px; border-left:3px solid var(--green);'>
+                                                            <div style='font-size:0.6rem; color:var(--green); font-weight:bold;'>CURRENT (v{})</div>
+                                                            <div style='font-family:monospace; color:var(--green); font-weight:bold;'>'{}'</div>
+                                                            <div style='font-size:0.5rem; color:var(--text-dim); margin-top:5px; text-align:right;'>{}</div>
+                                                        </div>
+                                                    </div>", old_ver, old_val, new_ver, new_val, new_ts));
                                                 }
                                             }
                                         }
@@ -409,6 +440,47 @@ async fn handle_devtools_ws(socket: WebSocket, tx_monitor: broadcast::Sender<cra
                                 }
                             }
                         }
+                    }
+                },
+                0x04 => { // COMPARE SESSIONS
+                    if data.len() >= 42 { // [0x04][sid1_len][sid1][sid2_len][sid2] - approx
+                        // Parsing simplifié pour le POC
+                        let sid1_len = data[1] as usize;
+                        let sid1 = String::from_utf8_lossy(&data[2..2+sid1_len]).to_string();
+                        let cursor = 2 + sid1_len;
+                        let sid2_len = data[cursor] as usize;
+                        let sid2 = String::from_utf8_lossy(&data[cursor+1..cursor+1+sid2_len]).to_string();
+
+                        let mut comparison = format!("<div style='color:var(--accent); font-weight:bold; margin-bottom:20px;'>COMPARAISON DE SESSIONS</div>");
+                        comparison.push_str("<div style='display:grid; grid-template-columns:1fr 1fr 1fr; gap:10px; font-size:0.7rem; color:var(--text-dim); margin-bottom:10px;'><span>NODE</span><span>SESSION A</span><span>SESSION B</span></div>");
+
+                        if let Ok(conn) = rusqlite::Connection::open(&db_path) {
+                            let mut stmt = conn.prepare("SELECT node_id, value FROM nodes WHERE session_id = ?").expect("Err");
+                            let nodes_a: std::collections::HashMap<u32, String> = stmt.query_map([&sid1], |row| Ok((row.get(0)?, row.get(1)?))).unwrap().flatten().collect();
+                            let nodes_b: std::collections::HashMap<u32, String> = stmt.query_map([&sid2], |row| Ok((row.get(0)?, row.get(1)?))).unwrap().flatten().collect();
+
+                            let mut all_nids: Vec<_> = nodes_a.keys().chain(nodes_b.keys()).collect();
+                            all_nids.sort();
+                            all_nids.dedup();
+
+                            for nid in all_nids {
+                                let val_a = nodes_a.get(nid).cloned().unwrap_or("-".to_string());
+                                let val_b = nodes_b.get(nid).cloned().unwrap_or("-".to_string());
+                                let color = if val_a != val_b { "#ff8800" } else { "var(--text)" };
+                                
+                                comparison.push_str(&format!(
+                                    "<div style='display:grid; grid-template-columns:1fr 1fr 1fr; gap:10px; padding:5px; border-bottom:1px solid rgba(255,255,255,0.05); font-family:monospace; color:{}'>
+                                        <span>#{}</span><span>'{}'</span><span>'{}'</span>
+                                    </div>", color, nid, val_a, val_b
+                                ));
+                            }
+                        }
+
+                        let mut ops = Vec::new();
+                        ops.push(crate::proto::PatchOp::replace_inner(500, 1, &comparison));
+                        let pkt = crate::proto::patch(&ops);
+                        let mut s = ws_sender.lock().await;
+                        let _ = s.send(WsMessage::Binary(pkt)).await;
                     }
                 },
                 _ => {}

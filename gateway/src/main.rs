@@ -20,6 +20,8 @@ pub struct MonitoringEvent {
     pub pkt_type: u8,
     pub size: usize,
     pub timestamp: i64,
+    pub handler: Option<String>,
+    pub latency_ms: Option<u128>,
 }
 
 #[derive(Parser)]
@@ -187,26 +189,18 @@ async fn start_gateway(is_debug: bool, tx_monitor: broadcast::Sender<MonitoringE
                                         }
                                     }
 
-                                    // Envoi au Monitor
-                                    let _ = tx_monitor.send(MonitoringEvent {
+                                        tx_monitor.send(MonitoringEvent {
                                         session_id: session_id.clone(),
                                         direction: "IN".to_string(),
                                         pkt_type: data[0],
                                         size: data.len(),
                                         timestamp: chrono::Utc::now().timestamp_millis(),
-                                    });
+                                        handler: None,
+                                        latency_ms: None,
+                                    }).ok();
 
-                                            if let Some(packets) = handle_binary_packet(&data, is_debug, php_port, &session_id, &manager).await {
+                                            if let Some(packets) = handle_binary_packet(&data, is_debug, php_port, &session_id, &manager, &tx_monitor).await {
                                         for patch_data in packets {
-                                            // Envoi au Monitor
-                                            let _ = tx_monitor.send(MonitoringEvent {
-                                                session_id: session_id.clone(),
-                                                direction: "OUT".to_string(),
-                                                pkt_type: patch_data[0],
-                                                size: patch_data.len(),
-                                                timestamp: chrono::Utc::now().timestamp_millis(),
-                                            });
-
                                             if is_debug {
                                                 let decoded = decoder::decode(&patch_data);
                                                 println!("📤 OUT DEC: {:?}", decoded);
@@ -249,11 +243,15 @@ async fn handle_binary_packet(
     debug: bool, 
     php_port: u16,
     session_id: &str,
-    manager: &session::SessionManager
+    manager: &session::SessionManager,
+    tx_monitor: &broadcast::Sender<MonitoringEvent>
 ) -> Option<Vec<Vec<u8>>> {
     if data.is_empty() { return None; }
     
     let mut response_packets = Vec::new();
+    let pkt_type = data[0];
+    let start_time = std::time::Instant::now();
+
     match pkt_type {
         0x01 => { // HELLO — Handshake & State Sync
             let last_ver = if data.len() >= 5 {
@@ -354,7 +352,6 @@ async fn handle_binary_packet(
 
                 if debug { println!("📡 Envoi à PHP : {}", payload); }
 
-                let client = reqwest::Client::new();
                 let res = client.post(format!("http://127.0.0.1:{}/counter/app.php", php_port))
                     .json(&payload)
                     .send()
@@ -390,9 +387,22 @@ async fn handle_binary_packet(
                             }
                         }
                         
-                        if !binary_ops.is_empty() {
-                            return Some(proto::patch(&binary_ops));
-                        }
+                    if !binary_ops.is_empty() {
+                        let patch_data = proto::patch(&binary_ops);
+                        
+                        // Envoi au Monitor enrichi (OUT)
+                        tx_monitor.send(MonitoringEvent {
+                            session_id: session_id.to_string(),
+                            direction: "OUT".to_string(),
+                            pkt_type: patch_data[0],
+                            size: patch_data.len(),
+                            timestamp: chrono::Utc::now().timestamp_millis(),
+                            handler: Some("click".to_string()),
+                            latency_ms: Some(start_time.elapsed().as_millis()),
+                        }).ok();
+
+                        return Some(vec![patch_data]);
+                    }
                         
                         return Some(body.into_bytes());
                     }
