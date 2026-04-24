@@ -1,4 +1,4 @@
-# 🚀 Guide de Démarrage NHTML (v0.3.1)
+# 🚀 Guide de Démarrage NHTML (v0.4.0)
 **Bienvenue dans le Web sans JavaScript. Performance Native, Logique Serveur.**
 
 Ce guide unique vous accompagne de l'installation à votre première interaction réactive.
@@ -13,7 +13,7 @@ NHTML s'adapte à votre infrastructure :
 |:---|:---|:---|:---|
 | **Dédié (Rust)** | **Recommandé**. Temps réel pur. | VPS / Dédié (Accès CLI) | 🟢 Opérationnel |
 | **Mutualisé (HTTP)** | Fallback universel. | Hébergement standard (OVH, etc.) | 🟢 Opérationnel |
-| **WASM** | 100% Client-side. | GitHub Pages / Statique | ⚪ Phase R&D |
+| **WASM** | 100% Client-side. | GitHub Pages / Statique | 🟠 Bientôt (Bundle PHP.wasm en préparation) |
 
 ---
 
@@ -24,10 +24,13 @@ C'est la méthode la plus performante. Le **Gateway Rust** gère les WebSockets 
 ### Étape 1 : Lancer le Gateway
 Téléchargez le binaire `gateway` et lancez-le à la racine de votre projet :
 ```bash
-# Mode développement avec auto-rechargement
-./gateway start --dev
+# Mode développement avec auto-rechargement (Ports par défaut : WS=8080, PHP=8000)
+nhtml start --dev
+
+# Vous pouvez personnaliser les ports :
+nhtml start --dev --ws-port 9080 --php-port 9000
 ```
-*Le Gateway va automatiquement détecter votre installation PHP et lancer le serveur sur le port 8000.*
+*Le Gateway lance un serveur HTTP (par défaut sur 3000) et le serveur PHP.*
 
 ### Étape 2 : Structure du Projet
 Placez vos fichiers dans un dossier (ex: `/mon-app`) :
@@ -44,8 +47,7 @@ Identifiez les éléments à mettre à jour avec `n-id` et capturez les clics av
 <h1 n-id="titre">Bonjour</h1>
 <button n-click="btn_hello">Clique-moi</button>
 
-<!-- Inclusion du moteur NHTML -->
-<script src="/polyfill/bridge.js"></script>
+<!-- Magie ! ZÉRO balise <script>. Le Gateway injecte automatiquement le Bridge JS en développement. -->
 ```
 
 ### Côté Serveur (`app.php`)
