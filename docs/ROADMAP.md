@@ -19,7 +19,7 @@
 
 ## 🔜 Phase 5 — Release Publique
 - [ ] Split en 3 repos : `nhtml-core` (MIT), `nhtml-gateway` (AGPL), `nhtml-cloud` (Privé)
-- [ ] PHP-WASM : Packaging de PHP compilé en WASM pour le mode sans serveur
+- [x] PHP-WASM : Fallback "Zéro-Serveur" intégré dans le Bridge JS (Local & Sans CDN)
 - [x] `nhtml.config.toml` : Configuration déclarative des ports et chemins
 - [x] Reverse Proxy Doc : Config Nginx/Apache prête à copier-coller
 - [ ] GitHub Pages : Landing page + docs publiques

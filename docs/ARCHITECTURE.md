@@ -23,6 +23,10 @@ L'architecture repose sur un **Gateway Orchestrateur** agissant comme un pont bi
 graph TD
     Browser[Navigateur (bridge.js)] <-->|NBPS (Binary/WS)| Gateway[Gateway Rust]
     Gateway <-->|JSON/HTTP| PHP[App PHP (SDK)]
+    
+    Browser -.->|Si réseau indisponible| WASM[Moteur PHP-WASM]
+    WASM -.->|Exécute localement| app_php[app.php en RAM]
+    
     Gateway -->|Broadcast| DevTools[Dashboard DevTools 8081]
     Gateway <-->|SQLite| DB_Sessions[nhtml_sessions.db]
     PHP <-->|SQLite| DB_App[app.db]
@@ -72,13 +76,19 @@ Le système utilise deux couches de persistance SQLite distinctes :
 
 ---
 
-## 6. Flux Fonctionnel : Le Cycle de Vie d'un Clic
-1. **Captation** : `bridge.js` intercepte un clic sur un élément `n-click`.
-2. **Émission** : Envoi d'un paquet `0x02` (EVENT) au Gateway (Port 8080).
-3. **Traduction** : Le Gateway convertit l'EVENT en requête JSON POST vers PHP.
-4. **Traitement** : `app.php` incrémente la valeur en BDD et génère une liste de "Patches" JSON.
-5. **Conversion** : Le Gateway sérialise les patches JSON en binaire `0x03` (PATCH).
-6. **Rendu** : `bridge.js` reçoit le binaire, applique les mutations au DOM et déclenche une animation (Glow).
+## 6. Flux Fonctionnel : Le Cycle de Vie d'un Événement
+1. **Captation** : `bridge.js` intercepte un événement (ex: `click` sur un `n-click` ou `input`).
+2. **Stratégie de Routage** :
+    - **Mode Normal** : Envoi d'un paquet `0x02` (EVENT) au Gateway (WS ou HTTP POST).
+    - **Mode WASM (Zéro-Serveur)** : Si le serveur est inatteignable (404/405 sur GitHub Pages), le bridge bascule en mode local.
+3. **Traitement** :
+    - *Normal* : Le Gateway convertit l'EVENT en requête JSON vers PHP.
+    - *WASM* : Le JS télécharge `app.php`, injecte la payload JSON en remplaçant `php://input` et exécute la VM locale.
+4. **Réponse** : `app.php` génère une liste de "Patches" JSON.
+5. **Conversion & Rendu** : 
+    - *Normal* : Le Gateway sérialise les patches en binaire `0x03` (PATCH).
+    - *WASM* : Le bridge applique les patchs JSON directement au DOM.
+6. **Effet visuel** : Le DOM est mis à jour instantanément et déclenche l'animation de mutation (Glow).
 
 ---
 

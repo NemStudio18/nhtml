@@ -12,8 +12,8 @@ NHTML s'adapte à votre infrastructure :
 | Mode | Usage | Infrastructure | Status |
 |:---|:---|:---|:---|
 | **Dédié (Rust)** | **Recommandé**. Temps réel pur. | VPS / Dédié (Accès CLI) | 🟢 Opérationnel |
-| **Mutualisé (HTTP)** | Fallback universel. | Hébergement standard (OVH, etc.) | 🟢 Opérationnel |
-| **WASM** | 100% Client-side. | GitHub Pages / Statique | 🟠 Bientôt (Bundle PHP.wasm en préparation) |
+| **Mutualisé (HTTP)** | Fallback de connectivité. | Hébergement PHP standard | 🟢 Opérationnel |
+| **WASM (Zéro-Serveur)** | 100% Client-side. | GitHub Pages / Statique | 🟢 Opérationnel (Zéro CDN) |
 
 ---
 
@@ -39,7 +39,21 @@ Placez vos fichiers dans un dossier (ex: `/mon-app`) :
 
 ---
 
-## 3. 🐘 Votre Premier Composant
+## 3. 🪶 Mode "Zéro-Serveur" (GitHub Pages / Statique)
+
+Vous n'avez pas de backend ? Aucun problème. 
+Hébergez simplement vos fichiers statiquement (sur GitHub Pages, Vercel, ou S3). 
+
+1. Le Bridge NHTML tentera de joindre le serveur.
+2. S'il n'y a pas de serveur WebSocket ni de backend PHP, il bascule **automatiquement en mode WASM**.
+3. Il télécharge la machine virtuelle WebAssembly PHP dans le navigateur.
+4. Votre fichier `app.php` est exécuté localement en mémoire RAM, à une vitesse fulgurante.
+
+*Vous écrivez du PHP backend, mais il tourne dans le navigateur de votre visiteur !*
+
+---
+
+## 4. 🐘 Votre Premier Composant
 
 ### Côté Client (`index.nhtml`)
 Identifiez les éléments à mettre à jour avec `n-id` et capturez les clics avec `n-click`.
