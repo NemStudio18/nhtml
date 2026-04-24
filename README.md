@@ -1,209 +1,251 @@
-# ⚛️ Nhtml
+# ⚛️ NHTML — Native HTML Framework
 
 <p align="center">
-  <img src="assets/logo.png" width="250" alt="Nhtml Logo">
+  <img src="assets/logo.png" width="250" alt="NHTML Logo">
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/Language-Rust-orange?style=flat-square&logo=rust" />
-  <img src="https://img.shields.io/badge/Language-PHP-777bb4?style=flat-square&logo=php" />
-  <img src="https://img.shields.io/badge/Runtime-<2KB_JS-yellow?style=flat-square" />
-  <img src="https://img.shields.io/badge/Zero-Dependencies-success?style=flat-square" />
-  <img src="https://img.shields.io/badge/License-MIT-blue?style=flat-square" />
+  <img src="https://img.shields.io/badge/Gateway-Rust-orange?style=flat-square&logo=rust" />
+  <img src="https://img.shields.io/badge/Backend-PHP_8.x-777bb4?style=flat-square&logo=php" />
+  <img src="https://img.shields.io/badge/Transport-Binary_NBPS-blue?style=flat-square" />
+  <img src="https://img.shields.io/badge/JS_métier-Zéro-success?style=flat-square" />
+  <img src="https://img.shields.io/badge/License-MIT_/_AGPL-lightgrey?style=flat-square" />
 </p>
 
 ---
 
-## ⚡ HTML. But reactive.
+## ⚡ Le web réactif. Sans écrire de JavaScript.
 
-**Nhtml is HTML with built-in reactivity — no framework, no build step, no Node.js.**
+**NHTML est un framework Server-Driven UI.** Vous écrivez du HTML augmenté et du PHP. Le Gateway Rust s'occupe du reste — transport binaire, mutations DOM atomiques, temps réel natif.
 
-Write interactive interfaces using **pure HTML syntax**, compiled by a **Rust engine**, and hydrated with **<2KB of JavaScript**.
-
----
-
-## 🔥 Why Nhtml exists
-
-Modern web dev is overkill for most use cases:
-
-* ❌ React / Vue → heavy, complex, JS everywhere
-* ❌ Build tools → slow, fragile, hard to maintain
-* ❌ Simple UI → requires full SPA stack
-
-👉 **Nhtml solves this.**
-
-> You get interactivity without leaving HTML.
+Zéro React. Zéro Vue. Zéro build step. Zéro JS métier à écrire.
 
 ---
 
-## 🧠 Example
+## 🧠 À quoi ça ressemble
+
+**Côté interface (`index.nhtml`)** — du HTML avec des super-pouvoirs :
 
 ```html
-<var count=0>
+<h1 n-id="titre">Bonjour</h1>
 
-<div class="card">
-  <h2>Counter: {count}</h2>
+<p>
+  Tu as cliqué
+  <strong n-id="compteur">0</strong> fois.
+</p>
 
-  <button on:click="count++">+</button>
-  <button on:click="count--">-</button>
+<button n-click="page.incrementer">Cliquer ici</button>
 
-  <if condition="count > 10">
-    <p>🔥 Impressive</p>
-  </if>
-</div>
+<div n-id="message" n-live></div>
 ```
 
-👉 No framework
-👉 No virtual DOM
-👉 No state management
+**Côté serveur (`app.php`)** — du PHP pur :
 
-Just HTML.
+```php
+function page_incrementer(NhtmlEvent $event): array
+{
+    $count = ++$_SESSION['clicks'];
 
----
+    return [
+        Patch::setText('compteur', (string)$count),
+        Patch::setText('message', $count === 10 ? '🎉 Dixième clic !' : ''),
+    ];
+}
+```
 
-## ⚔️ Nhtml vs React (real talk)
-
-| Feature        | React       | Nhtml     |
-| -------------- | ----------- | --------- |
-| Setup          | ⚠️ Required | ✅ None    |
-| JS Required    | ✅ Yes       | ❌ No      |
-| Bundle Size    | ❌ 40KB+     | ✅ <2KB    |
-| Complexity     | ❌ High      | ✅ Low     |
-| Learning Curve | ❌ Medium    | ✅ Minimal |
+👉 Pas de JSON à écrire. Pas de fetch(). Pas d'état côté client à gérer.
 
 ---
 
-## 🧩 Where Nhtml shines
+## 🔥 Pourquoi NHTML existe
 
-✔ Dashboards
-✔ CRUD interfaces
-✔ CMS / Admin panels
-✔ Server-rendered apps
-✔ Progressive enhancement
+Le développement web moderne est devenu inutilement complexe :
 
-👉 Anywhere React is **overkill**
-
----
-
-## 🔌 Works everywhere
-
-Nhtml is not a framework. It’s a **rendering engine**.
-
-Use it with:
-
-* PHP (native integration)
-* Rust (core runtime)
-* WebAssembly (browser)
-* Node / Python (via rendering layer)
-
-👉 Drop it into existing projects.
+| Problème | Solution NHTML |
+|----------|---------------|
+| React/Vue → lourds, complexes, JS partout | HTML augmenté (`n-click`, `n-id`) |
+| Build tools → fragiles, lents | Zéro build step |
+| State management → dette technique | État géré par PHP côté serveur |
+| Debugging frontend → aveugle | DevTools avec Time Travel intégré |
+| Déploiement → infra complexe | Un binaire Rust, un script PHP |
 
 ---
 
-## 🚀 Key features
+## ⚔️ NHTML vs les alternatives
 
-* ⚡ **Rust-powered engine** → ultra fast compilation
-* 🧱 **HTML-first syntax** → no new mental model
-* 🌍 **Multi-runtime** → server + browser
-* ✨ **Ultra-light hydration** → <2KB JS
-* 🔌 **Framework-agnostic** → works alongside anything
-
----
-
-## ⚡ Installation
-
-See full guides in [`docs/`](./docs/):
-
-* [PHP (server-side rendering)](./docs/INSTALL-PHP.md)
-* [Apache / Nginx direct integration](./docs/INSTALL-DIRECT.md)
-* [Browser (WASM)](./docs/INSTALL-WASM.md)
+| | React | HTMX | **NHTML** |
+|---|---|---|---|
+| JS métier à écrire | ✅ Beaucoup | ⚠️ Un peu | ❌ Zéro |
+| Transport | JSON/REST | HTML texte | **Binaire NBPS** |
+| Mutations DOM | Virtual DOM | innerHTML swap | **Atomiques (SET_TEXT, ADD_CLASS…)** |
+| DevTools | React DevTools | ❌ Aucun | **Time Travel + Network Monitor** |
+| Déploiement mutualisé | ❌ Non | ✅ Oui | ✅ **Oui (fallback HTTP)** |
+| Temps réel natif | Via libs | SSE/WS manuel | **WebSocket natif** |
 
 ---
 
-## 🧪 Real-world usage
+## 🏛️ Comment ça marche
 
-👉 See **NCMS** (real CMS built with Nhtml):
-[https://github.com/NemStudio18/NCMS](https://github.com/NemStudio18/NCMS)
+```
+Votre .nhtml + app.php
+        │
+        ▼
+[ Gateway Rust ]  ←──────────────────────────────┐
+        │                                         │
+        │  WebSocket (Protocole NBPS Binaire)     │
+        │                                         │
+        ▼                                         │
+[ Navigateur ]                              [ PHP Backend ]
+  bridge.js (~2KB)    EVENT (clic) ────────▶  Logique métier
+  Applique les PATCH  PATCH (mutations) ◀────  Renvoie les ops
+```
 
----
-
-## 🎯 Philosophy
-
-> The web was meant to be simple.
-
-Nhtml brings back:
-
-* HTML as the source of truth
-* Minimal runtime
-* No toolchain
-* No unnecessary abstraction
-
----
-
-# 🇫🇷 Version Française
-
-## ⚡ HTML. Mais réactif.
-
-**Nhtml est du HTML avec réactivité intégrée — sans framework, sans build, sans Node.js.**
-
-👉 Vous écrivez du HTML
-👉 Vous obtenez une interface interactive
+1. **Vous écrivez** un fichier `.nhtml` (HTML + attributs `n-`) et un `app.php`
+2. **Le Gateway** compile le `.nhtml` en arbre binaire (B-TREE), détecte les `n-click`, `n-id`
+3. **Le navigateur** reçoit le binaire, construit le DOM, attache les listeners
+4. **Au clic** : un paquet binaire de quelques octets part au Gateway
+5. **PHP traite** et retourne une liste de mutations (`Patch::setText`, `Patch::addClass`…)
+6. **Le DOM est mis à jour** chirurgicalement — pas de rechargement, pas de re-render
 
 ---
 
-## Pourquoi Nhtml ?
+## 🎯 Attributs `n-` disponibles
 
-Le web moderne est devenu inutilement complexe :
-
-* React / Vue → lourds
-* Tooling → fragile
-* JS partout → difficile à maintenir
-
-👉 **Nhtml simplifie tout.**
+| Attribut | Rôle |
+|----------|------|
+| `n-id="nom"` | Identifiant métier — cible des mutations PHP |
+| `n-click="handler"` | Envoie un EVENT au clic |
+| `n-submit="handler"` | Envoie un EVENT à la soumission |
+| `n-input="handler"` | Envoie un EVENT à chaque frappe |
+| `n-model="var"` | Binding bidirectionnel input ↔ PHP |
+| `n-live` | Zone mise à jour par push serveur |
+| `n-debounce="300"` | Délai avant envoi (ms) |
+| `n-prevent` | preventDefault() automatique |
 
 ---
 
-## 🧠 Exemple
+## 🚀 Démarrage rapide
 
+### 1. Télécharger le Gateway
+
+```bash
+# Linux / Mac
+curl -L https://github.com/NemStudio18/nhtml-gateway/releases/latest/download/nhtml-linux -o nhtml
+chmod +x nhtml
+
+# Windows
+# Télécharger nhtml.exe depuis les Releases
+```
+
+### 2. Créer votre premier projet
+
+```bash
+mkdir mon-app && cd mon-app
+```
+
+**`index.nhtml`** :
 ```html
-<var count=0>
+<!DOCTYPE html>
+<html>
+<body>
+  <h1 n-id="titre">Hello NHTML</h1>
+  <button n-click="page.saluer">Cliquer</button>
+</body>
+</html>
+```
 
-<div class="card">
-  <h2>Compteur : {count}</h2>
+**`app.php`** :
+```php
+<?php
+require_once 'vendor/autoload.php';
+use Nhtml\Patch;
 
-  <button on:click="count++">+</button>
-  <button on:click="count--">-</button>
+function page_saluer($event): array {
+    return [
+        Patch::setText('titre', 'Bonjour depuis PHP ! 👋'),
+    ];
+}
+```
 
-  <if condition="count > 10">
-    <p>🔥 Impressionnant</p>
-  </if>
-</div>
+### 3. Lancer
+
+```bash
+./nhtml start --dev
+# → App sur http://127.0.0.1:3000
+# → DevTools sur http://127.0.0.1:8081
 ```
 
 ---
 
-## Points forts
+## 🛠️ DevTools intégrés
 
-* ⚡ Moteur Rust ultra rapide
-* 🌍 Multi-runtime (PHP, WASM…)
-* ✨ Runtime JS < 2Ko
-* 🔌 Compatible avec vos projets existants
+NHTML inclut une station de contrôle complète accessible sur `http://127.0.0.1:8081` :
 
----
-
-## Cas d’usage
-
-* Admin panels
-* CMS
-* Interfaces CRUD
-* Apps SSR
+- **Network Monitor** — chaque paquet NBPS en temps réel
+- **Time Travel** — rejouer n'importe quelle session action par action
+- **Node Inspector** — état binaire de chaque nœud DOM
+- **State Diff Viewer** — visualiser les mutations avant/après
+- **Handler Tracer** — profiler la latence de vos handlers PHP
+- **Payload Tester** — injecter des EVENTs manuellement (style Postman)
 
 ---
 
-## Installation
+## 🏗️ Les 3 modes de déploiement
 
-Voir [`/docs/`](./docs/) pour les guides complets.
+| Mode | Transport | Prérequis | Cas d'usage |
+|------|-----------|-----------|-------------|
+| **Dédié** | WebSocket | VPS + binaire Gateway | Temps réel, performance max |
+| **Mutualisé** | HTTP POST | Hébergement standard (OVH…) | Apps classiques sans WebSocket |
+| **WASM (Zéro-Serveur)** | Local | GitHub Pages / Statique | 🟢 **Opérationnel (Zéro CDN)** |
 
 ---
 
-© 2026 NemStudio — Built for simplicity.
+## 📦 Structure d'un projet NHTML
+
+```
+mon-app/
+├── index.nhtml        ← Interface (HTML + attributs n-)
+├── app.php            ← Logique métier PHP
+├── nhtml.config.toml  ← Configuration des ports
+├── nhtml              ← Binaire Gateway (ou nhtml.exe)
+└── vendor/            ← SDK PHP (Composer)
+```
+
+---
+
+## 📚 Documentation
+
+| Document | Contenu |
+|----------|---------|
+| [`docs/SPEC.md`](./docs/SPEC.md) | Protocole NBPS — référence complète |
+| [`docs/ARCHITECTURE.md`](./docs/ARCHITECTURE.md) | Architecture et flux fonctionnel |
+| [`docs/GUIDE_DEMARRAGE.md`](./docs/GUIDE_DEMARRAGE.md) | Guide d'installation détaillé |
+| [`docs/DEPLOIEMENT.md`](./docs/DEPLOIEMENT.md) | Nginx / Apache / Systemd |
+| [`docs/INTERNALS.md`](./docs/INTERNALS.md) | Contributeurs Rust |
+| [`CHANGELOG.md`](./CHANGELOG.md) | Historique des versions |
+| [`CONTRIBUTING.md`](./CONTRIBUTING.md) | Comment contribuer |
+
+---
+
+## 🌍 Cas d'usage idéaux
+
+- ✔ Tableaux de bord temps réel
+- ✔ Interfaces CRUD / Admin panels
+- ✔ CMS (voir [NCMS](https://github.com/NemStudio18/NCMS))
+- ✔ Formulaires avec validation live
+- ✔ Applications où React est **trop lourd**
+
+---
+
+## ⚖️ Licence
+
+- **NHTML Core** (SDK PHP, bridge.js) — [MIT](./LICENSE)
+- **NHTML Gateway** (serveur Rust) — AGPL v3
+
+> Pour des déploiements cloud propriétaires, contactez NemStudio.
+
+---
+
+<p align="center">
+  © 2026 NemStudio18 — Built for simplicity. Powered by Rust.
+</p>
