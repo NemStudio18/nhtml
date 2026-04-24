@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NHTML | 04 — Style Lab</title>
+    <link rel="stylesheet" href="../assets/css/modern.css">
+    <style>
+        body { align-items: center; gap: 32px; flex-direction: row; flex-wrap: wrap; }
+
+        /* La cible visuelle */
+        #preview_box {
+            width: 240px;
+            height: 240px;
+            background: #38bdf8;
+            border-radius: 12px;
+            box-shadow: 0 20px 60px rgba(56,189,248,0.4);
+            transition: border-radius 0.1s, background 0.15s, box-shadow 0.15s, transform 0.15s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 2.5rem;
+        }
+
+        /* Panneau de contrôle */
+        .glass-card { width: 360px; }
+        h1 { font-size: 1.4rem; }
+
+        .control-group { margin-bottom: 1.5rem; }
+        .control-label {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 0.78rem;
+            color: var(--text-dim);
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+            margin-bottom: 10px;
+        }
+        .control-label span {
+            color: var(--accent);
+            font-weight: 700;
+            font-size: 0.85rem;
+        }
+
+        /* Sliders */
+        input[type=range] {
+            width: 100%;
+            -webkit-appearance: none;
+            height: 6px;
+            border-radius: 99px;
+            background: rgba(255,255,255,0.1);
+            outline: none;
+            cursor: pointer;
+        }
+        input[type=range]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            background: var(--accent);
+            box-shadow: 0 0 10px rgba(56,189,248,0.5);
+            cursor: pointer;
+            transition: transform 0.2s;
+        }
+        input[type=range]::-webkit-slider-thumb:hover { transform: scale(1.3); }
+
+        /* Color picker */
+        .color-grid {
+            display: grid;
+            grid-template-columns: repeat(6, 1fr);
+            gap: 8px;
+        }
+        .color-swatch {
+            width: 36px;
+            height: 36px;
+            border-radius: 8px;
+            cursor: pointer;
+            border: 2px solid transparent;
+            transition: transform 0.2s, border-color 0.2s;
+        }
+        .color-swatch:hover { transform: scale(1.15); }
+        .color-swatch.active { border-color: white; transform: scale(1.15); }
+
+        .divider {
+            border: none;
+            border-top: 1px solid rgba(255,255,255,0.07);
+            margin: 1.2rem 0;
+        }
+
+        .stat-row {
+            display: flex;
+            justify-content: space-between;
+            font-size: 0.72rem;
+            color: var(--text-dim);
+            font-family: monospace;
+        }
+        .stat-row strong { color: var(--text); }
+    </style>
+</head>
+<body>
+
+    <!-- La cible visuelle manipulée par NHTML -->
+    <div id="preview_box">✦</div>
+
+    <!-- Le panneau de contrôle -->
+    <div class="glass-card">
+        <h1>🎨 Style Lab — Niveau 4</h1>
+        <p style="font-size:0.78rem;color:var(--text-dim);margin-bottom:1.5rem;">
+            Manipulation CSS en temps réel via PHP. Zéro JS applicatif.
+        </p>
+
+        <!-- Border Radius -->
+        <div class="control-group">
+            <div class="control-label">
+                Border Radius
+                <span id="lbl_radius">12px</span>
+            </div>
+            <input type="range" id="slider_radius" min="0" max="120" value="12">
+        </div>
+
+        <!-- Scale / Taille -->
+        <div class="control-group">
+            <div class="control-label">
+                Scale
+                <span id="lbl_scale">1.0×</span>
+            </div>
+            <input type="range" id="slider_scale" min="50" max="150" value="100">
+        </div>
+
+        <!-- Shadow Intensity -->
+        <div class="control-group">
+            <div class="control-label">
+                Glow Intensity
+                <span id="lbl_shadow">40%</span>
+            </div>
+            <input type="range" id="slider_shadow" min="0" max="100" value="40">
+        </div>
+
+        <hr class="divider">
+
+        <!-- Palette de couleurs -->
+        <div class="control-group">
+            <div class="control-label">Couleur</div>
+            <div class="color-grid">
+                <div class="color-swatch active" id="color_0" style="background:#38bdf8;"  title="Sky"></div>
+                <div class="color-swatch"        id="color_1" style="background:#a78bfa;"  title="Violet"></div>
+                <div class="color-swatch"        id="color_2" style="background:#34d399;"  title="Emerald"></div>
+                <div class="color-swatch"        id="color_3" style="background:#f472b6;"  title="Pink"></div>
+                <div class="color-swatch"        id="color_4" style="background:#fb923c;"  title="Orange"></div>
+                <div class="color-swatch"        id="color_5" style="background:#facc15;"  title="Gold"></div>
+            </div>
+        </div>
+
+        <hr class="divider">
+
+        <!-- Stats live -->
+        <div class="stat-row">
+            <span>Paquets binaires envoyés</span>
+            <strong id="stat_pkts">0</strong>
+        </div>
+        <div class="stat-row" style="margin-top:4px;">
+            <span>Dernier patch</span>
+            <strong id="stat_last">—</strong>
+        </div>
+    </div>
+
+    <!-- bridge.js + fzstd injectés automatiquement par le Gateway -->
+</body>
+</html>

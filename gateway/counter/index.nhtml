@@ -146,6 +146,7 @@
         </div>
     </div>
 
+    <script src="https://cdn.jsdelivr.net/npm/fzstd@0.1.1/umd/index.min.js"></script>
     <script type="module">
         import { initNhtml } from './polyfill/bridge.js';
         initNhtml('ws://' + window.location.hostname + ':8080');

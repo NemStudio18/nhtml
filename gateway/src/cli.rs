@@ -152,6 +152,10 @@ use axum::{
 };
 
 pub async fn run_devtools(tx_monitor: broadcast::Sender<crate::MonitoringEvent>) {
+    run_devtools_on_port(tx_monitor, 8081).await;
+}
+
+pub async fn run_devtools_on_port(tx_monitor: broadcast::Sender<crate::MonitoringEvent>, port: u16) {
     println!("⏱️ Initialisation des DevTools NHTML...");
     
     let app = Router::new()
@@ -161,8 +165,9 @@ pub async fn run_devtools(tx_monitor: broadcast::Sender<crate::MonitoringEvent>)
             async move { ws.on_upgrade(move |socket| handle_devtools_ws(socket, tx)) }
         }));
 
-    let addr = "127.0.0.1:8081";
-    let listener = tokio::net::TcpListener::bind(addr).await.expect("Impossible de lier le port 8081");
+    let addr = format!("127.0.0.1:{}", port);
+    let listener = tokio::net::TcpListener::bind(&addr).await
+        .unwrap_or_else(|_| panic!("Impossible de lier le port DevTools {}", port));
     println!("🚀 DevTools NHTML disponibles sur http://{}", addr);
     
     axum::serve(listener, app).await.unwrap();
@@ -174,33 +179,7 @@ async fn handle_devtools_ws(socket: WebSocket, tx_monitor: broadcast::Sender<cra
     let (mut ws_sender, mut ws_receiver) = socket.split();
     let mut rx_packet = tx_monitor.subscribe();
 
-    // Boucle de relai Monitoring (GATEWAY -> DASHBOARD)
-    let mut monitor_task = tokio::spawn(async move {
-        while let Ok(event) = rx_packet.recv().await {
-            // Pour l'instant on envoie tout, on filtrera par session plus tard
-            let row_html = format!(
-                "<div class='net-row' style='display: grid; grid-template-columns: 80px 100px 100px 1fr; gap: 10px; padding: 5px; border-bottom: 1px solid rgba(255,255,255,0.05); font-family: monospace; font-size: 11px;'>
-                    <span style='color: {}'>{}</span>
-                    <span>0x{:02X}</span>
-                    <span>{} B</span>
-                    <span style='color: var(--text-dim)'>{}</span>
-                </div>",
-                if event.direction == "IN" { "#0f0" } else { "#ff007f" },
-                event.direction,
-                event.pkt_type,
-                event.size,
-                event.session_id
-            );
-
-            let mut ops = Vec::new();
-            ops.push(proto::PatchOp::set_text(600, 1, &row_html)); // APPEND (simulé par prepend ici)
-            
-            let pkt = proto::patch(&ops);
-            if let Err(_) = ws_sender.send(WsMessage::Binary(pkt)).await {
-                break;
-            }
-        }
-    });
+    // Note: On supprime l'ancienne tâche simpliste pour ne garder que la nouvelle enrichie plus bas
     
     let paths = ["nhtml_sessions.db", "gateway/nhtml_sessions.db", "../nhtml_sessions.db", "../../nhtml_sessions.db"];
     let mut db_path = "nhtml_sessions.db".to_string();
@@ -228,14 +207,36 @@ async fn handle_devtools_ws(socket: WebSocket, tx_monitor: broadcast::Sender<cra
         Replay { session_id: String, history: Vec<(u32, String, u32)>, step: usize, total: usize },
     }
     
-    let mut current_state = State::Dashboard;
+    let mut session_list_html = String::new();
+    for sid in &sessions {
+        session_list_html.push_str(&format!(
+            "<button class='session-btn' n-click='replay' n-val='{}'>
+                <div style='display:flex; justify-content:space-between; align-items:center;'>
+                    <span>SID: {}</span>
+                    <span onclick='event.stopPropagation(); startCompare(\"{}\", this)' style='background:rgba(255,255,255,0.05); padding:2px 8px; border-radius:4px; font-size:0.6rem; border:1px solid rgba(255,255,255,0.1);'>CMP</span>
+                </div>
+            </button>", sid, if sid.len() > 8 { &sid[0..8] } else { sid }, sid
+        ));
+    }
+    if sessions.is_empty() {
+        session_list_html = "<div style='opacity:0.5; padding:20px;'>Aucune session trouvée.</div>".to_string();
+    }
 
+    let mut current_state = State::Dashboard;
     let ws_sender = Arc::new(Mutex::new(ws_sender));
     let sender_for_monitor = ws_sender.clone();
 
-    // Boucle de relai Monitoring (GATEWAY -> DASHBOARD)
+    // Envoi initial
+    {
+        let pkt = crate::proto::patch(&[crate::proto::PatchOp::replace_inner(500, 1, &session_list_html)]);
+        let mut s = ws_sender.lock().await;
+        let _ = s.send(WsMessage::Binary(pkt)).await;
+    }
+
+    // Boucle de relai Monitoring ENRICHI (GATEWAY -> DASHBOARD)
+    let mut rx_packet_monitor = tx_monitor.subscribe();
     tokio::spawn(async move {
-        while let Ok(event) = rx_packet.recv().await {
+        while let Ok(event) = rx_packet_monitor.recv().await {
             // Pour enrichir l'info, on peut décoder un échantillon si c'est IN ou OUT
             // On va essayer de reconstruire un paquet binaire minimal pour le décodeur si besoin
             // MAIS : le MonitoringEvent n'a pas les DATA brutes pour l'instant.
@@ -251,9 +252,17 @@ async fn handle_devtools_ws(socket: WebSocket, tx_monitor: broadcast::Sender<cra
                 _ => "UNKNOWN"
             };
 
+            let ratio_html = if let Some(r) = event.compression_ratio {
+                if r < 1.0 {
+                    let gain = (1.0 - r) * 100.0;
+                    format!("<span style='color: #0f0; font-size: 0.65rem; background: rgba(0,255,0,0.1); padding: 1px 4px; border-radius: 3px;'>-{:.1}%</span>", gain)
+                } else { "".to_string() }
+            } else { "".to_string() };
+
             let latency_html = if let Some(lat) = event.latency_ms {
-                let color = if lat > 100 { "#ff8800" } else { "var(--green)" };
-                format!("<span style='color: {}; font-size: 0.7rem; margin-left: 10px;'>{}ms</span>", color, lat)
+                let color = if lat < 20 { "#00ff88" } else if lat < 50 { "var(--green)" } else if lat < 100 { "#ff8800" } else { "#ff0000" };
+                let speed_label = if lat < 30 { "⚡ ULTRA" } else if lat < 100 { "🚀 FAST" } else { "🐢 SLOW" };
+                format!("<span style='color: {}; font-size: 0.65rem; border: 1px solid {}; padding: 1px 4px; border-radius: 3px; font-weight: bold;'>{} {}ms</span>", color, color, speed_label, lat)
             } else { "".to_string() };
 
             let handler_html = if let Some(h) = event.handler {
@@ -261,24 +270,25 @@ async fn handle_devtools_ws(socket: WebSocket, tx_monitor: broadcast::Sender<cra
             } else { "".to_string() };
 
             let row_html = format!(
-                "<div class='net-row' style='display: grid; grid-template-columns: 80px 100px 100px 1fr; gap: 10px; padding: 8px 20px; border-bottom: 1px solid rgba(255,255,255,0.05); font-family: monospace; font-size: 11px; align-items: center;'>
+                "<div class='net-row' style='display: grid; grid-template-columns: 80px 100px 140px 80px 1fr; gap: 10px; padding: 8px 20px; border-bottom: 1px solid rgba(255,255,255,0.05); font-family: monospace; font-size: 11px; align-items: center;'>
                     <span style='color: {}'>{}</span>
                     <span style='font-weight:bold; color:{}'>{}</span>
-                    <span>{} B {}</span>
-                    <span style='color: var(--text-dim); display: flex; align-items: center;'>{}{}</span>
+                    <span>{}</span>
+                    <span>{}</span>
+                    <span style='color: var(--text-dim); display: flex; align-items: center;'>{} B | {}</span>
                 </div>",
                 if event.direction == "IN" { "#0f0" } else { "#ff007f" },
                 event.direction,
                 if event.direction == "IN" { "var(--text)" } else { "var(--accent)" },
                 type_name,
-                event.size,
                 latency_html,
-                handler_html,
-                info
+                ratio_html,
+                event.size,
+                handler_html
             );
 
             let mut ops = Vec::new();
-            ops.push(crate::proto::PatchOp::replace_inner(600, 1, &row_html)); 
+            ops.push(crate::proto::PatchOp::append_html(600, 1, &row_html)); 
             
             let pkt = crate::proto::patch(&ops);
             let mut s = sender_for_monitor.lock().await;
@@ -442,13 +452,45 @@ async fn handle_devtools_ws(socket: WebSocket, tx_monitor: broadcast::Sender<cra
                         }
                     }
                 },
-                0x04 => { // COMPARE SESSIONS
-                    if data.len() >= 42 { // [0x04][sid1_len][sid1][sid2_len][sid2] - approx
-                        // Parsing simplifié pour le POC
+                0x04 => { // REFRESH or COMPARE
+                    println!("DEBUG: Commande 0x04 reçue (REFRESH/COMPARE)");
+                    if data.len() < 5 {
+                        // REFRESH Simple
+                        let mut sessions: Vec<String> = Vec::new();
+                        println!("DEBUG: Tentative lecture DB: {}", db_path);
+                        if let Ok(conn) = rusqlite::Connection::open(&db_path) {
+                            if let Ok(mut stmt) = conn.prepare("SELECT DISTINCT session_id FROM patch_history") {
+                                if let Ok(rows) = stmt.query_map([], |row| row.get::<_, String>(0)) {
+                                    sessions = rows.flatten().collect();
+                                }
+                            }
+                        }
+                        println!("DEBUG: Sessions trouvées: {}", sessions.len());
+                        let mut html = String::new();
+                        for sid in &sessions {
+                            html.push_str(&format!(
+                                "<button class='session-btn' n-click='replay' n-val='{}'>
+                                    <div style='display:flex; justify-content:space-between; align-items:center;'>
+                                        <span>SID: {}</span>
+                                        <span onclick='event.stopPropagation(); startCompare(\"{}\", this)' style='background:rgba(255,255,255,0.05); padding:2px 8px; border-radius:4px; font-size:0.6rem; border:1px solid rgba(255,255,255,0.1);'>CMP</span>
+                                    </div>
+                                </button>", sid, if sid.len() > 8 { &sid[0..8] } else { sid }, sid
+                            ));
+                        }
+                        if html.is_empty() { html = "Aucune session.".to_string(); }
+                        println!("DEBUG: Envoi PATCH ({} octets)", html.len());
+                        let pkt = crate::proto::patch(&[crate::proto::PatchOp::replace_inner(500, 1, &html)]);
+                        let mut s = ws_sender.lock().await;
+                        let _ = s.send(WsMessage::Binary(pkt)).await;
+                    } else {
+                        println!("DEBUG: Mode COMPARAISON");
+                        // Parsing simplifié pour la comparaison
                         let sid1_len = data[1] as usize;
+                        if data.len() < 2 + sid1_len + 1 { continue; }
                         let sid1 = String::from_utf8_lossy(&data[2..2+sid1_len]).to_string();
                         let cursor = 2 + sid1_len;
                         let sid2_len = data[cursor] as usize;
+                        if data.len() < cursor + 1 + sid2_len { continue; }
                         let sid2 = String::from_utf8_lossy(&data[cursor+1..cursor+1+sid2_len]).to_string();
 
                         let mut comparison = format!("<div style='color:var(--accent); font-weight:bold; margin-bottom:20px;'>COMPARAISON DE SESSIONS</div>");
@@ -490,3 +532,43 @@ async fn handle_devtools_ws(socket: WebSocket, tx_monitor: broadcast::Sender<cra
 }
 
 use tokio::net::TcpListener;
+pub fn run_benchmark(path: &str) {
+    println!("🧪 NHTML Benchmark Tool v0.4.0");
+    println!("--------------------------------------------------");
+    
+    let (html_content, label) = if let Ok(content) = std::fs::read_to_string(path) {
+        (content, format!("Fichier: {}", path))
+    } else {
+        (
+            "<html><body><h1>Hello World</h1><p>Ceci est un test de benchmark pour le protocole NHTML.</p><ul><li>Item 1</li><li>Item 2</li><li>Item 3</li></ul></body></html>".to_string(),
+            "Démonstration (Sample)".to_string()
+        )
+    };
+
+    let html_size = html_content.len();
+    
+    // Simulation B-TREE (un seul nœud contenant tout le HTML pour le test de poids)
+    let nodes = vec![(1, 1, html_content.clone())];
+    let (btree_pkt, ratio) = crate::proto::btree(&nodes);
+    let binary_size = btree_pkt.len();
+    let compressed_size = binary_size; // btree_pkt est déjà le paquet final (compressé si utile)
+    
+    // On recalcule pour le détail
+    let tree_payload = crate::proto::serialize_nodes(&nodes);
+    let raw_binary_size = tree_payload.len() + 14 + 5; // Header NBPS + Header B-TREE
+    
+    println!("📊 Cible : {}", label);
+    println!("--------------------------------------------------");
+    println!("{:<20} | {:>10} | {:>10}", "Format", "Taille (B)", "Gain");
+    println!("--------------------------------------------------");
+    println!("{:<20} | {:>10} | {:>10}", "HTML Brut", html_size, "-");
+    
+    let bin_gain = if html_size > 0 { (1.0 - (raw_binary_size as f32 / html_size as f32)) * 100.0 } else { 0.0 };
+    println!("{:<20} | {:>10} | {:>9.1}%", "NHTML Binaire (Raw)", raw_binary_size, bin_gain);
+    
+    let total_gain = if html_size > 0 { (1.0 - (binary_size as f32 / html_size as f32)) * 100.0 } else { 0.0 };
+    println!("{:<20} | {:>10} | {:>9.1}%", "NHTML + Zstd", binary_size, total_gain);
+    println!("--------------------------------------------------");
+    println!("✨ Ratio de compression Zstd : {:.1}%", (1.0 - ratio) * 100.0);
+    println!("🚀 NHTML est {:.1}x plus efficace que le HTML brut.", html_size as f32 / binary_size as f32);
+}

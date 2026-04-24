@@ -24,8 +24,9 @@ pub const OP_INSERT_AFTER  : u8 = 0x07;
 pub const OP_REMOVE        : u8 = 0x08;
 pub const OP_SET_STYLE     : u8 = 0x09;
 pub const OP_REPLACE_INNER : u8 = 0x0A;
-pub const OP_SCROLL_TO     : u8 = 0x0B;
-pub const OP_FOCUS         : u8 = 0x0C;
+pub const OP_APPEND_HTML   : u8 = 0x0B;
+pub const OP_SCROLL_TO     : u8 = 0x0C;
+pub const OP_FOCUS         : u8 = 0x0D;
 
 pub const LISTEN_CLICK   : u8 = 0x01;
 pub const LISTEN_INPUT   : u8 = 0x02;
@@ -187,6 +188,12 @@ impl PatchOp {
         Self { op_type: OP_REPLACE_INNER, target_id, version, data }
     }
 
+    pub fn append_html(target_id: u16, version: u32, html: &str) -> Self {
+        let mut data = Vec::new();
+        push_str16(&mut data, html);
+        Self { op_type: OP_APPEND_HTML, target_id, version, data }
+    }
+
     pub fn set_attr(target_id: u16, version: u32, key: &str, val: &str) -> Self {
         let mut data = Vec::new();
         push_str8(&mut data, key);
@@ -220,26 +227,30 @@ pub fn serialize_nodes(nodes: &[(u16, u32, String)]) -> Vec<u8> {
     buf
 }
 
-pub fn btree(nodes: &[(u16, u32, String)]) -> Vec<u8> {
+pub fn btree(nodes: &[(u16, u32, String)]) -> (Vec<u8>, f32) {
     let tree_payload = serialize_nodes(nodes);
+    let orig_len = tree_payload.len();
     
-    // Compression désactivée (0x00) pour le POC JS
-    let compressed = &tree_payload; 
+    // Compression Zstd (0x01)
+    let compressed = zstd::encode_all(std::io::Cursor::new(&tree_payload), 3).unwrap_or(tree_payload.clone());
+    let comp_flag: u8 = if compressed.len() < orig_len { 0x01 } else { 0x00 };
+    let final_payload = if comp_flag == 0x01 { &compressed } else { &tree_payload };
+    let ratio = if orig_len > 0 { final_payload.len() as f32 / orig_len as f32 } else { 1.0 };
 
     let checksum = crc32fast::hash(&tree_payload);
 
     let mut header = Vec::new();
-    header.push(0x00); // compression = None
-    push_u32(&mut header, tree_payload.len() as u32);
+    header.push(comp_flag);
+    push_u32(&mut header, orig_len as u32);
     push_u32(&mut header, checksum);
 
-    let total_payload_len = header.len() + compressed.len();
+    let total_payload_len = header.len() + final_payload.len();
     let mut out = Vec::with_capacity(5 + total_payload_len);
     out.push(PKT_BTREE);
     push_u32(&mut out, total_payload_len as u32);
     out.extend_from_slice(&header);
-    out.extend_from_slice(compressed);
-    out
+    out.extend_from_slice(final_payload);
+    (out, ratio)
 }
 
 // ─── ERR ───────────────────────────────────────────────────────────────────
