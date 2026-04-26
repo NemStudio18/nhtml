@@ -20,7 +20,7 @@
 
 ### ⚡ Reactive web. Without writing JavaScript.
 
-**NHTML is a Server-Driven UI framework.** You write augmented HTML and PHP. The Rust Gateway handles the rest — binary transport, atomic DOM mutations, and native real-time.
+**NHTML is a Server-Driven UI protocol and runtime.** You write augmented HTML and PHP. The Rust Gateway handles the rest — binary transport, atomic DOM mutations, and native real-time.
 
 Zero React. Zero Vue. Zero build step. Zero business JS to write.
 
@@ -123,7 +123,7 @@ Your .nhtml + app.php
 
 ### ⚡ Le web réactif. Sans écrire de JavaScript.
 
-**NHTML est un framework Server-Driven UI.** Vous écrivez du HTML augmenté et du PHP. Le Gateway Rust s'occupe du reste — transport binaire, mutations DOM atomiques, temps réel natif.
+**NHTML est un protocole et runtime Server-Driven UI.** Vous écrivez du HTML augmenté et du PHP. Le Gateway Rust s'occupe du reste — transport binaire, mutations DOM atomiques, temps réel natif.
 
 Zéro React. Zéro Vue. Zéro build step. Zéro JS métier à écrire.
 
