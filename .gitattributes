@@ -1,0 +1,5 @@
+# Mark JS assets and generated code as vendored to exclude them from language statistics
+assets/js/* linguist-vendored
+pkg/* linguist-vendored
+static/* linguist-vendored
+*.min.js linguist-vendored
