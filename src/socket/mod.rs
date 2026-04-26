@@ -299,38 +299,58 @@ async fn handle_connection_axum(
     info!("[{}] {} paquets BIND envoyés", session_id, result.bind_packets.len());
 
     // ── Boucle de messages ─────────────────────────────────────────────────
+    let mut sync_interval = tokio::time::interval(std::time::Duration::from_secs(30));
 
-    while let Some(msg) = ws_receiver.next().await {
-        match msg {
-            Ok(WsMessage::Binary(data)) => {
-                if data.is_empty() { continue; }
-
-                match data[0] {
-                    0x02 => { // EVENT
-                        handle_event(&data, &session, &mut ws_sender).await;
-                    }
-                    0x01 => { // HELLO (Client → Server)
-                        info!("[{}] HELLO reçu du client", session_id);
-                    }
-                    0x09 => { // PING
-                        // Répondre PONG (Type 0x09, Payload = Sequence)
-                        let seq = data.get(5).copied().unwrap_or(0);
-                        ws_sender.send(WsMessage::Binary(proto::ping(seq))).await.ok();
-                    }
-                    t => {
-                        warn!("[{}] Paquet inattendu type=0x{:02X}", session_id, t);
-                    }
+    loop {
+        tokio::select! {
+            _ = sync_interval.tick() => {
+                if let Ok(checksum) = sm.calculate_checksum(session_id.clone()).await {
+                    let sync_pkt = proto::sync(checksum);
+                    info!("[{}] SYNC envoyé, checksum={:08X}", session_id, checksum);
+                    ws_sender.send(WsMessage::Binary(sync_pkt)).await.ok();
                 }
             }
-            Ok(WsMessage::Close(_)) => {
-                info!("[{}] Connexion fermée proprement", session_id);
-                break;
+            msg_opt = ws_receiver.next() => {
+                let msg = match msg_opt {
+                    Some(m) => m,
+                    None => {
+                        info!("[{}] Connexion terminée", session_id);
+                        break;
+                    }
+                };
+
+                match msg {
+                    Ok(WsMessage::Binary(data)) => {
+                        if data.is_empty() { continue; }
+
+                        match data[0] {
+                            0x02 => { // EVENT
+                                handle_event(&data, &session, &mut ws_sender).await;
+                            }
+                            0x01 => { // HELLO (Client → Server)
+                                info!("[{}] HELLO reçu du client", session_id);
+                            }
+                            0x09 => { // PING
+                                // Répondre PONG (Type 0x09, Payload = Sequence)
+                                let seq = data.get(5).copied().unwrap_or(0);
+                                ws_sender.send(WsMessage::Binary(proto::ping(seq))).await.ok();
+                            }
+                            t => {
+                                warn!("[{}] Paquet inattendu type=0x{:02X}", session_id, t);
+                            }
+                        }
+                    }
+                    Ok(WsMessage::Close(_)) => {
+                        info!("[{}] Connexion fermée proprement", session_id);
+                        break;
+                    }
+                    Err(e) => {
+                        error!("[{}] Erreur WebSocket: {}", session_id, e);
+                        break;
+                    }
+                    _ => {}
+                }
             }
-            Err(e) => {
-                error!("[{}] Erreur WebSocket: {}", session_id, e);
-                break;
-            }
-            _ => {}
         }
     }
 }
