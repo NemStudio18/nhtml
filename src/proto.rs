@@ -268,27 +268,37 @@ pub fn serialize_nodes(nodes: &[(u16, u32, String, String)]) -> Vec<u8> {
 
 pub fn btree(nodes: &[(u16, u32, String, String)]) -> (Vec<u8>, f32) {
     let tree_payload = serialize_nodes(nodes);
-    let ratio = 1.0; // Placeholder if no compression
     let pkt = wrap_btree(&tree_payload);
+    let ratio = pkt.len() as f32 / tree_payload.len().max(1) as f32;
     (pkt, ratio)
 }
 
 pub fn wrap_btree(payload: &[u8]) -> Vec<u8> {
     let orig_len = payload.len();
     let checksum = crc32fast::hash(payload);
-    let comp_flag: u8 = 0x00; // Pas de compression par défaut pour le wrapper simple
+    
+    let mut comp_flag: u8 = 0x00;
+    let mut final_payload = payload.to_vec();
+    
+    // Tentative de compression Zstd niveau 3
+    if let Ok(compressed) = zstd::encode_all(payload, 3) {
+        if compressed.len() < payload.len() {
+            comp_flag = 0x01;
+            final_payload = compressed;
+        }
+    }
 
     let mut header = Vec::new();
     header.push(comp_flag);
     push_u32(&mut header, orig_len as u32);
     push_u32(&mut header, checksum);
 
-    let total_payload_len = header.len() + payload.len();
+    let total_payload_len = header.len() + final_payload.len();
     let mut out = Vec::with_capacity(5 + total_payload_len);
     out.push(PKT_BTREE);
     push_u32(&mut out, total_payload_len as u32);
     out.extend_from_slice(&header);
-    out.extend_from_slice(payload);
+    out.extend_from_slice(&final_payload);
     out
 }
 
