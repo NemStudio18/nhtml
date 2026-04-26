@@ -63,6 +63,23 @@ jobs:
         id: create_release
         uses: softprops/action-gh-release@v1
         with:
+          name: NHTML Gateway v${{ github.ref_name }}
+          body: |
+            ## 🛰️ NHTML Gateway v${{ github.ref_name }}
+            
+            Stable release of the industrial NHTML Gateway.
+            
+            ### 🛠️ What's New
+            - **NBPS v0.4.0 Protocol**: Aligned binary transport with versioning and data length safety.
+            - **Premium Showcase MVC**: Built-in demonstration with local SQLite persistence.
+            - **Auto-Assets Injection**: The gateway now automatically manages `bridge.js` and CSS.
+            - **Bilingual Documentation**: Full English and French support.
+            - **Integrated DevTools**: Real-time flow monitor and session replay.
+            
+            ### 📦 Supported Platforms
+            - **Linux** (x86_64)
+            - **Windows** (x86_64)
+            - **macOS** (Intel/Silicon)
           files: |
             nhtml-linux/nhtml-linux
             nhtml-windows.exe/nhtml-windows.exe
