@@ -65,21 +65,24 @@ jobs:
         with:
           name: NHTML Gateway v${{ github.ref_name }}
           body: |
-            ## 🛰️ NHTML Gateway v${{ github.ref_name }}
+            ## 🚀 First Public Release: NHTML Gateway v${{ github.ref_name }}
             
-            Stable release of the industrial NHTML Gateway.
+            Welcome to the first stable release of the **NHTML Gateway**, the industrial-grade server for the Server-Driven DOM Protocol.
             
-            ### 🛠️ What's New
-            - **NBPS v0.4.0 Protocol**: Aligned binary transport with versioning and data length safety.
-            - **Premium Showcase MVC**: Built-in demonstration with local SQLite persistence.
-            - **Auto-Assets Injection**: The gateway now automatically manages `bridge.js` and CSS.
-            - **Bilingual Documentation**: Full English and French support.
-            - **Integrated DevTools**: Real-time flow monitor and session replay.
+            ### ✨ Philosophy
+            - **Zero Business JS**: Focus on your backend logic (PHP), the gateway handles the rest.
+            - **Binary Efficiency**: Ultra-compact NBPS protocol for near-instant reactivity.
+            - **Developer Experience**: Built-in pedagogical DevTools with Time-Travel.
             
-            ### 📦 Supported Platforms
-            - **Linux** (x86_64)
-            - **Windows** (x86_64)
-            - **macOS** (Intel/Silicon)
+            ### 🛠️ Core Features
+            - **Industrial Gateway (Rust)**: Automated asset injection and high-performance WebSocket proxy.
+            - **NBPS v0.4.0**: Fully aligned binary protocol with built-in versioning and CRC32 safety.
+            - **Premium Showcase MVC**: A complete demo app with local SQLite persistence and modern UI.
+            - **DevTools Pro**: Real-time packet inspection, session replay, and state diffing.
+            - **Bilingual Documentation**: Complete technical reference in English and French.
+            
+            ### 📦 Deployment
+            Download the binary for your platform and run `./nhtml start --dev` to explore the future of web development.
           files: |
             nhtml-linux/nhtml-linux
             nhtml-windows.exe/nhtml-windows.exe
