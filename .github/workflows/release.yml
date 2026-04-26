@@ -4,7 +4,9 @@ on:
   push:
     tags:
       - 'v*'
-
+permissions:
+  contents: write
+  attestations: write
 jobs:
   build:
     name: Build for ${{ matrix.os }}
