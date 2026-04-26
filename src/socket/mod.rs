@@ -210,6 +210,10 @@ async fn handle_connection_axum(
         requested_sid
     };
 
+    if let Err(e) = sm.register_session(session_id.clone(), requested_path.clone()).await {
+        warn!("[{}] Impossible d'enregistrer la session en DB : {}", session_id, e);
+    }
+
     // Charger les états depuis SQLite si existants
     if let Ok(db_nodes) = sm.get_all_nodes(session_id.clone()).await {
         if !db_nodes.is_empty() {
