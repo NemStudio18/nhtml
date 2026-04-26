@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>NHTML - Live Chat</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="chat-container">
+        <div class="chat-header">
+            <h1>NHTML Live Chat</h1>
+            <div style="display:flex; align-items:center; gap:10px;">
+                <input type="text" n-id="chat_pseudo" n-input="chat_pseudo" placeholder="Votre Pseudo" value="Anonyme" style="background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.1); color:white; padding:4px 8px; border-radius:4px; font-size:0.8rem; width:100px;">
+                <div class="status-dot" title="Connected"></div>
+            </div>
+        </div>
+        
+        <div class="messages-list" n-id="msg_list">
+            <!-- Messages will be appended here -->
+            <div class="message received">
+                <div class="author">System</div>
+                Bienvenue dans le chat NHTML !
+            </div>
+        </div>
+
+        <div class="chat-input-area">
+            <input type="text" n-id="chat_input" placeholder="Écrire un message..." n-keydown="send">
+            <button n-id="btn_send" n-click="send">ENVOYER</button>
+        </div>
+    </div>
+</body>
+</html>

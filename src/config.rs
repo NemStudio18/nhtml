@@ -1,0 +1,38 @@
+use serde::Deserialize;
+use std::fs;
+
+#[derive(Debug, Deserialize, Default)]
+pub struct NhtmlConfig {
+    pub ports: Option<PortsConfig>,
+    #[allow(dead_code)]
+    pub dev: Option<DevConfig>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct PortsConfig {
+    pub ws: Option<u16>,
+    pub php: Option<u16>,
+    pub devtools: Option<u16>,
+    #[allow(dead_code)]
+    pub http: Option<u16>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct DevConfig {
+    #[allow(dead_code)]
+    pub auto_reload: Option<bool>,
+}
+
+impl NhtmlConfig {
+    pub fn load() -> Self {
+        if let Ok(content) = fs::read_to_string("nhtml.config.toml") {
+            if let Ok(config) = toml::from_str(&content) {
+                println!("📄 Fichier de configuration nhtml.config.toml détecté et chargé.");
+                return config;
+            } else {
+                eprintln!("⚠️ Fichier nhtml.config.toml trouvé mais format invalide.");
+            }
+        }
+        NhtmlConfig::default()
+    }
+}

@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NHTML | 03 — Live Form</title>
+    <link rel="stylesheet" href="../assets/css/modern.css">
+    <style>
+        .form-group { margin-bottom: 1.2rem; }
+        label { display: block; font-size: 0.78rem; color: var(--text-dim); margin-bottom: 6px; letter-spacing: 0.05em; text-transform: uppercase; }
+        .field-hint { font-size: 0.72rem; margin-top: 6px; min-height: 18px; transition: color 0.3s; }
+        .hint-ok   { color: var(--success); }
+        .hint-err  { color: var(--error); }
+        .hint-info { color: var(--text-dim); }
+        input.valid   { border-color: var(--success); box-shadow: 0 0 0 3px rgba(16,185,129,0.2); }
+        input.invalid { border-color: var(--error);   box-shadow: 0 0 0 3px rgba(239,68,68,0.2); }
+        .submit-btn { width: 100%; margin-top: 0.5rem; padding: 14px; font-size: 1rem; }
+        .submit-btn:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
+    </style>
+</head>
+<body>
+    <div class="glass-card" style="width: 420px;">
+        <h1>📋 Live Form — Niveau 3</h1>
+        <p style="font-size:0.8rem; color:var(--text-dim); margin-bottom:1.5rem;">
+            Validation PHP en temps réel — zéro JS applicatif.
+        </p>
+
+        <div class="form-group">
+            <label>Email</label>
+            <input type="text" n-id="field_email" n-input="field_email" placeholder="vous@domaine.com">
+            <div class="field-hint hint-info" n-id="hint_email">Saisissez votre email</div>
+        </div>
+
+        <div class="form-group">
+            <label>Mot de passe</label>
+            <input type="password" n-id="field_password" n-input="field_password" placeholder="8 caractères minimum">
+            <div class="field-hint hint-info" n-id="hint_password">8 caractères, 1 chiffre requis</div>
+        </div>
+
+        <div class="form-group">
+            <label>Nom d'utilisateur</label>
+            <input type="text" n-id="field_username" n-input="field_username" placeholder="3–20 caractères, lettres et chiffres">
+            <div class="field-hint hint-info" n-id="hint_username">Lettres, chiffres, underscore uniquement</div>
+        </div>
+
+        <button class="submit-btn" n-id="btn_submit" n-click="submit" disabled>CRÉER LE COMPTE</button>
+
+        <div style="margin-top:1rem; font-size:0.65rem; color:rgba(255,255,255,0.2); text-align:center;">
+            NHTML Binary Protocol — Validation PHP on-input, patch SET_TEXT + SET_CLASS
+        </div>
+    </div>
+</body>
+</html>

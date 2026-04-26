@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NHTML v0.4.0 | Counter Demo</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;700&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/examples/assets/premium.css">
+    <style>
+        .counter-box {
+            text-align: center;
+            padding: 2rem;
+        }
+        .value {
+            font-size: 8rem;
+            font-weight: 700;
+            font-family: 'JetBrains Mono', monospace;
+            display: block;
+            margin: 1rem 0;
+            text-shadow: 0 0 30px var(--accent-glow);
+        }
+        .controls {
+            display: flex;
+            gap: 1rem;
+            justify-content: center;
+        }
+    </style>
+</head>
+<body>
+    <div class="premium-container">
+        <a href="/examples/index.nhtml" class="nav-back">← Retour au Hub</a>
+        
+        <div class="example-wrapper">
+            <div class="counter-box">
+                <span class="subtitle">Session SQLite Persistence</span>
+                <span n-id="counter_value" class="value">0</span>
+                <div class="controls">
+                    <button n-id="btn_increment" n-click="increment">INCREMENTER</button>
+                </div>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

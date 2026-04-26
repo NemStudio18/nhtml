@@ -1,0 +1,286 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NHTML DevTools Pro</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;700&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg: #050505;
+            --surface: rgba(255, 255, 255, 0.05);
+            --accent: #ff007f;
+            --text: #ffffff;
+            --text-dim: rgba(255, 255, 255, 0.5);
+            --green: #0f0;
+        }
+        body {
+            margin: 0; background: var(--bg); color: var(--text);
+            font-family: 'Outfit', sans-serif;
+            height: 100vh; display: flex; flex-direction: column; overflow: hidden;
+        }
+        header {
+            padding: 15px 25px; background: var(--surface); border-bottom: 1px solid rgba(255,255,255,0.1);
+            display: flex; justify-content: space-between; align-items: center;
+        }
+        .title { font-weight: 700; color: var(--accent); letter-spacing: 2px; font-size: 0.9rem; }
+        
+        .tabs { display: flex; gap: 20px; }
+        .tab { 
+            cursor: pointer; padding-bottom: 5px; border-bottom: 2px solid transparent; 
+            color: var(--text-dim); transition: 0.3s; font-size: 0.8rem; font-weight: bold;
+        }
+        .tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+
+        main { flex: 1; display: flex; overflow: hidden; position: relative; }
+        
+        /* Dashboard / Sessions */
+        .pane { flex: 1; display: none; height: 100%; overflow: hidden; }
+        .pane.active { display: flex; flex-direction: column; }
+
+        #pane-sessions { padding: 40px; max-width: 900px; margin: 0 auto; width: 100%; }
+        .session-btn { 
+            background: var(--surface); border: 1px solid rgba(255,255,255,0.1); 
+            width: 100%; text-align: left; padding: 15px 25px; border-radius: 12px;
+            color: var(--text); font-family: 'JetBrains Mono', monospace; cursor: pointer;
+            margin-bottom: 10px; transition: 0.2s;
+        }
+        .session-btn:hover { background: rgba(255,0,127,0.15); border-color: var(--accent); transform: translateX(5px); }
+
+        /* Network Monitor */
+        .net-header { 
+            display: grid; grid-template-columns: 80px 100px 100px 1fr; gap: 10px; 
+            padding: 10px 20px; background: rgba(255,255,255,0.02); 
+            font-size: 0.7rem; font-weight: bold; color: var(--text-dim); text-transform: uppercase;
+        }
+        #net-table { flex: 1; overflow-y: auto; padding: 0 10px; display: flex; flex-direction: column-reverse; }
+
+        /* Generic Controls */
+        button.action {
+            background: var(--accent); color: #fff; border: none; padding: 8px 16px;
+            border-radius: 6px; font-family: 'JetBrains Mono', monospace; font-weight: bold; cursor: pointer; transition: 0.2s;
+        }
+        button.action:hover { opacity: 0.8; transform: scale(1.05); }
+        
+        .log-entry { font-family: 'JetBrains Mono', monospace; font-size: 11px; padding: 4px 0; border-bottom: 1px solid rgba(255,255,255,0.05); }
+
+        /* Flow Cards */
+        .flow-card {
+            background: rgba(255,255,255,0.03);
+            border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 10px;
+            padding: 15px;
+            width: 100%;
+            max-width: 500px;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            animation: slideIn 0.3s ease-out;
+            position: relative;
+        }
+        @keyframes slideIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .flow-step {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-size: 0.75rem;
+        }
+        .flow-icon {
+            width: 24px;
+            height: 24px;
+            border-radius: 6px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            font-size: 0.6rem;
+        }
+        .icon-event { background: var(--green); color: #000; }
+        .icon-php { background: #777bb4; color: #fff; }
+        .icon-ui { background: var(--accent); color: #fff; }
+        
+        .arrow {
+            width: 2px;
+            height: 15px;
+            background: rgba(255,255,255,0.1);
+            margin-left: 11px;
+        }
+        
+        .net-row {
+            transition: background 0.2s;
+            cursor: pointer;
+        }
+        .net-row:hover {
+            background: rgba(255,255,255,0.05) !important;
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <div style="display:flex; align-items:center; gap:15px;">
+            <div class="logo">🛰️ NHTML DevTools</div>
+            <div style="background: rgba(0,255,127,0.1); color: var(--green); padding: 2px 8px; border-radius: 4px; font-size: 0.6rem; font-weight: bold; border: 1px solid rgba(0,255,127,0.2);">PEDAGOGICAL MODE</div>
+        </div>
+        <div style="display: flex; gap: 10px;">
+            <button id="debug-btn" onclick="toggleDebug()" style="background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.1); color: white; padding: 5px 12px; border-radius: 6px; font-size: 0.7rem; cursor: pointer; display: flex; align-items: center; gap: 6px; transition: 0.3s; opacity: 0.5;">
+                <span style="font-size: 1rem;">🛠️</span> TECHNICAL VIEW
+            </button>
+            <button class="action" onclick="location.reload()" style="background: none; border: 1px solid rgba(255,255,255,0.2); width: auto; padding: 0 15px;">RELOAD</button>
+        </div>
+    </header>
+
+    <main>
+        <div style="display: flex; flex: 1; width: 100%; overflow: hidden;">
+            <!-- PANNEAU GAUCHE: TECHNICAL (EVENT STREAM & SESSIONS) -->
+            <div id="pane-events" style="width: 300px; background: var(--surface); border-right: 1px solid rgba(255,255,255,0.1); display: none; flex-direction: column;">
+                <!-- Sessions List -->
+                <div style="flex: 1; display: flex; flex-direction: column; overflow: hidden; border-bottom: 1px solid rgba(255,255,255,0.1);">
+                    <div style="padding: 15px; border-bottom: 1px solid rgba(255,255,255,0.05); display: flex; justify-content: space-between; align-items: center;">
+                        <h3 style="margin: 0; font-size: 0.8rem; color: var(--green); letter-spacing: 1px;">SESSIONS</h3>
+                        <button onclick="refreshSessions()" style="background: none; border: 1px solid var(--text-dim); color: var(--text-dim); font-size: 0.5rem; padding: 2px 5px; border-radius: 3px; cursor: pointer;">REFRESH</button>
+                    </div>
+                    <div n-id="501" style="flex: 1; overflow-y: auto; padding: 10px; display: flex; flex-direction: column; gap: 5px;">
+                        <!-- Session buttons will be injected here -->
+                        <div style="opacity: 0.3; text-align: center; font-size: 0.7rem; margin-top: 10px;">Cliquez sur REFRESH</div>
+                    </div>
+                </div>
+                <!-- Event Stream -->
+                <div style="flex: 1; display: flex; flex-direction: column; overflow: hidden;">
+                    <div style="padding: 15px; border-bottom: 1px solid rgba(255,255,255,0.05);">
+                        <h3 style="margin: 0; font-size: 0.8rem; color: var(--accent); letter-spacing: 1px;">EVENT STREAM</h3>
+                    </div>
+                    <div id="net-stream" n-id="600" style="flex: 1; overflow-y: auto; padding-bottom: 20px;">
+                        <!-- Binary events will be injected here -->
+                    </div>
+                </div>
+            </div>
+
+            <!-- PANNEAU CENTRAL: PEDAGOGICAL FLOW -->
+            <div id="pane-flow" style="flex: 1; display: flex; flex-direction: column; background: #0a0a0c; position: relative;">
+                <div style="padding: 15px; border-bottom: 1px solid rgba(255,255,255,0.05); display: flex; justify-content: space-between; align-items: center;">
+                    <div>
+                        <h3 style="margin: 0; font-size: 0.8rem; color: var(--accent); letter-spacing: 1px;">FLOW LIVE</h3>
+                        <p style="margin: 5px 0 0 0; font-size: 0.65rem; color: var(--text-dim);">Analyse du cycle de vie (Event → PHP → UI Patch)</p>
+                    </div>
+                </div>
+                <div style="flex: 1; display: flex; align-items: center; justify-content: center; overflow: hidden; padding: 20px;">
+                    <!-- Representation of the Event Flow -->
+                    <div n-id="100" style="width: 100%; height: 100%; display: flex; flex-direction: column; gap: 20px; align-items: center; justify-content: center;">
+                        <div style="opacity: 0.5; font-family: monospace; font-size: 0.8rem;">En attente d'interaction...</div>
+                    </div>
+                </div>
+                
+                <!-- Timeline Replay at the bottom -->
+                <div class="controls" style="padding: 15px; background: var(--surface); border-top: 1px solid rgba(255,255,255,0.1); display: flex; align-items: center; gap: 20px;">
+                    <div style="font-size: 0.7rem; color: var(--accent); font-weight: bold;">TIMELINE REPLAY</div>
+                    <button class="action" n-id="201" n-click="step_forward" style="padding: 4px 10px; font-size: 0.7rem;">STEP</button>
+                    <button class="action" n-id="202" n-click="reset_replay" style="background: #333; padding: 4px 10px; font-size: 0.7rem;">RESET</button>
+                    <div style="flex: 1; height: 4px; background: rgba(255,255,255,0.1); border-radius: 2px;">
+                        <div n-id="102" style="height: 100%; background: var(--accent); width: 0%; border-radius: 2px; transition: 0.3s;"></div>
+                    </div>
+                    <div n-id="302" style="font-family: 'JetBrains Mono'; font-size: 0.7rem;">0 / 0</div>
+                </div>
+            </div>
+
+            <!-- PANNEAU DROIT: UI STATE DIFF & GHOST NODES -->
+            <div id="pane-diff" style="width: 350px; background: var(--surface); border-left: 1px solid rgba(255,255,255,0.1); display: flex; flex-direction: column;">
+                <!-- UI State Diff (Default) -->
+                <div style="flex: 1; display: flex; flex-direction: column; overflow: hidden;">
+                    <div style="padding: 15px; border-bottom: 1px solid rgba(255,255,255,0.05);">
+                        <h3 style="margin: 0; font-size: 0.8rem; color: var(--accent); letter-spacing: 1px;">UI STATE DIFF</h3>
+                        <p style="margin: 5px 0 0 0; font-size: 0.65rem; color: var(--text-dim);">Modifications appliquées au DOM</p>
+                    </div>
+                    <div id="event_list" n-id="101" style="flex: 1; overflow-y: auto; padding: 15px; font-family: monospace; font-size: 0.75rem; color: var(--text-dim); display: flex; flex-direction: column; gap: 10px;">
+                        <div style="opacity: 0.3; text-align: center; margin-top: 20px;">Aucun changement</div>
+                    </div>
+                </div>
+
+                <!-- Ghost Nodes (Debug Only) -->
+                <div id="pane-ghost" style="display: none; flex-direction: column; border-top: 1px solid rgba(255,255,255,0.1); background: rgba(0,0,0,0.2); overflow: hidden; height: 300px;">
+                    <div style="padding: 15px; border-bottom: 1px solid rgba(255,255,255,0.05);">
+                        <h3 style="margin: 0; font-size: 0.8rem; color: #00d4ff; letter-spacing: 1px;">GHOST NODES</h3>
+                        <p style="margin: 5px 0 0 0; font-size: 0.65rem; color: var(--text-dim);">État virtuel SQLite (Server-Side)</p>
+                    </div>
+                    <div n-id="500" style="flex: 1; overflow-y: auto; padding: 10px; font-family: monospace; font-size: 0.65rem;">
+                        <div style="opacity:0.3; text-align:center;">Sélectionnez une session pour inspecter la DB</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <script>
+        let compareSessionA = null;
+
+        function checkDebugMode() {
+            const urlParams = new URLSearchParams(window.location.search);
+            const isDebug = urlParams.get('debug') === '1';
+            const paneEvents = document.getElementById('pane-events');
+            const paneGhost = document.getElementById('pane-ghost');
+            const debugBtn = document.getElementById('debug-btn');
+            
+            if (paneEvents) paneEvents.style.display = isDebug ? 'flex' : 'none';
+            if (paneGhost) paneGhost.style.display = isDebug ? 'flex' : 'none';
+            
+            if (debugBtn) {
+                debugBtn.style.opacity = isDebug ? '1' : '0.3';
+                debugBtn.style.background = isDebug ? 'var(--accent)' : 'rgba(255,255,255,0.1)';
+            }
+        }
+
+        function toggleDebug() {
+            const url = new URL(window.location.href);
+            const isDebug = url.searchParams.get('debug') === '1';
+            if (isDebug) url.searchParams.delete('debug');
+            else url.searchParams.set('debug', '1');
+            window.location.href = url.toString();
+        }
+
+        function startCompare(sid, el) {
+            if (!compareSessionA) {
+                compareSessionA = sid;
+                el.style.background = "var(--accent)";
+                el.innerText = "SEL";
+                console.log("[DEVTOOLS] Session A sélectionnée :", sid);
+            } else {
+                console.log("[DEVTOOLS] Comparaison A:", compareSessionA, "vs B:", sid);
+                // Envoi d'un paquet custom via le bridge
+                if (window.sendBinary) {
+                    const sidA = new TextEncoder().encode(compareSessionA);
+                    const sidB = new TextEncoder().encode(sid);
+                    const buf = new Uint8Array(1 + 1 + sidA.length + 1 + sidB.length);
+                    buf[0] = 0x05; // OpCode COMPARE
+                    buf[1] = sidA.length;
+                    buf.set(sidA, 2);
+                    buf[2 + sidA.length] = sidB.length;
+                    buf.set(sidB, 3 + sidA.length);
+                    window.sendBinary(buf);
+                }
+                compareSessionA = null;
+                el.innerText = "CMP";
+                // Reset tous les boutons CMP
+                document.querySelectorAll('button[onclick^="startCompare"]').forEach(b => {
+                    b.style.background = "rgba(255,255,255,0.05)";
+                    b.innerText = "CMP";
+                });
+            }
+        }
+
+        function refreshSessions() {
+            if (window.sendBinary) {
+                const buf = new Uint8Array(1);
+                buf[0] = 0x06; // REFRESH
+                window.sendBinary(buf);
+            }
+        }
+
+        window.addEventListener('load', checkDebugMode);
+    </script>
+
+    <script src="/_nhtml/bridge.js" charset="UTF-8"></script>
+</body>
+</html>
