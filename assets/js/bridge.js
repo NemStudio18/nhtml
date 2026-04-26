@@ -434,6 +434,40 @@ document.addEventListener('input', (e) => {
     sendBinary(buffer);
 });
 
+document.addEventListener('keydown', (e) => {
+    const target = e.target;
+    const nid = target.getAttribute('n-id');
+    if (!nid) return;
+    
+    const handlerAttr = target.getAttribute('n-keydown');
+    if (!handlerAttr) return; // Ne pas envoyer si aucun handler défini
+
+    const id_num = window.nhtml_reverse_map ? (window.nhtml_reverse_map[nid] || 0) : 0;
+    
+    // Toujours envoyer un objet JSON pour la cohérence
+    const formData = {};
+    formData[nid] = target.value;
+    formData['event_key'] = e.key; // Inclure la touche pressée
+    
+    const jsonStr = JSON.stringify(formData);
+    const jsonBytes = new TextEncoder().encode(jsonStr);
+    const handlerBytes = new TextEncoder().encode(handlerAttr);
+    
+    const buffer = new Uint8Array(1 + 4 + 1 + handlerBytes.length + 2 + jsonBytes.length);
+    const view = new DataView(buffer.buffer);
+    
+    buffer[0] = 0x02; // EVENT
+    view.setUint32(1, id_num);
+    buffer[5] = handlerBytes.length;
+    buffer.set(handlerBytes, 6);
+    
+    const payloadOffset = 6 + handlerBytes.length;
+    view.setUint16(payloadOffset, jsonBytes.length);
+    buffer.set(jsonBytes, payloadOffset + 2);
+    
+    sendBinary(buffer);
+});
+
 // --- Auto-Initialization ---
 window.addEventListener('DOMContentLoaded', () => {
     const host   = window.location.hostname || "127.0.0.1";
