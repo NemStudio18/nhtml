@@ -56,6 +56,8 @@ enum Commands {
     Stats,
     /// Lance un benchmark de performance
     Bench { path: String },
+    /// Lance les DevTools
+    Devtools,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -86,8 +88,9 @@ async fn main() {
         }
     }
 
-    // Channel global pour le monitoring
+    // Channels globaux
     let (tx_monitor, _) = broadcast::channel::<MonitoringEvent>(100);
+    let (tx_app_broadcast, _) = broadcast::channel::<Vec<u8>>(100);
 
     match cli.command {
         Commands::New { name } => {
@@ -98,9 +101,28 @@ async fn main() {
             println!("📂 Projet : {}", path);
             println!("🌐 Port   : {}", port);
             
+            // Lancement du superviseur PHP
+            let php_port = config.ports.as_ref().and_then(|p| p.php).unwrap_or(8000);
+            tokio::spawn(supervisor::start_php_server(
+                php_port, 
+                tx_monitor.clone(), 
+                tx_app_broadcast.clone()
+            ));
+
+            // Lancement des DevTools
+            let devtools_port = config.ports.as_ref().and_then(|p| p.devtools).unwrap_or(8081);
+            let devtools_tx = tx_monitor.clone();
+            tokio::spawn(async move {
+                cli::run_devtools(devtools_tx, "127.0.0.1".to_string(), devtools_port, None).await;
+            });
+
             info!("🚀 NHTML Gateway starting...");
             let sm = crate::session::SessionManager::new().await.expect("Impossible d'init le SessionManager");
-            socket::serve(port, path, entry, php, std::sync::Arc::new(sm)).await;
+            socket::serve(port, path, entry, php, std::sync::Arc::new(sm), tx_monitor, tx_app_broadcast).await;
+        }
+        Commands::Devtools => {
+            let devtools_port = config.ports.as_ref().and_then(|p| p.devtools).unwrap_or(8081);
+            cli::run_devtools(tx_monitor, "127.0.0.1".to_string(), devtools_port, None).await;
         }
         Commands::Inspect { hex } => {
             cli::inspect_message(&hex);

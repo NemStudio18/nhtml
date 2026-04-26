@@ -44,11 +44,13 @@ impl Session {
 
 // ─── Point d'entrée ─────────────────────────────────────────────────────────
 
-pub async fn serve(port: u16, root: String, _entry: String, _php: String, sm: Arc<SessionManager>) {
+pub async fn serve(port: u16, root: String, _entry: String, _php: String, sm: Arc<SessionManager>, tx_monitor: tokio::sync::broadcast::Sender<crate::MonitoringEvent>, tx_app_broadcast: tokio::sync::broadcast::Sender<Vec<u8>>) {
     let shared_state = Arc::new(GatewayState {
         root: root.clone(),
         sm: sm.clone(),
         php_script_base: _php,
+        tx_monitor,
+        tx_app_broadcast,
     });
 
     let app = Router::new()
@@ -78,6 +80,8 @@ struct GatewayState {
     root: String,
     sm: Arc<SessionManager>,
     php_script_base: String,
+    tx_monitor: tokio::sync::broadcast::Sender<crate::MonitoringEvent>,
+    tx_app_broadcast: tokio::sync::broadcast::Sender<Vec<u8>>,
 }
 
 async fn handle_http(
