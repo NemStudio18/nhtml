@@ -408,10 +408,15 @@ function sendHello() {
     console.log("%c[NHTML] 🛰️ Sending HELLO...", "color: #00d4ff");
     
     const sidBytes = new TextEncoder().encode(window.nhtml_session_id);
-    const hello = new Uint8Array(5 + sidBytes.length);
-    hello[0] = 0x01;
-    new DataView(hello.buffer).setUint32(1, sidBytes.length);
-    hello.set(sidBytes, 5);
+    const payloadLen = 2 + 1 + sidBytes.length; // keepalive_ms(2) + str_len(1) + str_bytes
+    const hello = new Uint8Array(5 + payloadLen);
+    
+    hello[0] = 0x01; // PKT_HELLO
+    const dv = new DataView(hello.buffer);
+    dv.setUint32(1, payloadLen, false); // u32 len (Big Endian)
+    dv.setUint16(5, 5000, false);       // keepalive_ms = 5000
+    hello[7] = sidBytes.length;         // str8_len
+    hello.set(sidBytes, 8);             // str_bytes
     
     socket.send(hello);
 }
