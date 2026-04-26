@@ -9,7 +9,7 @@
   <img src="https://img.shields.io/badge/Gateway-Rust-orange?style=flat-square&logo=rust" />
   <img src="https://img.shields.io/badge/Backend-PHP_8.x-777bb4?style=flat-square&logo=php" />
   <img src="https://img.shields.io/badge/Transport-Binary_NBPS-blue?style=flat-square" />
-  <img src="https://img.shields.io/badge/Business_JS-Zero-success?style=flat-square" />
+  <img src="https://img.shields.io/badge/JS_métier-Zéro-success?style=flat-square" />
 </p>
 
 [English](#-english-version) | [Français](#-version-française)
@@ -122,6 +122,61 @@ Zéro React. Zéro Vue. Zéro build step. Zéro JS métier à écrire.
 
 ---
 
+### 🧠 À quoi ça ressemble
+
+**Côté interface (`index.nhtml`)** — du HTML avec des super-pouvoirs :
+
+```html
+<h1 n-id="titre">Bonjour</h1>
+
+<p>
+  Tu as cliqué
+  <strong n-id="compteur">0</strong> fois.
+</p>
+
+<button n-click="page.incrementer">Cliquer ici</button>
+
+<div n-id="message" n-live></div>
+```
+
+**Côté serveur (`app.php`)** — du PHP pur :
+
+```php
+function page_incrementer(NhtmlEvent $event): array
+{
+    $count = ++$_SESSION['clicks'];
+
+    return [
+        Patch::setText('compteur', (string)$count),
+        Patch::setText('message', $count === 10 ? '🎉 Dixième clic !' : ''),
+    ];
+}
+```
+
+👉 Pas de JSON à écrire. Pas de fetch(). Pas d'état côté client à gérer.
+
+---
+
+### 🖼️ Showcase en Action
+
+![NHTML Showcase Dashboard](assets/showcase_preview.png)
+*L'application Showcase MVC démontrant le binding de données en temps réel, la gestion d'inventaire et la navigation multi-vues.*
+
+---
+
+### 🛠️ DevTools intégrés
+
+NHTML inclut une station de contrôle complète accessible localement sur `http://127.0.0.1:8081` :
+
+![NHTML DevTools Preview](assets/devtools_preview.png)
+
+- **Network Monitor** — chaque paquet NBPS en temps réel.
+- **Time Travel** — rejouer n'importe quelle session action par action.
+- **Node Inspector** — état binaire de chaque nœud DOM.
+- **State Diff Viewer** — visualiser les mutations avant/après.
+
+---
+
 ### 🏛️ Comment ça marche
 
 ```
@@ -137,6 +192,19 @@ Votre .nhtml + app.php
   bridge.js (~25KB)   EVENT (clic) ────────▶  Logique métier
   Applique les PATCH  PATCH (mutations) ◀────  Renvoie les ops
 ```
+
+---
+
+### 🚀 Démarrage rapide
+
+```bash
+# 1. Lancer le gateway
+./nhtml start --dev
+
+# 2. Visiter http://localhost:8080
+```
+
+[Lire la documentation complète en Français](./docs/fr/SPEC.md)
 
 ---
 
