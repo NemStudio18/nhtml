@@ -3,6 +3,7 @@ use std::path::Path;
 use tokio::sync::broadcast;
 use std::time::Duration;
 
+#[allow(dead_code)]
 pub fn start_watcher(tx: broadcast::Sender<()>) {
     println!("👀 Watcher: Démarrage de la surveillance des fichiers locaux...");
 

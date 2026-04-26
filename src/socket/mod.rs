@@ -8,7 +8,7 @@ use tracing::{info, warn, error};
 use axum::extract::ws::{Message as WsMessage, WebSocket, WebSocketUpgrade};
 use axum::{
     extract::{Query, State, Path as AxPath},
-    response::{Html, IntoResponse, Response},
+    response::{IntoResponse, Response},
     routing::get,
     Router,
 };
@@ -48,14 +48,13 @@ pub async fn serve(port: u16, root: String, _entry: String, _php: String, sm: Ar
     let shared_state = Arc::new(GatewayState {
         root: root.clone(),
         sm: sm.clone(),
-        php_script_base: _php,
         tx_monitor,
         tx_app_broadcast,
     });
 
     let app = Router::new()
         .route("/ws", get(handle_ws_route))
-        .route("/", get(handle_http))
+        .route("/", get(handle_http_root))
         .route("/*path", get(handle_http))
         .with_state(shared_state);
 
@@ -79,15 +78,31 @@ async fn handle_ws_route(
 struct GatewayState {
     root: String,
     sm: Arc<SessionManager>,
-    php_script_base: String,
     tx_monitor: tokio::sync::broadcast::Sender<crate::MonitoringEvent>,
     tx_app_broadcast: tokio::sync::broadcast::Sender<Vec<u8>>,
+}
+
+async fn handle_http_root(
+    Query(params): Query<HashMap<String, String>>,
+    State(state): State<Arc<GatewayState>>,
+    ws: Option<WebSocketUpgrade>,
+) -> Response {
+    handle_http_inner("".to_string(), params, state, ws).await
 }
 
 async fn handle_http(
     AxPath(path): AxPath<String>,
     Query(params): Query<HashMap<String, String>>,
     State(state): State<Arc<GatewayState>>,
+    ws: Option<WebSocketUpgrade>,
+) -> Response {
+    handle_http_inner(path, params, state, ws).await
+}
+
+async fn handle_http_inner(
+    path: String,
+    params: HashMap<String, String>,
+    state: Arc<GatewayState>,
     ws: Option<WebSocketUpgrade>,
 ) -> Response {
     // 1. Si c'est une requête WebSocket, on upgrade
@@ -127,18 +142,32 @@ async fn handle_http(
         Err(_) => { return (StatusCode::INTERNAL_SERVER_ERROR, "Erreur de lecture").into_response(); }
     };
 
-    let mime = mime_guess::from_path(final_path_obj).first_or_octet_stream();
-    let mut mime_str = mime.to_string();
-    if mime_str.contains("text/") || mime_str.contains("javascript") {
-        if !mime_str.contains("charset") {
-            mime_str.push_str("; charset=utf-8");
+    let mime_str = if final_path.ends_with(".nhtml") {
+        "text/html; charset=utf-8".to_string()
+    } else {
+        let mime = mime_guess::from_path(final_path_obj).first_or_octet_stream();
+        let mut m = mime.to_string();
+        if m.contains("text/") || m.contains("javascript") {
+            if !m.contains("charset") {
+                m.push_str("; charset=utf-8");
+            }
         }
-    }
+        m
+    };
 
-    if path.ends_with(".nhtml") {
-        let mut html = String::from_utf8_lossy(&content).to_string();
+    if final_path.ends_with(".nhtml") {
+        let mut html = if let Ok(source) = std::fs::read_to_string(&final_path_obj) {
+            let result = crate::compiler::NhtmlCompiler::compile(&source);
+            result.html
+        } else {
+            String::from_utf8_lossy(&content).to_string()
+        };
+
         // INJECTION DU BRIDGE (Automatique)
-        let bridge_script = r#"<script src="/assets/js/bridge.js" charset="UTF-8"></script>"#;
+        let bridge_script = r#"
+    <script src="/assets/js/fzstd.min.js" defer></script>
+    <script src="/assets/js/bridge.js" charset="UTF-8" defer></script>
+"#;
         if let Some(pos) = html.find("</head>") {
             html.insert_str(pos, bridge_script);
         } else {
@@ -165,7 +194,7 @@ async fn handle_ws_wrapper(socket: WebSocket, path: String, sid: String, state: 
 }
 
 async fn handle_connection_axum(
-    mut socket: WebSocket,
+    socket: WebSocket,
     requested_path: String,
     requested_sid: String,
     state: Arc<GatewayState>,
@@ -215,14 +244,21 @@ async fn handle_connection_axum(
     }
 
     // Charger les états depuis SQLite si existants
+    let mut append_patches = Vec::new();
     if let Ok(db_nodes) = sm.get_all_nodes(session_id.clone()).await {
         if !db_nodes.is_empty() {
             info!("[{}] Restauration de {} nœuds depuis SQLite", session_id, db_nodes.len());
-            for (db_id, db_ver, db_tag, db_val) in db_nodes {
-                // On cherche le nœud par son tag métier (NID) car les IDs binaires peuvent varier
-                if let Some(state_node) = result.states.iter_mut().find(|s| s.2 == db_tag) {
-                    state_node.1 = db_ver;
-                    state_node.3 = db_val;
+            for (db_id, db_ver, db_tag, db_val, is_append) in db_nodes {
+                if is_append {
+                    // Si c'est un append, on ne l'inclut PAS dans le B-TREE
+                    // On le prépare comme un patch séparé à envoyer après le B-TREE
+                    append_patches.push(proto::PatchOp::append_html(db_id, db_ver, &db_val));
+                } else {
+                    // On cherche le nœud par son tag métier (NID) car les IDs binaires peuvent varier
+                    if let Some(state_node) = result.states.iter_mut().find(|s| s.2 == db_tag) {
+                        state_node.1 = db_ver;
+                        state_node.3 = db_val;
+                    }
                 }
             }
             // Re-générer le B-TREE binaire avec les valeurs restaurées
@@ -238,7 +274,7 @@ async fn handle_connection_axum(
     };
 
     let (mut ws_sender, mut ws_receiver) = socket.split();
-    let session = Session::new(session_id.clone(), &result, php_script, sm.clone());
+    let mut session = Session::new(session_id.clone(), &result, php_script, sm.clone());
 
     // ── Séquence d'initialisation ──────────────────────────────────────────
 
@@ -247,9 +283,17 @@ async fn handle_connection_axum(
     ws_sender.send(WsMessage::Binary(hello)).await.ok();
 
     // 2. B-TREE
-    let btree_pkt = proto::wrap_btree(&result.btree_bytes);
-    ws_sender.send(WsMessage::Binary(btree_pkt)).await.ok();
-    info!("[{}] B-TREE envoyé ({} bytes)", session_id, result.btree_bytes.len());
+    let (btree_pkt, comp_ratio) = proto::wrap_btree(&result.btree_bytes);
+    ws_sender.send(WsMessage::Binary(btree_pkt.clone())).await.ok();
+    info!("[{}] B-TREE envoyé ({} bytes, ratio={:.2})", session_id, result.btree_bytes.len(), comp_ratio);
+
+    monitor_pkt(&state.tx_monitor, "OUT", proto::PKT_BTREE, btree_pkt.len(), &session_id, Some("BTREE".to_string()), Some("Full DOM Initial State".to_string()), None).await;
+
+    // 2.5 Patches d'append restaurés
+    if !append_patches.is_empty() {
+        ws_sender.send(WsMessage::Binary(proto::patch(&append_patches))).await.ok();
+        info!("[{}] {} patches d'append restaurés envoyés", session_id, append_patches.len());
+    }
 
     // ─── Hydratation initiale (Appel PHP Init) ───────────────────────────
     let init_patches = call_php(
@@ -262,7 +306,7 @@ async fn handle_connection_axum(
     
     if !init_patches.is_empty() {
         let mut final_patches = Vec::new();
-        for mut op in init_patches {
+        for (mut op, _) in init_patches {
             let nid = session.handler_table.by_id.get(&(op.target_id))
                 .and_then(|e| e.n_id.clone())
                 .unwrap_or_else(|| "".to_string());
@@ -282,7 +326,8 @@ async fn handle_connection_axum(
                     }
                     _ => "".to_string()
                 };
-                if let Ok(new_ver) = session.sm.update_node(session_id.clone(), op.target_id as u32, nid, val).await {
+                let is_append = op.op_type == 0x0B;
+                if let Ok(new_ver) = session.sm.update_node(session_id.clone(), op.target_id as u32, nid, val, is_append).await {
                     op.version = new_ver;
                 }
             }
@@ -299,18 +344,9 @@ async fn handle_connection_axum(
     info!("[{}] {} paquets BIND envoyés", session_id, result.bind_packets.len());
 
     // ── Boucle de messages ─────────────────────────────────────────────────
-    let mut sync_interval = tokio::time::interval(std::time::Duration::from_secs(30));
     let mut app_rx = state.tx_app_broadcast.subscribe();
-
     loop {
         tokio::select! {
-            _ = sync_interval.tick() => {
-                if let Ok(checksum) = sm.calculate_checksum(session_id.clone()).await {
-                    let sync_pkt = proto::sync(checksum);
-                    info!("[{}] SYNC envoyé, checksum={:08X}", session_id, checksum);
-                    ws_sender.send(WsMessage::Binary(sync_pkt)).await.ok();
-                }
-            }
             Ok(bcast_data) = app_rx.recv() => {
                 // Relayer les paquets broadcast (0x03 PATCH, ou autres) envoyés par les autres sessions
                 if !bcast_data.is_empty() {
@@ -330,21 +366,95 @@ async fn handle_connection_axum(
                     Ok(WsMessage::Binary(data)) => {
                         if data.is_empty() { continue; }
 
-                        match data[0] {
-                            0x02 => { // EVENT
-                                handle_event(&data, &session, &mut ws_sender, &state.tx_app_broadcast).await;
+                        let type_byte = data[0];
+
+                        if type_byte == 0x02 { // EVENT
+                            monitor_pkt(&state.tx_monitor, "IN", 0x02, data.len(), &session_id, None, Some(format!("Raw Event Data ({} bytes)", data.len())), None).await;
+                            handle_event(&data, &mut session, &mut ws_sender, &state.tx_app_broadcast, &state.tx_monitor).await;
+                        } else if type_byte == 0x01 { // HELLO (Client → Server)
+                            info!("[{}] HELLO reçu du client", session_id);
+                            monitor_pkt(&state.tx_monitor, "IN", 0x01, data.len(), &session_id, None, Some("Session Handshake".to_string()), None).await;
+                        } 
+                        
+                        // ─── PKT_PUSH_PATCH (0x08) ───
+                        // Client -> Server (Zero-Server / Multi-user Sync)
+                        else if type_byte == proto::PKT_PUSH_PATCH {
+                            // 1. Validation du format minimal
+                            if data.len() < 12 { continue; }
+                            
+                            // 2. Décoder le nombre d'opérations
+                            let op_count = u16::from_be_bytes([data[5], data[6]]) as usize;
+                            let mut offset = 7;
+                            let mut validated_ops = Vec::new();
+                            
+                            for _ in 0..op_count {
+                                if data.len() < offset + 9 { break; }
+                                let target_id = u16::from_be_bytes([data[offset], data[offset+1]]);
+                                let op_type = data[offset + 2];
+                                let version = u32::from_be_bytes([data[offset+3], data[offset+4], data[offset+5], data[offset+6]]);
+                                let data_len = u16::from_be_bytes([data[offset+7], data[offset+8]]) as usize;
+                                offset += 9;
+                                
+                                if data.len() < offset + data_len { break; }
+                                let op_data = &data[offset .. offset + data_len];
+                                offset += data_len;
+
+                                // --- VALIDATION SÉCURITÉ ---
+                                // A. Whitelist des Opcodes autorisés (Zéro-Server Multi)
+                                let is_safe = match op_type {
+                                    proto::OP_SET_TEXT  | // 0x01
+                                    proto::OP_SET_ATTR  | // 0x02
+                                    proto::OP_DEL_ATTR  | // 0x03
+                                    proto::OP_ADD_CLASS | // 0x04
+                                    proto::OP_DEL_CLASS | // 0x05
+                                    proto::OP_SET_STYLE | // 0x09
+                                    0x0C | // SCROLL_TO
+                                    0x0D   // FOCUS
+                                    => true,
+                                    _ => {
+                                        warn!("[{}] PUSH_PATCH rejeté : Opcode non autorisé ({:#02x})", session_id, op_type);
+                                        false
+                                    }
+                                };
+
+                                if is_safe {
+                                    validated_ops.push(proto::PatchOp {
+                                        op_type,
+                                        target_id,
+                                        version,
+                                        data: op_data.to_vec(),
+                                    });
+                                }
                             }
-                            0x01 => { // HELLO (Client → Server)
-                                info!("[{}] HELLO reçu du client", session_id);
+
+                            if !validated_ops.is_empty() {
+                                info!("[{}] PUSH_PATCH : {} opérations validées", session_id, validated_ops.len());
+                                
+                                // 3. Persister en SQLite
+                                for op in &validated_ops {
+                                    // On récupère le tag pour persister correctement
+                                    let db_nodes = sm.get_all_nodes(session_id.clone()).await.unwrap_or_default();
+                                    if let Some((_, _, tag, _, _)) = db_nodes.iter().find(|n| n.0 == op.target_id) {
+                                        // On ne décode pas le payload ici, on le stocke tel quel (en mode append si nécessaire, mais ici on est sur du SET_TEXT par ex)
+                                        let val_str = String::from_utf8_lossy(&op.data).to_string();
+                                        let _ = sm.update_node(session_id.clone(), op.target_id as u32, tag.clone(), val_str, false).await;
+                                    }
+                                }
+
+                                // 4. Broadcaster aux autres clients de la session
+                                let broadcast_pkt = proto::patch(&validated_ops);
+                                let _ = state.tx_app_broadcast.send(broadcast_pkt);
                             }
-                            0x09 => { // PING
-                                // Répondre PONG (Type 0x09, Payload = Sequence)
-                                let seq = data.get(5).copied().unwrap_or(0);
-                                ws_sender.send(WsMessage::Binary(proto::ping(seq))).await.ok();
-                            }
-                            t => {
-                                warn!("[{}] Paquet inattendu type=0x{:02X}", session_id, t);
-                            }
+                        }
+
+                        else if type_byte == proto::PKT_PING { // PING
+                            // Répondre PONG (Type 0x09, Payload = Sequence)
+                            let seq = data.get(5).copied().unwrap_or(0);
+                            ws_sender.send(WsMessage::Binary(proto::ping(seq))).await.ok();
+                            monitor_pkt(&state.tx_monitor, "IN", 0x09, data.len(), &session_id, None, Some("Keep-alive".to_string()), None).await;
+                        }
+                        else {
+                            warn!("[{}] Paquet inattendu type=0x{:02X}", session_id, type_byte);
                         }
                     }
                     Ok(WsMessage::Close(_)) => {
@@ -364,23 +474,24 @@ async fn handle_connection_axum(
 
 async fn handle_event(
     data       : &[u8],
-    session    : &Session,
+    session    : &mut Session,
     ws_sender  : &mut (impl SinkExt<WsMessage, Error = axum::Error> + Unpin),
-    tx_app_broadcast: &tokio::sync::broadcast::Sender<Vec<u8>>
+    tx_app_broadcast: &tokio::sync::broadcast::Sender<Vec<u8>>,
+    tx_monitor: &tokio::sync::broadcast::Sender<crate::MonitoringEvent>
 )
 {
     // Parser le paquet EVENT envoyé par bridge.js (v0.4.0)
-    // Format: [0x02][4B node_id][1B handler_len][handler_bytes][2B payload_len][payload]
-    if data.len() < 8 { return; }
+    // Format: [0x02][4B TotalLen][4B node_id][1B handler_len][handler_bytes][2B payload_len][payload]
+    if data.len() < 12 { return; }
 
-    let node_id = u32::from_be_bytes([data[1], data[2], data[3], data[4]]);
-    let handler_len = data[5] as usize;
+    let node_id = u32::from_be_bytes([data[5], data[6], data[7], data[8]]);
+    let handler_len = data[9] as usize;
     
-    if data.len() < 8 + handler_len { return; }
-    let handler_bytes = &data[6..6 + handler_len];
+    if data.len() < 12 + handler_len { return; }
+    let handler_bytes = &data[10..10 + handler_len];
     let handler_from_pkt = String::from_utf8_lossy(handler_bytes).to_string();
 
-    let payload_offset = 6 + handler_len;
+    let payload_offset = 10 + handler_len;
     let payload_len = u16::from_be_bytes([data[payload_offset], data[payload_offset+1]]) as usize;
     
     let payload = if data.len() >= payload_offset + 2 + payload_len {
@@ -401,13 +512,16 @@ async fn handle_event(
     info!("[{}] EVENT node={} handler='{}' payload_len={}", 
         session.state.session_id, node_id, handler, payload_len);
 
+    // Monitor INCOMING EVENT
+    monitor_pkt(tx_monitor, "IN", proto::PKT_EVENT, data.len(), &session.state.session_id, Some(handler.clone()), Some(format!("Payload: {} bytes", payload_len)), None).await;
+
     // --- Mise à jour AUTO de l'état local depuis le payload (Industrial Sync) ---
     if let Ok(json_payload) = serde_json::from_slice::<serde_json::Value>(payload) {
         if let Some(obj) = json_payload.as_object() {
             for (nid, val) in obj {
                 if let Some(val_str) = val.as_str() {
                     if let Some(target_id) = session.handler_table.nid_map.get(nid) {
-                        session.sm.update_node(session.state.session_id.clone(), *target_id as u32, nid.clone(), val_str.to_string()).await.ok();
+                        session.sm.update_node(session.state.session_id.clone(), *target_id as u32, nid.clone(), val_str.to_string(), false).await.ok();
                     }
                 }
             }
@@ -415,6 +529,7 @@ async fn handle_event(
     }
 
     // Appeler PHP avec le contexte complet
+    let start = std::time::Instant::now();
     let patches = call_php(
         &session.php_script,
         &session.handler_table,
@@ -448,7 +563,8 @@ async fn handle_event(
                 };
                 
                 if let Some(v) = val {
-                    if let Ok(new_ver) = session.sm.update_node(session.state.session_id.clone(), op.target_id as u32, nid, v).await {
+                    let is_append = op.op_type == 0x0B;
+                    if let Ok(new_ver) = session.sm.update_node(session.state.session_id.clone(), op.target_id as u32, nid, v, is_append).await {
                         op.version = new_ver;
                     }
                 }
@@ -462,14 +578,49 @@ async fn handle_event(
 
         if !broadcast_patches.is_empty() {
             let patch_pkt = proto::patch(&broadcast_patches);
+            monitor_pkt(tx_monitor, "OUT", 0x03, patch_pkt.len(), &session.state.session_id, Some("BROADCAST".to_string()), Some("Shared State Sync".to_string()), None).await;
             let _ = tx_app_broadcast.send(patch_pkt);
         }
 
         if !final_patches.is_empty() {
+            // Mettre à jour last_version avec la version max des patches envoyés
+            if let Some(max_ver) = final_patches.iter().map(|op| op.version).max() {
+                if max_ver > 0 {
+                    session.state.last_version = max_ver;
+                }
+            }
+            let elapsed = start.elapsed().as_millis() as u64;
             let patch_pkt = proto::patch(&final_patches);
+            let summary = format!("{} mutation(s)", final_patches.len());
+            monitor_pkt(tx_monitor, "OUT", 0x03, patch_pkt.len(), &session.state.session_id, Some(handler), Some(summary), Some(elapsed)).await;
             ws_sender.send(WsMessage::Binary(patch_pkt)).await.ok();
         }
     }
+}
+
+async fn monitor_pkt(
+    tx: &tokio::sync::broadcast::Sender<crate::MonitoringEvent>,
+    direction: &str,
+    pkt_type: u8,
+    size: usize,
+    sid: &str,
+    handler: Option<String>,
+    details: Option<String>,
+    latency: Option<u64>
+) {
+    use chrono::Local;
+    let ev = crate::MonitoringEvent {
+        direction: direction.to_string(),
+        pkt_type,
+        size,
+        session_id: sid.to_string(),
+        timestamp: Local::now().format("%H:%M:%S%.3f").to_string(),
+        latency_ms: latency,
+        compression_ratio: None,
+        handler,
+        details,
+    };
+    let _ = tx.send(ev);
 }
 
 // ─── Bridge PHP ─────────────────────────────────────────────────────────────
@@ -484,7 +635,7 @@ async fn call_php(
     session_id    : &str,
     last_version  : u32,
     sm            : Arc<SessionManager>,
-) -> Vec<proto::PatchOp>
+) -> Vec<(proto::PatchOp, bool)>
 {
     use std::process::Stdio;
     use tokio::process::Command;
@@ -494,23 +645,29 @@ async fn call_php(
     // Récupérer tous les nœuds actuels pour cette session
     let db_nodes = sm.get_all_nodes(session_id.to_string()).await.unwrap_or_default();
     let mut nodes_map = serde_json::Map::new();
-    for (_id, ver, tag, val) in db_nodes {
+    for (_id, ver, tag, val, is_append) in db_nodes {
         nodes_map.insert(tag.clone(), json!({
             "ver": ver,
-            "val": val
+            "val": val,
+            "append": is_append
         }));
     }
+
+    // Résoudre le n-id textuel pour le source_id numérique
+    let n_id = handler_table.by_id.get(&source_id)
+        .and_then(|e| e.n_id.clone())
+        .unwrap_or_else(|| source_id.to_string());
 
     // Construire le contexte JSON transmis au PHP via stdin
     let context = json!({
         "handler": handler,
-        "source_id": source_id,
+        "source_id": n_id,
         "session_id": session_id,
         "payload": String::from_utf8_lossy(payload),
         "last_version": last_version,
         "handler_table": handler_table.to_json(),
         "nid_map": handler_table.nid_map,
-        "nodes": nodes_map, // AJOUTÉ : État complet des nœuds
+        "nodes": nodes_map, 
     });
 
     let input = context.to_string();
@@ -561,9 +718,17 @@ fn parse_php_response(
     handler_table : &HandlerTable,
 ) -> Vec<(proto::PatchOp, bool)>
 {
-    // Nettoyage éventuel du stdout (si PHP a affiché des warnings avant le JSON)
+    // Nettoyage éventuel du stdout (PHP peut afficher des warnings avant le JSON)
     let json_str = std::str::from_utf8(stdout).unwrap_or("");
-    let json_start = json_str.find('[').unwrap_or(0);
+    // Cherche le premier [ ou { — supporte les deux formats de réponse PHP
+    let pos_array  = json_str.find('[');
+    let pos_object = json_str.find('{');
+    let json_start = match (pos_array, pos_object) {
+        (Some(a), Some(b)) => a.min(b),
+        (Some(a), None)    => a,
+        (None, Some(b))    => b,
+        (None, None)       => 0,
+    };
     let json_clean = &json_str[json_start..];
 
     let json: serde_json::Value = match serde_json::from_str(json_clean) {
@@ -634,8 +799,17 @@ fn parse_php_response(
                 let val = op["val"].as_str().unwrap_or("");
                 proto::PatchOp::append_html(node_id, 0, val)
             }
+            "insert_before" => {
+                let val = op["val"].as_str().unwrap_or("");
+                proto::PatchOp::insert_before(node_id, 0, val)
+            }
+            "insert_after" => {
+                let val = op["val"].as_str().unwrap_or("");
+                proto::PatchOp::insert_after(node_id, 0, val)
+            }
             "remove" => proto::PatchOp::remove(node_id, 0),
             "focus"  => proto::PatchOp::focus(node_id, 0),
+            "scroll_to" => proto::PatchOp::scroll_to(node_id, 0),
             _ => {
                 warn!("PatchOp inconnue: {}", op_type);
                 continue;

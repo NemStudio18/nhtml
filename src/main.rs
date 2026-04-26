@@ -70,6 +70,7 @@ pub struct MonitoringEvent {
     pub latency_ms: Option<u64>,
     pub compression_ratio: Option<f32>,
     pub handler: Option<String>,
+    pub details: Option<String>,
 }
 
 #[tokio::main]

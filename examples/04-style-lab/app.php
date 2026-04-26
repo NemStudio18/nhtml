@@ -14,6 +14,7 @@ $handler = $input['handler'] ?? '';
 $formData = json_decode($input['payload'] ?? '{}', true);
 
 $nid = $input['source_id'] ?? $handler;
+
 $value = $formData[$nid] ?? '';
 $p = Nhtml::patch();
 

@@ -41,7 +41,7 @@ if ($handler === 'init') {
         $html .= "
             <div class='todo-item' n-id='item_$id'>
                 <span class='text'>$txt</span>
-                <button class='btn-delete' n-click='delete:$id'>SUPPRIMER</button>
+                <button class='btn-delete' n-id='btn_$id' n-click='delete:$id'>SUPPRIMER</button>
             </div>";
     }
     if ($html) $p->replaceInner('todo_list', $html);
@@ -58,7 +58,7 @@ if ($handler === 'add_todo') {
         $p->appendHtml('todo_list', "
             <div class='todo-item' n-id='item_$id'>
                 <span class='text'>$new_task</span>
-                <button class='btn-delete' n-click='delete:$id'>SUPPRIMER</button>
+                <button class='btn-delete' n-id='btn_$id' n-click='delete:$id'>SUPPRIMER</button>
             </div>
         ")->setText('todo_input', '');
     }
@@ -77,7 +77,7 @@ if ($handler === 'add_todo') {
         $html .= "
             <div class='todo-item' n-id='item_$id'>
                 <span class='text'>$txt</span>
-                <button class='btn-delete' n-click='delete:$id'>SUPPRIMER</button>
+                <button class='btn-delete' n-id='btn_$id' n-click='delete:$id'>SUPPRIMER</button>
             </div>";
     }
     $p->replaceInner('todo_list', $html);

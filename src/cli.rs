@@ -1,6 +1,7 @@
 use std::fs;
 use std::path::Path;
 use crate::decoder;
+use axum::http::header;
 
 pub fn create_new_project(name: &str) {
     let project_dir = Path::new(name);
@@ -159,6 +160,12 @@ pub async fn run_devtools(tx_monitor: broadcast::Sender<crate::MonitoringEvent>,
             }
             Html(include_str!("../static/devtools.nhtml").to_string()) 
         }))
+        .route("/_nhtml/bridge.js", get(|| async {
+            axum::response::Response::builder()
+                .header(header::CONTENT_TYPE, "application/javascript; charset=utf-8")
+                .body(axum::body::Body::from(include_str!("../assets/js/bridge.js")))
+                .unwrap()
+        }))
         .route("/ws", get(move |ws: WebSocketUpgrade| {
             let tx = tx_monitor.clone();
             async move { ws.on_upgrade(move |socket| handle_devtools_ws(socket, tx)) }
@@ -235,7 +242,7 @@ async fn handle_devtools_ws(socket: WebSocket, tx_monitor: broadcast::Sender<cra
 
     // Envoi initial
     {
-        let pkt = crate::proto::patch(&[crate::proto::PatchOp::replace_inner(500, 1, &session_list_html)]);
+        let pkt = crate::proto::patch(&[crate::proto::PatchOp::replace_inner(501, 1, &session_list_html)]);
         let mut s = ws_sender.lock().await;
         let _ = s.send(WsMessage::Binary(pkt)).await;
     }
@@ -244,11 +251,6 @@ async fn handle_devtools_ws(socket: WebSocket, tx_monitor: broadcast::Sender<cra
     let mut rx_packet_monitor = tx_monitor.subscribe();
     tokio::spawn(async move {
         while let Ok(event) = rx_packet_monitor.recv().await {
-            // Pour enrichir l'info, on peut décoder un échantillon si c'est IN ou OUT
-            // On va essayer de reconstruire un paquet binaire minimal pour le décodeur si besoin
-            // MAIS : le MonitoringEvent n'a pas les DATA brutes pour l'instant.
-            // On va devoir modifier MonitoringEvent pour inclure un extrait ou le type décodé.
-            
             let type_name = match event.pkt_type {
                 0x01 => "HELLO",
                 0x02 => "EVENT",
@@ -261,43 +263,80 @@ async fn handle_devtools_ws(socket: WebSocket, tx_monitor: broadcast::Sender<cra
                 _ => "UNKNOWN"
             };
 
-            let ratio_html = if let Some(r) = event.compression_ratio {
-                if r < 1.0 {
-                    let gain = (1.0 - r) * 100.0;
-                    format!("<span style='color: #0f0; font-size: 0.65rem; background: rgba(0,255,0,0.1); padding: 1px 4px; border-radius: 3px;'>-{:.1}%</span>", gain)
-                } else { "".to_string() }
-            } else { "".to_string() };
+            let mut ops = Vec::new();
 
-            let latency_html = if let Some(lat) = event.latency_ms {
-                let color = if lat < 20 { "#00ff88" } else if lat < 50 { "var(--green)" } else if lat < 100 { "#ff8800" } else { "#ff0000" };
-                let speed_label = if lat < 30 { "⚡ ULTRA" } else if lat < 100 { "🚀 FAST" } else { "🐢 SLOW" };
-                format!("<span style='color: {}; font-size: 0.65rem; border: 1px solid {}; padding: 1px 4px; border-radius: 3px; font-weight: bold;'>{} {}ms</span>", color, color, speed_label, lat)
-            } else { "".to_string() };
-
-            let handler_html = if let Some(h) = event.handler {
-                format!("<span style='background: rgba(255,255,255,0.1); padding: 2px 5px; border-radius: 3px; font-size: 0.6rem; margin-right: 10px;'>{}</span>", h)
-            } else { "".to_string() };
-
+            // 1. PANE GAUCHE: Stream compact
             let row_html = format!(
-                "<div class='net-row' style='display: grid; grid-template-columns: 80px 100px 140px 80px 1fr; gap: 10px; padding: 8px 20px; border-bottom: 1px solid rgba(255,255,255,0.05); font-family: monospace; font-size: 11px; align-items: center;'>
-                    <span style='color: {}'>{}</span>
-                    <span style='font-weight:bold; color:{}'>{}</span>
-                    <span>{}</span>
-                    <span>{}</span>
-                    <span style='color: var(--text-dim); display: flex; align-items: center;'>{} B | {}</span>
+                "<div class='net-row' style='display: flex; justify-content: space-between; padding: 6px 10px; border-bottom: 1px solid rgba(255,255,255,0.03); font-family: monospace; font-size: 10px; align-items: center;'>
+                    <span style='color: {}; width: 30px;'>{}</span>
+                    <span style='font-weight:bold; color:{}; flex: 1;'>{}</span>
+                    <span style='color: var(--text-dim);'>{} B</span>
                 </div>",
                 if event.direction == "IN" { "#0f0" } else { "#ff007f" },
-                event.direction,
+                if event.direction == "IN" { "IN" } else { "OUT" },
                 if event.direction == "IN" { "var(--text)" } else { "var(--accent)" },
                 type_name,
-                latency_html,
-                ratio_html,
-                event.size,
-                handler_html
+                event.size
             );
+            ops.push(crate::proto::PatchOp::append_html(600, 1, &row_html));
 
-            let mut ops = Vec::new();
-            ops.push(crate::proto::PatchOp::append_html(600, 1, &row_html)); 
+            // 2. PANE CENTRAL: Flow Card (Seulement pour les interactions)
+            if event.pkt_type == 0x02 || (event.pkt_type == 0x03 && event.direction == "OUT") {
+                let handler_name = event.handler.clone().unwrap_or_else(|| "unnamed".to_string());
+                let details = event.details.clone().unwrap_or_else(|| "-".to_string());
+                
+                let flow_html = format!(
+                    "<div class='flow-card'>
+                        <div style='position:absolute; top:10px; right:15px; font-size:0.6rem; color:var(--text-dim);'>{}</div>
+                        <div class='flow-step'>
+                            <div class='flow-icon icon-event'>EV</div>
+                            <div>
+                                <div style='font-weight:bold;'>EVENT: {}</div>
+                                <div style='font-size:0.6rem; opacity:0.6;'>Interaction utilisateur détectée</div>
+                            </div>
+                        </div>
+                        <div class='arrow'></div>
+                        <div class='flow-step'>
+                            <div class='flow-icon icon-php'>PHP</div>
+                            <div>
+                                <div style='font-weight:bold;'>PHP EXECUTION</div>
+                                <div style='font-size:0.6rem; opacity:0.6;'>Traitement métier backend</div>
+                            </div>
+                        </div>
+                        <div class='arrow'></div>
+                        <div class='flow-step'>
+                            <div class='flow-icon icon-ui'>UI</div>
+                            <div>
+                                <div style='font-weight:bold;'>UI PATCH: {}</div>
+                                <div style='font-size:0.6rem; color:var(--accent);'>{}</div>
+                            </div>
+                        </div>
+                        <div style='margin-top:10px; padding-top:10px; border-top:1px solid rgba(255,255,255,0.05); display:flex; justify-content:space-between; align-items:center;'>
+                            <div style='font-size:0.65rem; color:var(--green); font-weight:bold;'>LATENCY: {}ms</div>
+                            <div style='font-size:0.6rem; color:var(--text-dim); font-family:monospace;'>#{}</div>
+                        </div>
+                    </div>",
+                    event.timestamp,
+                    handler_name,
+                    type_name,
+                    details,
+                    event.latency_ms.unwrap_or(0),
+                    if event.session_id.len() > 8 { &event.session_id[0..8] } else { &event.session_id }
+                );
+                ops.push(crate::proto::PatchOp::replace_inner(100, 1, &flow_html));
+            }
+
+            // 3. PANE DROIT: Diff (Seulement pour les patches)
+            if event.pkt_type == 0x03 && event.direction == "OUT" {
+                let diff_html = format!(
+                    "<div style='background:rgba(255,0,127,0.05); border:1px solid var(--accent); padding:10px; border-radius:6px;'>
+                        <div style='font-size:0.6rem; color:var(--accent); font-weight:bold; margin-bottom:5px;'>PATCH CONTENT</div>
+                        <div style='font-family:monospace; color:var(--text); white-space:pre-wrap;'>{}</div>
+                    </div>",
+                    event.details.unwrap_or_default()
+                );
+                ops.push(crate::proto::PatchOp::append_html(101, 1, &diff_html));
+            }
             
             let pkt = crate::proto::patch(&ops);
             let mut s = sender_for_monitor.lock().await;
@@ -315,21 +354,20 @@ async fn handle_devtools_ws(socket: WebSocket, tx_monitor: broadcast::Sender<cra
             match data[0] {
                 0x01 => { // HELLO
                     let mut ops = Vec::new();
-                    let mut html_list = String::new();
+                    let mut html = String::new();
                     if sessions.is_empty() {
-                        html_list.push_str("<div style='color:#ff5555; padding:20px;'>Aucune session n'a encore été enregistrée dans la BDD.</div>");
+                        html.push_str("<div style='opacity:0.3; text-align:center; padding:20px;'>Aucune session trouvée</div>");
                     } else {
                         for (i, s) in sessions.iter().enumerate() {
-                            html_list.push_str(&format!(
-                                "<div style='display:flex; gap:10px; margin-bottom:10px;'>
-                                    <button n-id=\"{}\" n-click=\"load\" class=\"session-btn\" style='flex:1; margin-bottom:0;'>▶ Charger : {}</button>
-                                    <button onclick=\"startCompare('{}', this)\" style='background:var(--surface); border:1px solid rgba(255,255,255,0.1); width:60px; font-size:0.6rem; cursor:pointer;'>CMP</button>
-                                </div>",
-                                1000 + i, s, s
+                            html.push_str(&format!(
+                                "<div style='display:flex; gap:5px; margin-bottom:5px;'>
+                                    <button n-id='{}' n-click='load' class='session-btn' style='flex:1; font-size:0.65rem; padding:5px;'>▶ {}</button>
+                                    <button onclick=\"startCompare('{}', this)\" style='background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.1); color:var(--text-dim); width:30px; font-size:0.5rem; cursor:pointer;'>CMP</button>
+                                </div>", 1000 + i, if s.len() > 12 { &s[0..12] } else { s }, s
                             ));
                         }
                     }
-                    ops.push(crate::proto::PatchOp::replace_inner(500, 1, &html_list)); 
+                    ops.push(crate::proto::PatchOp::replace_inner(501, 1, &html)); 
                     
                     let pkt = crate::proto::patch(&ops);
                     let mut s = ws_sender.lock().await;
@@ -343,26 +381,43 @@ async fn handle_devtools_ws(socket: WebSocket, tx_monitor: broadcast::Sender<cra
                                 if nid >= 1000 && (nid - 1000) < sessions.len() as u32 {
                                     let selected_session = sessions[(nid - 1000) as usize].clone();
                                     let mut history = Vec::new();
+                                    let mut ghost_html = String::new();
+                                    
                                     if let Ok(conn) = rusqlite::Connection::open(&db_path) {
+                                        // Load History
                                         if let Ok(mut stmt) = conn.prepare("SELECT node_id, value, version FROM patch_history WHERE session_id = ? ORDER BY id ASC") {
                                             if let Ok(rows) = stmt.query_map([&selected_session], |row| {
                                                 Ok((row.get::<_, u32>(0)?, row.get::<_, String>(1)?, row.get::<_, u32>(2)?))
                                             }) {
+                                                for r in rows.flatten() { history.push(r); }
+                                            }
+                                        }
+                                        // Load Current Nodes (Ghost)
+                                        if let Ok(mut stmt) = conn.prepare("SELECT node_id, tag, value, version FROM nodes WHERE session_id = ?") {
+                                            if let Ok(rows) = stmt.query_map([&selected_session], |row| {
+                                                Ok((row.get::<_, u32>(0)?, row.get::<_, String>(1)?, row.get::<_, String>(2)?, row.get::<_, u32>(3)?))
+                                            }) {
                                                 for r in rows.flatten() {
-                                                    history.push(r);
+                                                    let (gn_id, gn_tag, gn_val, gn_ver) = r;
+                                                    ghost_html.push_str(&format!(
+                                                        "<div style='padding: 5px; border-bottom: 1px solid rgba(255,255,255,0.05);'>
+                                                            <span style='color: #00d4ff;'>#{}</span> 
+                                                            <span style='color: var(--text-dim);'>[{}]</span> 
+                                                            <span style='color: white;'>{}</span>
+                                                            <span style='float: right; opacity: 0.3;'>v{}</span>
+                                                        </div>", gn_id, gn_tag, gn_val, gn_ver
+                                                    ));
                                                 }
                                             }
                                         }
                                     }
+                                    
                                     let total = history.len();
                                     let mut ops = Vec::new();
-                                    ops.push(crate::proto::PatchOp::set_attr(400, 1, "style", "display: none;"));
-                                    ops.push(crate::proto::PatchOp::set_attr(401, 1, "style", "display: flex; flex-direction: column; flex: 1;"));
-                                    ops.push(crate::proto::PatchOp::set_text(301, 1, &format!("SID: {}", selected_session)));
                                     ops.push(crate::proto::PatchOp::set_text(302, 1, &format!("Step 0 / {}", total)));
                                     ops.push(crate::proto::PatchOp::set_attr(102, 1, "style", "width: 0%;"));
-                                    ops.push(crate::proto::PatchOp::set_text(100, 1, "En attente du flux..."));
-                                    ops.push(crate::proto::PatchOp::set_text(101, 1, ""));
+                                    ops.push(crate::proto::PatchOp::replace_inner(100, 1, "<div style='opacity:0.5;'>Prêt pour le Replay Dynamique. Cliquez sur STEP.</div>"));
+                                    ops.push(crate::proto::PatchOp::replace_inner(500, 1, &ghost_html));
                                     
                                     let pkt = crate::proto::patch(&ops);
                                     let mut s = ws_sender.lock().await;
@@ -436,12 +491,47 @@ async fn handle_devtools_ws(socket: WebSocket, tx_monitor: broadcast::Sender<cra
                                     if *step < *total {
                                         let (step_nid, step_val, step_ver) = history[*step].clone();
                                         *step += 1;
+                                        
                                         let mut ops = Vec::new();
-                                        ops.push(crate::proto::PatchOp::set_text(100, 1, &format!("<div style='color: var(--accent); margin-bottom: 10px;'>=> Modification du Noeud [{}]</div><div style='font-size: 1.5rem;'>{}</div><div style='color: var(--text-dim); margin-top: 10px;'>(Version interne: {})</div>", step_nid, step_val, step_ver)));
+                                        // Update Sandbox (Pédagogique)
+                                        let sandbox_html = format!(
+                                            "<div style='border: 1px dashed var(--accent); padding: 20px; border-radius: 10px; background: rgba(255,255,255,0.02);'>
+                                                <div style='font-size: 0.6rem; color: var(--accent); margin-bottom: 10px;'>REPLAY STEP {} / {}</div>
+                                                <div style='font-family: monospace; font-size: 1.2rem;'>Noeud #{}: <span style='color: white;'>{}</span></div>
+                                                <div style='font-size: 0.5rem; color: var(--text-dim); margin-top: 5px;'>Internal Version: {}</div>
+                                            </div>",
+                                            *step, *total, step_nid, step_val, step_ver
+                                        );
+                                        ops.push(crate::proto::PatchOp::replace_inner(100, 1, &sandbox_html));
+                                        
+                                        // Update Timeline
                                         let pct = if *total > 0 { (*step as f32 / *total as f32) * 100.0 } else { 100.0 };
                                         ops.push(crate::proto::PatchOp::set_attr(102, 1, "style", &format!("width: {:.1}%", pct)));
                                         ops.push(crate::proto::PatchOp::set_text(302, 1, &format!("Step {} / {}", *step, *total)));
-                                        ops.push(crate::proto::PatchOp::set_text(101, 1, &format!("<div class='log-entry'>Etape {} : Noeud {} mis à jour -> '{}'</div>", *step, step_nid, step_val)));
+                                        
+                                        // Update Ghost Nodes in technical view
+                                        let mut ghost_html = String::new();
+                                        if let Ok(conn) = rusqlite::Connection::open(&db_path) {
+                                            if let Ok(mut stmt) = conn.prepare("SELECT node_id, tag, value, version FROM nodes WHERE session_id = ?") {
+                                                if let Ok(rows) = stmt.query_map([session_id.as_str()], |row| {
+                                                    Ok((row.get::<_, u32>(0)?, row.get::<_, String>(1)?, row.get::<_, String>(2)?, row.get::<_, u32>(3)?))
+                                                }) {
+                                                    for r in rows.flatten() {
+                                                        let (gn_id, gn_tag, gn_val, gn_ver) = r;
+                                                        ghost_html.push_str(&format!(
+                                                            "<div style='padding: 5px; border-bottom: 1px solid rgba(255,255,255,0.05);'>
+                                                                <span style='color: #00d4ff;'>#{}</span> 
+                                                                <span style='color: var(--text-dim);'>[{}]</span> 
+                                                                <span style='color: white;'>{}</span>
+                                                                <span style='float: right; opacity: 0.3;'>v{}</span>
+                                                            </div>", gn_id, gn_tag, gn_val, gn_ver
+                                                        ));
+                                                    }
+                                                }
+                                            }
+                                        }
+                                        ops.push(crate::proto::PatchOp::replace_inner(500, 1, &ghost_html));
+
                                         let pkt = crate::proto::patch(&ops);
                                         let mut s = ws_sender.lock().await;
                                         let _ = s.send(WsMessage::Binary(pkt)).await;
@@ -461,37 +551,8 @@ async fn handle_devtools_ws(socket: WebSocket, tx_monitor: broadcast::Sender<cra
                         }
                     }
                 },
-                0x04 => { // REFRESH or COMPARE
-                    println!("DEBUG: Commande 0x04 reçue (REFRESH/COMPARE)");
-                    if data.len() < 5 {
-                        // REFRESH Simple
-                        let mut sessions: Vec<String> = Vec::new();
-                        println!("DEBUG: Tentative lecture DB: {}", db_path);
-                        if let Ok(conn) = rusqlite::Connection::open(&db_path) {
-                            if let Ok(mut stmt) = conn.prepare("SELECT DISTINCT session_id FROM patch_history") {
-                                if let Ok(rows) = stmt.query_map([], |row| row.get::<_, String>(0)) {
-                                    sessions = rows.flatten().collect();
-                                }
-                            }
-                        }
-                        println!("DEBUG: Sessions trouvées: {}", sessions.len());
-                        let mut html = String::new();
-                        for sid in &sessions {
-                            html.push_str(&format!(
-                                "<button class='session-btn' n-click='replay' n-val='{}'>
-                                    <div style='display:flex; justify-content:space-between; align-items:center;'>
-                                        <span>SID: {}</span>
-                                        <span onclick='event.stopPropagation(); startCompare(\"{}\", this)' style='background:rgba(255,255,255,0.05); padding:2px 8px; border-radius:4px; font-size:0.6rem; border:1px solid rgba(255,255,255,0.1);'>CMP</span>
-                                    </div>
-                                </button>", sid, if sid.len() > 8 { &sid[0..8] } else { sid }, sid
-                            ));
-                        }
-                        if html.is_empty() { html = "Aucune session.".to_string(); }
-                        println!("DEBUG: Envoi PATCH ({} octets)", html.len());
-                        let pkt = crate::proto::patch(&[crate::proto::PatchOp::replace_inner(500, 1, &html)]);
-                        let mut s = ws_sender.lock().await;
-                        let _ = s.send(WsMessage::Binary(pkt)).await;
-                    } else {
+                0x05 => { // COMPARE
+                    if data.len() >= 5 {
                         println!("DEBUG: Mode COMPARAISON");
                         // Parsing simplifié pour la comparaison
                         let sid1_len = data[1] as usize;
@@ -528,11 +589,34 @@ async fn handle_devtools_ws(socket: WebSocket, tx_monitor: broadcast::Sender<cra
                         }
 
                         let mut ops = Vec::new();
-                        ops.push(crate::proto::PatchOp::replace_inner(500, 1, &comparison));
+                        ops.push(crate::proto::PatchOp::replace_inner(101, 1, &comparison));
                         let pkt = crate::proto::patch(&ops);
                         let mut s = ws_sender.lock().await;
                         let _ = s.send(WsMessage::Binary(pkt)).await;
                     }
+                },
+                0x06 => { // REFRESH
+                    let mut sessions: Vec<String> = Vec::new();
+                    if let Ok(conn) = rusqlite::Connection::open(&db_path) {
+                        if let Ok(mut stmt) = conn.prepare("SELECT DISTINCT session_id FROM patch_history") {
+                            if let Ok(rows) = stmt.query_map([], |row| row.get::<_, String>(0)) {
+                                sessions = rows.flatten().collect();
+                            }
+                        }
+                    }
+                    let mut html = String::new();
+                    for (i, sid) in sessions.iter().enumerate() {
+                        html.push_str(&format!(
+                            "<div style='display:flex; gap:5px; margin-bottom:5px;'>
+                                <button n-id='{}' n-click='load' class='session-btn' style='flex:1; font-size:0.65rem; padding:5px;'>▶ {}</button>
+                                <button onclick=\"startCompare('{}', this)\" style='background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.1); color:var(--text-dim); width:30px; font-size:0.5rem; cursor:pointer;'>CMP</button>
+                            </div>", 1000 + i, if sid.len() > 12 { &sid[0..12] } else { sid }, sid
+                        ));
+                    }
+                    if html.is_empty() { html = "<div style='opacity:0.3; text-align:center;'>Aucune session</div>".to_string(); }
+                    let pkt = crate::proto::patch(&[crate::proto::PatchOp::replace_inner(501, 1, &html)]);
+                    let mut s = ws_sender.lock().await;
+                    let _ = s.send(WsMessage::Binary(pkt)).await;
                 },
                 _ => {}
             }

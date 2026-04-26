@@ -14,7 +14,7 @@ use crate::proto::{LocalActionEntry,
     LA_TOGGLE_TARGET, LA_DRAG_ENABLE,
     LA_TRIG_HOVER, LA_TRIG_SCROLL_VP, LA_TRIG_SCROLL_PROG,
     LA_TRIG_MOUSEMOVE_WIN, LA_TRIG_MOUSEMOVE_SELF,
-    LA_TRIG_FOCUS, LA_TRIG_CLICK_LOCAL, LA_TRIG_DRAG,
+    LA_TRIG_CLICK_LOCAL, LA_TRIG_DRAG,
     LA_FLAG_ONCE, LA_FLAG_REVERSE_LEAVE, LA_FLAG_SCOPE_SELF,
 };
 
@@ -108,14 +108,56 @@ impl NAttrs {
 #[derive(Debug, Clone)]
 pub struct NodeSpec {
     pub id             : u16,
+    #[allow(dead_code)]
     pub parent_id      : u16,
+    #[allow(dead_code)]
     pub node_type      : u8,          // 0x01=element, 0x02=text
+    #[allow(dead_code)]
     pub tag            : String,
+    #[allow(dead_code)]
     pub attrs          : Vec<(String, String)>,  // attrs HTML standards uniquement
-    pub text           : String,
     pub n_attrs        : NAttrs,
+    pub text           : String,
     pub children       : Vec<NodeSpec>,
 }
+
+impl NodeSpec {
+    pub fn to_html(&self) -> String {
+        if self.id == 0 && self.tag == "body" {
+            let mut html = String::new();
+            for child in &self.children {
+                html.push_str(&child.to_html());
+            }
+            return html;
+        }
+
+        let mut html = format!("<{}", self.tag);
+        
+        // Injecter n-id si nécessaire
+        let needs_nid = self.n_attrs.n_id.is_some() || self.n_attrs.primary_handler().is_some() || self.n_attrs.n_model.is_some();
+        if needs_nid {
+            let nid = self.n_attrs.n_id.clone().unwrap_or_else(|| format!("_gen_{}", self.id));
+            html.push_str(&format!(" n-id=\"{}\"", nid));
+        }
+
+        for (k, v) in &self.attrs {
+            html.push_str(&format!(" {}=\"{}\"", k, v));
+        }
+        html.push('>');
+
+        if !self.text.is_empty() {
+            html.push_str(&self.text);
+        }
+
+        for child in &self.children {
+            html.push_str(&child.to_html());
+        }
+
+        html.push_str(&format!("</{}>", self.tag));
+        html
+    }
+}
+
 
 /// Table de correspondance n-id métier → node_id binaire
 pub type NidMap = HashMap<String, u16>;
@@ -123,10 +165,12 @@ pub type NidMap = HashMap<String, u16>;
 /// Résultat de la compilation d'un .nhtml
 pub struct CompileResult {
     pub root         : NodeSpec,
+    #[allow(dead_code)]
     pub nid_map      : NidMap,     // "compteur" → 2
+    pub states       : Vec<(u16, u32, String, String)>,
     pub btree_bytes  : Vec<u8>,    // payload B-TREE (avant wrap PKT_BTREE)
     pub bind_packets : Vec<Vec<u8>>, // paquets 0x04 BIND prêts à envoyer
-    pub states       : Vec<(u16, u32, String, String)>, // Liste plate des nœuds (ID, Ver, Tag, Val)
+    pub html         : String,     // HTML avec n-id injectés
 }
 
 // ─── Attributs n- à exclure du B-TREE ─────────────────────────────────────
@@ -173,40 +217,69 @@ impl NhtmlCompiler {
         let mut compiler = NhtmlCompiler::new();
         let document     = Html::parse_document(source);
 
-        // Trouver le body (ou la racine si pas de body)
+        // Extraire le head
+        let head_sel = Selector::parse("head").unwrap();
+        let head_html = if let Some(head) = document.select(&head_sel).next() {
+            head.inner_html()
+        } else {
+            "".to_string()
+        };
+
+        // Trouver le body
         let body_sel = Selector::parse("body").unwrap();
-        let root_el  = document
-            .select(&body_sel)
-            .next()
-            .map(|b| b.children().find_map(|c| {
-                if let Node::Element(_) = c.value() {
-                    Some(ElementRef::wrap(c).unwrap())
-                } else { None }
-            }))
-            .flatten();
+        let body_ref = document.select(&body_sel).next();
 
-        // Fallback : prendre le premier élément du document
-        let first_sel = Selector::parse(":root > *").unwrap();
-        let root_ref  = root_el
-            .or_else(|| document.select(&first_sel).next())
-            .expect("Aucun élément racine trouvé dans le .nhtml");
+        let mut root_nodes = Vec::new();
 
-        let root = compiler.parse_element(root_ref, 0);
+        if let Some(body) = body_ref {
+            for child in body.children() {
+                if let Node::Element(_) = child.value() {
+                    let child_ref = ElementRef::wrap(child).unwrap();
+                    root_nodes.push(compiler.parse_element(child_ref, 0));
+                }
+            }
+        } else {
+            // Fallback : prendre le premier élément du document
+            let first_sel = Selector::parse(":root > *").unwrap();
+            if let Some(first) = document.select(&first_sel).next() {
+                root_nodes.push(compiler.parse_element(first, 0));
+            }
+        }
+
+        if root_nodes.is_empty() {
+            panic!("Aucun élément racine trouvé dans le .nhtml");
+        }
 
         // --- NOUVEAU : Format A (Liste d'états) attendu par bridge.js ---
         let mut states = Vec::new();
-        Self::collect_states(&root, &mut states);
+        for node in &root_nodes {
+            Self::collect_states(node, &mut states);
+        }
         let btree_bytes = crate::proto::serialize_nodes(&states);
 
+        // Pour que build_from_tree (dans Session::new) ramasse TOUS les handlers,
+        // on crée un nœud virtuel "body" qui contient tous les root_nodes.
+        let virtual_root = NodeSpec {
+            id: 0,
+            parent_id: 0,
+            node_type: 0x01,
+            tag: "body".to_string(),
+            attrs: Vec::new(),
+            text: String::new(),
+            n_attrs: crate::compiler::NAttrs::default(),
+            children: root_nodes,
+        };
+
         // Construire les paquets BIND
-        let bind_packets = compiler.build_bind_packets(&root);
+        let bind_packets = compiler.build_bind_packets(&virtual_root);
 
         CompileResult {
             btree_bytes,
             bind_packets,
             nid_map: compiler.nid_map,
-            root,
+            root: virtual_root.clone(),
             states,
+            html: format!("<!DOCTYPE html><html><head>{}</head><body>{}</body></html>", head_html, virtual_root.to_html()),
         }
     }
 
@@ -454,9 +527,10 @@ impl NhtmlCompiler {
                 });
             }
 
+            let nid_str = n.n_id.clone().unwrap_or_else(|| format!("_gen_{}", node.id));
             let packet = crate::proto::bind(crate::proto::BindParams {
                 node_id        : node.id,
-                nid            : n.n_id.as_deref().unwrap_or(""),
+                nid            : &nid_str,
                 selector       : &selector,
                 listen_mask    : n.listen_mask(),
                 behavior_flags : n.behavior_flags(),

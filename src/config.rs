@@ -4,6 +4,7 @@ use std::fs;
 #[derive(Debug, Deserialize, Default)]
 pub struct NhtmlConfig {
     pub ports: Option<PortsConfig>,
+    #[allow(dead_code)]
     pub dev: Option<DevConfig>,
 }
 
@@ -12,11 +13,13 @@ pub struct PortsConfig {
     pub ws: Option<u16>,
     pub php: Option<u16>,
     pub devtools: Option<u16>,
+    #[allow(dead_code)]
     pub http: Option<u16>,
 }
 
 #[derive(Debug, Deserialize)]
 pub struct DevConfig {
+    #[allow(dead_code)]
     pub auto_reload: Option<bool>,
 }
 

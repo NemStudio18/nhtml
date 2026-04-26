@@ -1,19 +1,21 @@
+if (window.nhtml_initialized) {
+    console.warn("🛰️ NHTML Bridge already initialized.");
+} else {
+window.nhtml_initialized = true;
 console.log("🛰️ NHTML v0.4.0 Bridge Loading...");
 
 let socket = null;
-let transportMode = "WS"; // "WS" ou "HTTP"
+let transportMode = "WS";
 let httpFallbackUrl = "";
 let reconnectAttempts = 0;
 const MAX_BACKOFF = 30000;
 
-window.nhtml_last_version = 0; 
+window.nhtml_stats = { pkts: 0, size: 0 };
+window.nhtml_node_map = {};
+window.nhtml_reverse_map = {};
+window.nhtml_el_cache = new Map(); // Cache des éléments pour performance
 window.nhtml_session_id = localStorage.getItem('nhtml_session_id') || "";
 
-/**
- * Initialise la connexion NHTML
- * @param {string} wsUrl - URL du WebSocket (ex: ws://127.0.0.1:8080)
- * @param {string} httpUrl - URL de secours HTTP (ex: /app.php)
- */
 async function initNhtml(wsUrl, httpUrl = "") {
     console.log("🛰️ NHTML Initializing with WS:", wsUrl);
     httpFallbackUrl = httpUrl;
@@ -21,7 +23,6 @@ async function initNhtml(wsUrl, httpUrl = "") {
         window.nhtml_session_id = crypto.randomUUID().replace(/-/g, '');
         localStorage.setItem('nhtml_session_id', window.nhtml_session_id);
     }
-
     injectStyles();
     injectHud();
     connect(wsUrl);
@@ -56,478 +57,564 @@ function injectHud() {
     hud.id = 'nhtml-hud';
     hud.innerHTML = 'NHTML v0.4.0: <span id="nhtml-hud-pkts">0</span> pkts | <span id="nhtml-hud-size">0</span> B <span id="nhtml-hud-mode">(WS)</span>';
     document.body.appendChild(hud);
-    window.nhtml_stats = { pkts: 0, size: 0 };
-}
-
-async function sendBinary(data, jsonPayload = null) {
-    if (transportMode === "WS" && socket && socket.readyState === 1) {
-        socket.send(data);
-    } else if (httpFallbackUrl) {
-        // Mode HTTP Fallback
-        try {
-            const response = await fetch(httpFallbackUrl, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/octet-stream', 'X-Nhtml-Session': window.nhtml_session_id },
-                body: data
-            });
-            const contentType = response.headers.get('content-type');
-            if (contentType && contentType.includes('application/json')) {
-                const json = await response.json();
-                if (json.patch) applyJsonPatches(json.patch);
-            } else {
-                const buffer = await response.arrayBuffer();
-                if (buffer.byteLength > 0) processMessage(new Uint8Array(buffer));
-            }
-        } catch (e) {
-            console.error("[NHTML] Erreur transport HTTP:", e);
-        }
-    }
-}
-
-function applyJsonPatches(patches) {
-    console.log(`%c[NHTML] 🪶 PATCH JSON Reçu | Ops: ${patches.length}`, "color: #ff00ff; font-weight: bold;");
-    for (const p of patches) {
-        const el = document.querySelector(`[n-id="${p.nid}"]`);
-        if (!el) continue;
-        
-        if (p.op === 'set_text') {
-            el.textContent = p.val;
-            triggerGlow(el);
-        } else if (p.op === 'replace_inner') {
-            el.innerHTML = p.val;
-            triggerGlow(el);
-        } else if (p.op === 'add_class') {
-            p.val.split(/\s+/).filter(c => c).forEach(c => el.classList.add(c));
-        } else if (p.op === 'remove_class') {
-            p.val.split(/\s+/).filter(c => c).forEach(c => el.classList.remove(c));
-        } else if (p.op === 'set_style') {
-            el.style[p.prop] = p.val;
-        } else if (p.op === 'remove') {
-            el.remove();
-        } else if (p.op === 'focus') {
-            el.focus();
-        } else if (p.op === 'scroll_to') {
-            el.scrollIntoView({ behavior: 'smooth' });
-        }
-    }
 }
 
 function triggerGlow(el) {
+    if (!el) return;
+    const urlParams = new URLSearchParams(window.location.search);
+    if (urlParams.get('debug_glow') !== '1') return;
+    
     el.classList.remove('nhtml-patch-glow');
     void el.offsetWidth;
     el.classList.add('nhtml-patch-glow');
 }
 
-function processMessage(chunk) {
-    if (chunk.length < 5) return;
-    const view = new DataView(chunk.buffer, chunk.byteOffset, chunk.byteLength);
-    const type = chunk[0];
-    
-    window.nhtml_stats.pkts++;
-    window.nhtml_stats.size += chunk.length;
-    const hudPkts = document.getElementById('nhtml-hud-pkts');
-    const hudSize = document.getElementById('nhtml-hud-size');
-    const hudMode = document.getElementById('nhtml-hud-mode');
-    if (hudPkts) hudPkts.innerText = window.nhtml_stats.pkts;
-    if (hudSize) hudSize.innerText = (window.nhtml_stats.size > 1024) ? (window.nhtml_stats.size/1024).toFixed(1) + " KB" : window.nhtml_stats.size + " B";
-    if (hudMode) hudMode.innerText = `(${transportMode})`;
-
-    if (type === 0x09) { // PING
-        const pong = new Uint8Array(5);
-        pong[0] = 0x09; 
-        if(socket && socket.readyState === 1) socket.send(pong);
-        return;
-    }
-
-    if (type === 0x05) { // SYNC
-        const serverChecksum = view.getUint32(5);
-        const localChecksum = calculateLocalChecksum();
-        if (serverChecksum !== localChecksum) {
-            console.warn("[NHTML] 🔄 Désynchronisation !");
-            sendHello();
-        }
-        return;
-    }
-
-    if (type === 0x7F) { // ERR
-        const severity = chunk[5];
-        const msgLen = view.getUint16(10);
-        const message = new TextDecoder().decode(chunk.slice(12, 12 + msgLen));
-        const styles = ["color:#aaa","color:#ffa500;font-weight:bold","color:#ff4500;font-weight:bold","background:#ff0000;color:#fff;padding:2px 5px"];
-        console.log(`%c[NBPS ERR] ${message}`, styles[severity] || "");
-        return;
-    }
-
-    if (type === 0x10) { // LOG
-        const severity = chunk[5];
-        const msgLen = view.getUint16(6);
-        const message = new TextDecoder().decode(chunk.slice(8, 8 + msgLen));
-        const styles = ['color:#aaa','color:#00d4ff;font-weight:bold','color:#ffa000;font-weight:bold','color:#f40;font-weight:bold'];
-        console.log(`%c[SERVER] ${message}`, styles[severity] || '');
-        return;
-    }
-
-    if (type === 0x03) { // PATCH
-        const opCount = view.getUint16(5);
-        console.log("🛠️  Applying", opCount, "patch operations");
-        let offset = 7;
-        for (let i = 0; i < opCount; i++) {
-            if (offset + 9 > chunk.length) break;
-            
-            const targetId = view.getUint16(offset);
-            const opType = chunk[offset + 2];
-            const nodeVersion = view.getUint32(offset + 3);
-            const dataLen = view.getUint16(offset + 7);
-            offset += 9;
-            
-            let nid = window.nhtml_node_map ? window.nhtml_node_map[targetId] : null;
-            if (!nid) nid = `Node#${targetId}`; // Fallback pour le log
-
-            const el = document.querySelector(`[n-id="${nid}"]`) || (targetId > 0 ? document.querySelector(`[n-id="${targetId}"]`) : null);
-            const data = chunk.slice(offset, offset + dataLen);
-            const dataView = new DataView(data.buffer, data.byteOffset, data.byteLength);
-
-            console.log(`🎯 Op: 0x${opType.toString(16)} | Target: ${nid} | DataLen: ${dataLen}`);
-
-            if (opType === 0x01 || opType === 0x0A || opType === 0x0B) { // SET_TEXT, REPLACE_INNER, APPEND_HTML
-                const val = new TextDecoder().decode(data.slice(2));
-                if (el) {
-                    if (opType === 0x0B) el.insertAdjacentHTML('beforeend', val);
-                    else if (opType === 0x0A) el.innerHTML = val;
-                    else {
-                        if (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.tagName === 'SELECT') {
-                            el.value = val;
-                        } else {
-                            el.textContent = val;
-                        }
-                    }
-                    triggerGlow(el);
-                }
-            } else if (opType === 0x02) { // SET_ATTR [K:str8][V:str16]
-                let off = 0;
-                const kLen = data[off++];
-                const key = new TextDecoder().decode(data.slice(off, off + kLen)); off += kLen;
-                const vLen = dataView.getUint16(off); off += 2;
-                const val = new TextDecoder().decode(data.slice(off, off + vLen));
-                if (el) el.setAttribute(key, val);
-            } else if (opType === 0x03) { // DEL_ATTR [K:str8]
-                const kLen = data[0];
-                const key = new TextDecoder().decode(data.slice(1, 1 + kLen));
-                if (el) el.removeAttribute(key);
-            } else if (opType === 0x04 || opType === 0x05) { // ADD/REMOVE_CLASS [V:str16]
-                const val = new TextDecoder().decode(data.slice(2));
-                if (el) {
-                    val.split(/\s+/).filter(c => c).forEach(c => {
-                        if (opType === 0x04) el.classList.add(c);
-                        else el.classList.remove(c);
-                    });
-                }
-            } else if (opType === 0x08) { if (el) el.remove(); }
-            else if (opType === 0x0D) { if (el) el.focus(); }
-            else if (opType === 0x09) { // SET_STYLE [K:str8][V:str16]
-                let off = 0;
-                const kLen = data[off++];
-                const k = new TextDecoder().decode(data.slice(off, off + kLen)); off += kLen;
-                const vLen = dataView.getUint16(off); off += 2;
-                const v = new TextDecoder().decode(data.slice(off, off + vLen));
-                if (el) el.style[k] = v;
-            } else if (opType === 0x0C) { if (el) el.scrollIntoView({ behavior: 'smooth' }); }
-            
-            offset += dataLen;
-            window.nhtml_last_version = nodeVersion;
-        }
-        return;
-    }
-
-    if (type === 0x04) { // BIND
-        const nodeId = view.getUint16(5);
-        const nid = readStr8(chunk, 7);
-        let offset = 8 + nid.length;
-        const selector = readStr8(chunk, offset); offset += 1 + selector.length;
-        const listenMask = chunk[offset++];
-        const behaviorFlags = chunk[offset++];
-        const debounce = chunk[offset++];
-        const handler = readStr8(chunk, offset); offset += 1 + handler.length;
-        const n_model = readStr8(chunk, offset); offset += 1 + n_model.length;
-        const n_text = readStr8(chunk, offset); offset += 1 + n_text.length;
-        
-        console.log(`%c[NHTML] 🔗 BINDING Node ${nodeId} (NID: ${nid}) | Handler: ${handler} | Mask: 0x${listenMask.toString(16)}`, "color: #ffaa00");
-
-        const el = document.querySelector(`[n-id="${nid}"]`);
-        if (el) {
-            if (!window.nhtml_reverse_map) window.nhtml_reverse_map = {};
-            if (!window.nhtml_node_map) window.nhtml_node_map = {};
-            window.nhtml_reverse_map[nid] = nodeId;
-            window.nhtml_node_map[nodeId] = nid;
-            el.dataset.nhtmlHandler = handler;
-            
-            // Local actions parsing
-            if (offset < chunk.length) {
-                const laCount = chunk[offset++];
-                for (let i = 0; i < laCount; i++) {
-                    const actionType = chunk[offset++];
-                    const triggerType = chunk[offset++];
-                    const param = readStr8(chunk, offset); offset += 1 + param.length;
-                    const flags = chunk[offset++];
-                    const threshold = chunk[offset++];
-                    
-                    bindLocalAction(el, triggerType, actionType, param);
-                }
-            }
-        }
-        return;
-    }
-
-    if (type === 0x07) { // B-TREE
-        const isCompressed = chunk[5] === 0x01;
-        let payload = chunk.slice(14);
-        if (isCompressed && window.fzstd) payload = window.fzstd.decompress(payload);
-
-        const pView = new DataView(payload.buffer, payload.byteOffset, payload.byteLength);
-        let offset = 2;
-        const nodeCount = pView.getUint16(0);
-        window.nhtml_node_map = {}; window.nhtml_reverse_map = {};
-        for (let i = 0; i < nodeCount; i++) {
-            const targetId = pView.getUint16(offset);
-            const nodeVersion = pView.getUint32(offset + 2);
-            const tag = readStr8(payload, offset + 6); offset += 7 + tag.length;
-            const val = readStr16(pView, payload, offset); offset += 2 + val.length;
-            window.nhtml_node_map[targetId] = tag;
-            if (!window.nhtml_reverse_map) window.nhtml_reverse_map = {};
-            window.nhtml_reverse_map[tag] = targetId;
-            const el = document.querySelector(`[n-id="${tag}"]`);
-            if (el) { 
-                el.innerHTML = val; 
-                window.nhtml_last_version = Math.max(window.nhtml_last_version || 0, nodeVersion); 
-            }
-        }
-        console.log(`%c[NHTML] 🌳 B-TREE Applied (${nodeCount} nodes)`, "color: #00ff00; font-weight: bold;");
-        return;
-    }
+function getCachedEl(nid, targetId) {
+    if (window.nhtml_el_cache.has(nid)) return window.nhtml_el_cache.get(nid);
+    let el = document.querySelector(`[n-id="${nid}"]`);
+    if (!el && targetId > 0) el = document.querySelector(`[n-id="${targetId}"]`);
+    if (el) window.nhtml_el_cache.set(nid, el);
+    return el;
 }
 
 function readStr8(chunk, offset) {
-    if (offset >= chunk.length) return "";
     const len = chunk[offset];
-    if (offset + 1 + len > chunk.length) return "";
     return new TextDecoder().decode(chunk.slice(offset + 1, offset + 1 + len));
 }
+
 function readStr16(view, chunk, offset) {
-    if (offset + 2 > chunk.length) return "";
     const len = view.getUint16(offset);
-    if (offset + 2 + len > chunk.length) return "";
     return new TextDecoder().decode(chunk.slice(offset + 2, offset + 2 + len));
 }
 
-function bindLocalAction(el, triggerType, actionType, param) {
-    // actionType: 0x01 ADD_CLASS, 0x02 REM_CLASS, 0x03 TOGGLE_CLASS, 0x09 TOGGLE_TARGET
-    // triggerType: 0x01 HOVER, 0x02 SCROLL_VP, 0x07 CLICK_LOCAL
-    
-    if (triggerType === 0x01) { // HOVER
-        if (actionType === 0x01 || actionType === 0x03) { // ADD_CLASS / TOGGLE_CLASS
-            el.addEventListener('mouseenter', () => el.classList.add(param));
-            el.addEventListener('mouseleave', () => el.classList.remove(param));
-        }
-    } else if (triggerType === 0x07) { // CLICK_LOCAL
-        if (actionType === 0x03) { // TOGGLE_CLASS
-            el.addEventListener('click', () => el.classList.toggle(param));
-        } else if (actionType === 0x09) { // TOGGLE_TARGET
-            el.addEventListener('click', () => {
-                const target = document.querySelector(`[n-id="${param}"]`);
-                if (target) {
-                    if (target.style.display === 'none') target.style.display = '';
-                    else target.style.display = 'none';
+// ── Local Actions Architecture ──
+window.nhtml_global_actions = { scroll: [], mousemove: [] };
+window.nhtml_global_listeners_attached = false;
+
+function nhtml_apply_effect(el, actionType, param, reverse = false) {
+    if (!el) return;
+    switch (actionType) {
+        case 0x01: // LA_ADD_CLASS
+            if (reverse) el.classList.remove(param);
+            else el.classList.add(param);
+            break;
+        case 0x02: // LA_REMOVE_CLASS
+            if (reverse) el.classList.add(param);
+            else el.classList.remove(param);
+            break;
+        case 0x03: // LA_TOGGLE_CLASS
+            el.classList.toggle(param);
+            break;
+        case 0x04: // LA_SET_STYLE
+            const sep = param.indexOf(':');
+            if (sep !== -1) {
+                const prop = param.slice(0, sep).trim();
+                if (!reverse) {
+                    const val = param.slice(sep + 1).trim();
+                    el.style.setProperty(prop, val);
+                } else {
+                    el.style.removeProperty(prop);
                 }
-            });
-        }
-    } else if (triggerType === 0x02) { // SCROLL_VP (Scroll Into Viewport)
-        if (actionType === 0x04) { // SET_STYLE
-            // Very simplified implementation for scroll triggers
-            window.addEventListener('scroll', () => {
-                const rect = el.getBoundingClientRect();
-                const inView = (rect.top >= 0 && rect.bottom <= window.innerHeight);
-                if (inView) el.style.cssText += param;
-            }, { passive: true });
+            }
+            break;
+        case 0x05: // LA_CSS_VAR_SCROLL
+            // Handled dynamically in runner
+            break;
+        case 0x09: // LA_TOGGLE_TARGET
+            const sep2 = param.indexOf(':');
+            if (sep2 !== -1) {
+                const targetNid = param.slice(0, sep2);
+                const cls = param.slice(sep2 + 1);
+                const target = document.querySelector(`[n-id="${targetNid}"]`);
+                if (target) target.classList.toggle(cls);
+            }
+            break;
+        case 0x0A: // LA_DRAG_ENABLE
+            console.warn("[NHTML] LA_DRAG_ENABLE not yet implemented.");
+            break;
+    }
+}
+
+function nhtml_run_scroll_actions(entry) {
+    const scrollY = window.scrollY;
+    const maxScroll = document.body.scrollHeight - window.innerHeight;
+    const ratio = maxScroll > 0 ? scrollY / maxScroll : 0;
+    
+    const threshold = entry.la.threshold_x10 / 100; // x10 to decimal
+    
+    if (entry.la.actionType === 0x05) { // CSS_VAR_SCROLL
+        entry.el.style.setProperty(`--${entry.la.param}`, ratio);
+    } else if (entry.la.actionType === 0x01 || entry.la.actionType === 0x02) {
+        const isPast = ratio >= threshold;
+        if (isPast && !entry._triggered) {
+            nhtml_apply_effect(entry.el, entry.la.actionType, entry.la.param, false);
+            entry._triggered = true;
+            if (entry.la.flags & 0x01) entry._done = true; // LA_FLAG_ONCE
+        } else if (!isPast && entry._triggered && (entry.la.flags & 0x02)) {
+            nhtml_apply_effect(entry.el, entry.la.actionType, entry.la.param, true);
+            entry._triggered = false;
         }
     }
 }
 
-function calculateLocalChecksum() {
-    let hash = 0;
-    if (!window.nhtml_node_map) return 0;
-    const encoder = new TextEncoder();
-    for (const id in window.nhtml_node_map) {
-        const tag = window.nhtml_node_map[id];
-        const el = document.querySelector(`[n-id="${tag}"]`);
-        if (el) {
-            const val = el.innerText || "";
-            const bytes = encoder.encode(val);
-            hash = (hash + parseInt(id) + bytes.length) >>> 0;
-        }
+function nhtml_run_mousemove_actions(entry, e) {
+    if (entry._done) return;
+    let x = e.clientX, y = e.clientY;
+    if (entry.la.flags & 0x04) { // SCOPE_SELF
+        const rect = entry.el.getBoundingClientRect();
+        x -= rect.left; y -= rect.top;
     }
-    return hash;
+    
+    if (entry.la.actionType === 0x06) entry.el.style.setProperty(`--${entry.la.param}`, x);
+    else if (entry.la.actionType === 0x07) entry.el.style.setProperty(`--${entry.la.param}`, y);
+    else if (entry.la.actionType === 0x08) {
+        // Distance
+        const rect = entry.el.getBoundingClientRect();
+        const cx = rect.left + rect.width/2;
+        const cy = rect.top + rect.height/2;
+        const dist = Math.sqrt(Math.pow(e.clientX - cx, 2) + Math.pow(e.clientY - cy, 2));
+        entry.el.style.setProperty(`--${entry.la.param}`, Math.round(dist) + 'px');
+    }
+    
+    if (entry.la.flags & 0x01) entry._done = true;
+}
+
+function nhtml_attach_global_listeners() {
+    if (window.nhtml_global_listeners_attached) return;
+    window.nhtml_global_listeners_attached = true;
+
+    window.addEventListener('scroll', () => {
+        window.nhtml_global_actions.scroll = window.nhtml_global_actions.scroll.filter(entry => {
+            nhtml_run_scroll_actions(entry);
+            return !entry._done;
+        });
+    }, { passive: true });
+
+    window.addEventListener('mousemove', (e) => {
+        window.nhtml_global_actions.mousemove = window.nhtml_global_actions.mousemove.filter(entry => {
+            nhtml_run_mousemove_actions(entry, e);
+            return !entry._done;
+        });
+    }, { passive: true });
+}
+
+function nhtml_register_action(nodeId, el, la) {
+    if (!el) return;
+    
+    // Global Listeners
+    if (la.triggerType === 0x02 || la.triggerType === 0x03) { // SCROLL
+        window.nhtml_global_actions.scroll.push({nodeId, el, la, _triggered: false, _done: false});
+    } else if (la.triggerType === 0x04) { // MOUSEMOVE_WIN
+        window.nhtml_global_actions.mousemove.push({nodeId, el, la, _done: false});
+    } 
+    // Direct Listeners
+    else if (la.triggerType === 0x05) { // MOUSEMOVE_SELF
+        el.addEventListener('mousemove', (e) => {
+            nhtml_run_mousemove_actions({nodeId, el, la, _done: false}, e);
+        }, { passive: true });
+    }
+    else if (la.triggerType === 0x01) { // HOVER
+        const enterFn = () => nhtml_apply_effect(el, la.actionType, la.param, false);
+        const leaveFn = () => {
+            if (la.flags & 0x02) nhtml_apply_effect(el, la.actionType, la.param, true);
+        };
+        el.addEventListener('mouseenter', enterFn);
+        el.addEventListener('mouseleave', leaveFn);
+    } else if (la.triggerType === 0x06) { // FOCUS
+        const fFn = () => nhtml_apply_effect(el, la.actionType, la.param, false);
+        const bFn = () => {
+            if (la.flags & 0x02) nhtml_apply_effect(el, la.actionType, la.param, true);
+        };
+        el.addEventListener('focus', fFn);
+        el.addEventListener('blur', bFn);
+    } else if (la.triggerType === 0x07) { // CLICK_LOCAL
+        const cFn = () => {
+            nhtml_apply_effect(el, la.actionType, la.param, false);
+            if (la.flags & 0x01) el.removeEventListener('click', cFn);
+        };
+        el.addEventListener('click', cFn);
+    }
+}
+
+function nhtml_init_local_actions(nodeId, binding) {
+    const el = document.querySelector(`[n-id="${binding.nid}"]`) || getCachedEl(binding.nid, nodeId);
+    if (!el) return;
+    
+    // Purge old actions for this node to avoid duplicates on re-BIND
+    window.nhtml_global_actions.scroll = window.nhtml_global_actions.scroll.filter(x => x.nodeId !== nodeId);
+    window.nhtml_global_actions.mousemove = window.nhtml_global_actions.mousemove.filter(x => x.nodeId !== nodeId);
+    
+    nhtml_attach_global_listeners();
+    
+    for (const la of binding.localActions) {
+        nhtml_register_action(nodeId, el, la);
+    }
+}
+
+function processMessage(msg) {
+    try {
+        const chunk = new Uint8Array(msg);
+        const view = new DataView(chunk.buffer, chunk.byteOffset, chunk.byteLength);
+        const type = chunk[0];
+
+        window.nhtml_stats.pkts++;
+        window.nhtml_stats.size += chunk.length;
+        const hudPkts = document.getElementById('nhtml-hud-pkts');
+        if (hudPkts) hudPkts.innerText = window.nhtml_stats.pkts;
+        const hudSize = document.getElementById('nhtml-hud-size');
+        if (hudSize) hudSize.innerText = (window.nhtml_stats.size / 1024).toFixed(1) + 'K';
+
+        if (type === 0x09) { // PING
+            const pong = new Uint8Array(5); pong[0] = 0x09;
+            if(socket && socket.readyState === 1) socket.send(pong);
+            return;
+        }
+
+        if (type === 0x10) { // LOG
+            const severity = chunk[5];
+            const msgLen = view.getUint16(6);
+            const message = new TextDecoder().decode(chunk.slice(8, 8 + msgLen));
+            const styles = ['color:#aaa','color:#00d4ff;font-weight:bold','color:#ffa000;font-weight:bold','color:#f40;font-weight:bold'];
+            console.log(`%c[SERVER] ${message}`, styles[severity] || '');
+            return;
+        }
+
+        if (type === 0x03) { // PATCH
+            const opCount = view.getUint16(5);
+            let offset = 7;
+            for (let i = 0; i < opCount; i++) {
+                const targetId = view.getUint16(offset);
+                const opType = chunk[offset + 2];
+                const nodeVersion = view.getUint32(offset + 3);
+                const dataLen = view.getUint16(offset + 7);
+                offset += 9;
+
+                const nid = window.nhtml_node_map[targetId];
+                const el = getCachedEl(nid, targetId);
+                const data = chunk.slice(offset, offset + dataLen);
+                const dv = new DataView(data.buffer, data.byteOffset, data.byteLength);
+
+                if (el) {
+                    let opName = "UNKNOWN";
+                    switch (opType) {
+                        case 0x01: // SET_TEXT
+                            opName = "SET_TEXT";
+                            const txt = new TextDecoder().decode(data.slice(2));
+                            if (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA') el.value = txt;
+                            else el.textContent = txt;
+                            break;
+                        case 0x02: // SET_ATTR
+                            opName = "SET_ATTR";
+                            const akLen = data[0];
+                            const ak = new TextDecoder().decode(data.slice(1, 1 + akLen));
+                            const avLen = dv.getUint16(1 + akLen);
+                            const av = new TextDecoder().decode(data.slice(3 + akLen, 3 + akLen + avLen));
+                            el.setAttribute(ak, av);
+                            break;
+                        case 0x03: // DEL_ATTR
+                            opName = "DEL_ATTR";
+                            el.removeAttribute(new TextDecoder().decode(data.slice(1, 1 + data[0])));
+                            break;
+                        case 0x04: // ADD_CLASS
+                            opName = "ADD_CLASS";
+                            el.classList.add(new TextDecoder().decode(data.slice(2)));
+                            break;
+                        case 0x05: // REM_CLASS
+                            opName = "REM_CLASS";
+                            el.classList.remove(new TextDecoder().decode(data.slice(2)));
+                            break;
+                        case 0x06: // INSERT_BEFORE
+                            opName = "INSERT_BEFORE";
+                            el.insertAdjacentHTML('beforebegin', new TextDecoder().decode(data.slice(2)));
+                            break;
+                        case 0x07: // INSERT_AFTER
+                            opName = "INSERT_AFTER";
+                            el.insertAdjacentHTML('afterend', new TextDecoder().decode(data.slice(2)));
+                            break;
+                        case 0x08: // REMOVE
+                            opName = "REMOVE";
+                            el.remove();
+                            window.nhtml_el_cache.delete(nid);
+                            break;
+                        case 0x09: // SET_STYLE
+                            opName = "SET_STYLE";
+                            const skLen = data[0];
+                            const sk = new TextDecoder().decode(data.slice(1, 1 + skLen));
+                            const svLen = dv.getUint16(1 + skLen);
+                            const sv = new TextDecoder().decode(data.slice(3 + skLen, 3 + skLen + svLen));
+                            el.style[sk] = sv;
+                            break;
+                        case 0x0A: // REPLACE_INNER
+                            opName = "REPLACE_INNER";
+                            el.innerHTML = new TextDecoder().decode(data.slice(2));
+                            break;
+                        case 0x0B: // APPEND_HTML
+                            opName = "APPEND_HTML";
+                            el.insertAdjacentHTML('beforeend', new TextDecoder().decode(data.slice(2)));
+                            break;
+                        case 0x0C: // SCROLL_TO
+                            opName = "SCROLL_TO";
+                            if (el.scrollHeight > el.clientHeight) {
+                                el.scrollTop = el.scrollHeight;
+                            } else {
+                                el.scrollIntoView({ behavior: 'smooth', block: 'end' });
+                            }
+                            break;
+                        case 0x0D: // FOCUS
+                            opName = "FOCUS";
+                            el.focus();
+                            break;
+                    }
+                    console.log(`%c[UI PATCH] %c${opName} %con node %c#${nid}`, 
+                        'color:#ff007f;font-weight:bold', 'color:#fff', 'color:#aaa', 'color:#00d4ff');
+                    if (opType < 0x0C) triggerGlow(el);
+
+                    // Re-scan IDs if this was a content replacement
+                    if (opType === 0x0A || opType === 0x0B) {
+                        el.querySelectorAll('[n-id]').forEach(subEl => {
+                            const subNid = subEl.getAttribute('n-id');
+                            const subIdNum = parseInt(subNid);
+                            if (!isNaN(subIdNum)) {
+                                window.nhtml_node_map[subIdNum] = subNid;
+                                window.nhtml_reverse_map[subNid] = subIdNum;
+                            }
+                        });
+                    }
+                }
+                offset += dataLen;
+            }
+            return;
+        }
+
+        if (type === 0x04) { // BIND
+            const nodeId = view.getUint16(5);
+            let bOff = 7;
+            const nidLen = chunk[bOff++];
+            const nid = new TextDecoder().decode(chunk.slice(bOff, bOff + nidLen));
+            bOff += nidLen;
+            
+            const selLen = chunk[bOff++];
+            const selector = new TextDecoder().decode(chunk.slice(bOff, bOff + selLen));
+            bOff += selLen;
+            
+            const listenMask = chunk[bOff++];
+            const behaviorFlags = chunk[bOff++];
+            const debounce = chunk[bOff++] * 100; // debounce_100ms
+            
+            const handlerLen = chunk[bOff++];
+            const handler = new TextDecoder().decode(chunk.slice(bOff, bOff + handlerLen));
+            bOff += handlerLen;
+            
+            const modelLen = chunk[bOff++];
+            const nModel = new TextDecoder().decode(chunk.slice(bOff, bOff + modelLen));
+            bOff += modelLen;
+            
+            const textLen = chunk[bOff++];
+            const nText = new TextDecoder().decode(chunk.slice(bOff, bOff + textLen));
+            bOff += textLen;
+            
+            const laCount = chunk[bOff++];
+            const localActions = [];
+            for (let i = 0; i < laCount; i++) {
+                const actionType = chunk[bOff++];
+                const triggerType = chunk[bOff++];
+                
+                const paramLen = chunk[bOff++];
+                const param = new TextDecoder().decode(chunk.slice(bOff, bOff + paramLen));
+                bOff += paramLen;
+                
+                const flags = chunk[bOff++];
+                const threshold_x10 = chunk[bOff++];
+                localActions.push({actionType, triggerType, param, flags, threshold_x10});
+            }
+
+            window.nhtml_reverse_map[nid] = nodeId;
+            window.nhtml_node_map[nodeId] = nid;
+            window.nhtml_bindings = window.nhtml_bindings || {};
+            window.nhtml_bindings[nodeId] = {
+                nid, selector, listenMask, behaviorFlags, debounce, handler, nModel, nText, localActions
+            };
+            
+            nhtml_init_local_actions(nodeId, window.nhtml_bindings[nodeId]);
+            return;
+        }
+
+        if (type === 0x07) { // B-TREE
+            const isCompressed = chunk[5] === 0x01;
+            const origLen = view.getUint32(6);
+            const checksum = view.getUint32(10);
+            let btreeData = chunk.slice(14);
+
+            if (isCompressed) {
+                if (window.fzstd) {
+                    btreeData = window.fzstd.decompress(btreeData);
+                } else {
+                    console.error("[NHTML] B-TREE is compressed but fzstd is missing! Using raw data (will fail).");
+                }
+            }
+
+            const pView = new DataView(btreeData.buffer, btreeData.byteOffset, btreeData.byteLength);
+            const nodeCount = pView.getUint16(0);
+            let pOff = 2;
+            window.nhtml_el_cache.clear();
+            
+            for (let i = 0; i < nodeCount; i++) {
+                if (btreeData.length < pOff + 2) break;
+                const targetId = pView.getUint16(pOff);
+                // Schema: [ID:2][Ver:4][TagLen:1][Tag:str][ValLen:2][Val:str]
+                const tagLen = btreeData[pOff + 6];
+                const tag = new TextDecoder().decode(btreeData.slice(pOff + 7, pOff + 7 + tagLen));
+                pOff += 7 + tagLen;
+                
+                if (btreeData.length < pOff + 2) break;
+                const valLen = pView.getUint16(pOff);
+                const val = new TextDecoder().decode(btreeData.slice(pOff + 2, pOff + 2 + valLen));
+                pOff += 2 + valLen;
+                
+                window.nhtml_node_map[targetId] = tag;
+                window.nhtml_reverse_map[tag] = targetId;
+                const el = document.querySelector(`[n-id="${tag}"]`);
+                if (el) {
+                    window.nhtml_el_cache.set(tag, el);
+                }
+            }
+            console.log(`[NHTML] 🌳 B-TREE Applied (${nodeCount} nodes, Checksum: ${checksum.toString(16)})`);
+            return;
+        }
+    } catch (e) {
+        console.error("[NHTML] Critical error in processMessage:", e);
+    }
 }
 
 function connect(wsUrl) {
     try {
         const url = new URL(wsUrl);
         url.searchParams.set("sid", window.nhtml_session_id);
-        console.log(`%c[NHTML] 🔌 Connecting to ${url.toString()}...`, "color: #00d4ff");
-        
         socket = new WebSocket(url.toString());
         socket.binaryType = "arraybuffer";
-
-        socket.onopen = () => { 
-            console.log("%c[NHTML] ✅ WebSocket Connected", "color: #00ff00; font-weight: bold;");
-            transportMode = "WS"; 
-            reconnectAttempts = 0; 
-            sendHello(); 
-        };
-
-        socket.onmessage = (e) => {
-            const data = new Uint8Array(e.data);
-            console.log(`%c[NHTML] 📥 INCOMING [Type: 0x${data[0].toString(16).toUpperCase()}] (${data.length} bytes)`, "color: #aaa");
-            processMessage(data);
-        };
-
-        socket.onclose = (e) => {
-            console.warn(`%c[NHTML] ❌ WebSocket Closed (Code: ${e.code})`, "color: #ff4500");
-            const delay = Math.min(MAX_BACKOFF, 500 * Math.pow(2, reconnectAttempts++));
-            setTimeout(() => connect(wsUrl), delay);
-        };
-
-        socket.onerror = (err) => { 
-            console.error("[NHTML] ⚠️ WebSocket Error", err);
-            transportMode = "HTTP"; 
-        };
+        socket.onopen = () => { transportMode = "WS"; reconnectAttempts = 0; sendHello(); };
+        socket.onmessage = (e) => processMessage(e.data);
+        socket.onclose = () => { setTimeout(() => connect(wsUrl), Math.min(MAX_BACKOFF, 500 * Math.pow(2, reconnectAttempts++))); };
     } catch(e) { transportMode = "HTTP"; }
 }
 
 function sendHello() {
     if(!socket || socket.readyState !== 1) return;
-    console.log("%c[NHTML] 🛰️ Sending HELLO...", "color: #00d4ff");
-    
     const sidBytes = new TextEncoder().encode(window.nhtml_session_id);
-    const payloadLen = 2 + 1 + sidBytes.length; // keepalive_ms(2) + str_len(1) + str_bytes
-    const hello = new Uint8Array(5 + payloadLen);
-    
-    hello[0] = 0x01; // PKT_HELLO
+    const hello = new Uint8Array(8 + sidBytes.length);
     const dv = new DataView(hello.buffer);
-    dv.setUint32(1, payloadLen, false); // u32 len (Big Endian)
-    dv.setUint16(5, 5000, false);       // keepalive_ms = 5000
-    hello[7] = sidBytes.length;         // str8_len
-    hello.set(sidBytes, 8);             // str_bytes
-    
+    hello[0] = 0x01;
+    dv.setUint32(1, 3 + sidBytes.length);
+    dv.setUint16(5, 5000);
+    hello[7] = sidBytes.length;
+    hello.set(sidBytes, 8);
     socket.send(hello);
 }
 
-document.addEventListener('click', (e) => {
-    const target = e.target.closest('[n-click]');
+function sendBinary(data) {
+    if (socket && socket.readyState === 1) socket.send(data);
+}
+window.sendBinary = sendBinary;
+
+window.nhtml_debounce_timers = {};
+
+function sendEvent(id_num, handler, formData) {
+    const jsonBytes = new TextEncoder().encode(JSON.stringify(formData));
+    const hBytes = new TextEncoder().encode(handler);
+    
+    // Header (5) + Payload (4 + 1 + hLen + 2 + pLen)
+    const payloadLen = 4 + 1 + hBytes.length + 2 + jsonBytes.length;
+    const buf = new Uint8Array(1 + 4 + payloadLen);
+    const view = new DataView(buf.buffer);
+    
+    buf[0] = 0x02; // Type EVENT
+    view.setUint32(1, payloadLen); // Length (Total Payload)
+    
+    view.setUint32(5, id_num); // NodeID
+    buf[9] = hBytes.length; // HandlerLen
+    buf.set(hBytes, 10); // Handler
+    
+    const pOff = 10 + hBytes.length;
+    view.setUint16(pOff, jsonBytes.length); // PayloadLen
+    buf.set(jsonBytes, pOff + 2); // Payload
+    
+    console.log(`%c[EVENT] %c${handler} %con node %c#${window.nhtml_node_map[id_num] || id_num}`, 
+        'color:#0f0;font-weight:bold', 'color:#fff', 'color:#aaa', 'color:#0f0');
+    if (Object.keys(formData).length > 0) console.dir(formData);
+    
+    sendBinary(buf);
+}
+
+function processEvent(e, listenFlag, fallbackAttr) {
+    const target = e.target.closest('[n-id]');
     if (!target) return;
     
-    const nid = target.getAttribute('n-id') || "";
-    const handlerAttr = target.getAttribute('n-click') || "";
-    const id_num = window.nhtml_reverse_map ? (window.nhtml_reverse_map[nid] || 0) : 0;
+    const nid = target.getAttribute('n-id');
+    const id_num = window.nhtml_reverse_map[nid] || 0;
+    const binding = window.nhtml_bindings && window.nhtml_bindings[id_num];
     
-    // Collecter les données de formulaire
+    if (binding) {
+        if (!(binding.listenMask & listenFlag)) return;
+        if (binding.behaviorFlags & 0x02) e.preventDefault(); // FLAG_N_PREVENT
+    } else {
+        // Fallback for dynamic elements (APPEND_HTML)
+        const hasAttr = Array.isArray(fallbackAttr) 
+            ? fallbackAttr.some(attr => target.hasAttribute(attr))
+            : target.hasAttribute(fallbackAttr);
+        if (!hasAttr) return;
+    }
+    
+    let handler = binding ? binding.handler : "";
+    if (!handler) {
+        handler = Array.isArray(fallbackAttr)
+            ? (target.getAttribute(fallbackAttr[0]) || target.getAttribute(fallbackAttr[1]))
+            : target.getAttribute(fallbackAttr);
+    }
+    if (!handler) return;
+    
     const formData = {};
+    if (e.type === 'click') {
+        formData.event_key = "";
+        document.querySelectorAll('[n-id]').forEach(el => {
+            if (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.tagName === 'SELECT') {
+                formData[el.getAttribute('n-id')] = el.value;
+            }
+        });
+    } else {
+        formData[nid] = target.value;
+        if (e.type === 'keydown') formData.event_key = e.key;
+    }
+    
+    const debounceMs = binding ? binding.debounce : 0;
+    if (debounceMs > 0) {
+        const timerKey = `${id_num}_${e.type}`;
+        clearTimeout(window.nhtml_debounce_timers[timerKey]);
+        window.nhtml_debounce_timers[timerKey] = setTimeout(() => {
+            sendEvent(id_num, handler, formData);
+        }, debounceMs);
+    } else {
+        sendEvent(id_num, handler, formData);
+    }
+}
+
+document.addEventListener('click', (e) => processEvent(e, 0x01, 'n-click'));
+document.addEventListener('input', (e) => processEvent(e, 0x02, ['n-input', 'n-change']));
+document.addEventListener('keydown', (e) => processEvent(e, 0x08, 'n-keydown'));
+
+window.addEventListener('DOMContentLoaded', () => {
+    // Scan existing IDs for hybrid mode (DevTools)
     document.querySelectorAll('[n-id]').forEach(el => {
-        if (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.tagName === 'SELECT') {
-            formData[el.getAttribute('n-id')] = el.value;
+        const nid = el.getAttribute('n-id');
+        const id_num = parseInt(nid);
+        if (!isNaN(id_num)) {
+            window.nhtml_node_map[id_num] = nid;
+            window.nhtml_reverse_map[nid] = id_num;
         }
     });
-    const jsonStr = JSON.stringify(formData);
-    const jsonBytes = new TextEncoder().encode(jsonStr);
-    const handlerBytes = new TextEncoder().encode(handlerAttr);
-    
-    // Format: [Type][NodeID:4][HandlerLen:1][Handler:N][PayloadLen:2][Payload:M]
-    const buffer = new Uint8Array(1 + 4 + 1 + handlerBytes.length + 2 + jsonBytes.length);
-    const view = new DataView(buffer.buffer);
-    
-    buffer[0] = 0x02; // EVENT
-    view.setUint32(1, id_num);
-    buffer[5] = handlerBytes.length;
-    buffer.set(handlerBytes, 6);
-    
-    const payloadOffset = 6 + handlerBytes.length;
-    view.setUint16(payloadOffset, jsonBytes.length);
-    buffer.set(jsonBytes, payloadOffset + 2);
-    
-    sendBinary(buffer);
-});
 
-document.addEventListener('input', (e) => {
-    const target = e.target;
-    const nid = target.getAttribute('n-id');
-    if (!nid) return;
-    
-    const handlerAttr = target.getAttribute('n-input') || target.getAttribute('n-change') || "";
-    if (!handlerAttr) return; // Ne pas envoyer si aucun handler défini
-
-    const id_num = window.nhtml_reverse_map ? (window.nhtml_reverse_map[nid] || 0) : 0;
-    
-    // Toujours envoyer un objet JSON pour la cohérence
-    const formData = {};
-    formData[nid] = target.value;
-    const jsonStr = JSON.stringify(formData);
-    const jsonBytes = new TextEncoder().encode(jsonStr);
-    const handlerBytes = new TextEncoder().encode(handlerAttr);
-    
-    const buffer = new Uint8Array(1 + 4 + 1 + handlerBytes.length + 2 + jsonBytes.length);
-    const view = new DataView(buffer.buffer);
-    
-    buffer[0] = 0x02;
-    view.setUint32(1, id_num);
-    buffer[5] = handlerBytes.length;
-    buffer.set(handlerBytes, 6);
-    
-    const payloadOffset = 6 + handlerBytes.length;
-    view.setUint16(payloadOffset, jsonBytes.length);
-    buffer.set(jsonBytes, payloadOffset + 2);
-    
-    sendBinary(buffer);
-});
-
-document.addEventListener('keydown', (e) => {
-    const target = e.target;
-    const nid = target.getAttribute('n-id');
-    if (!nid) return;
-    
-    const handlerAttr = target.getAttribute('n-keydown');
-    if (!handlerAttr) return; // Ne pas envoyer si aucun handler défini
-
-    const id_num = window.nhtml_reverse_map ? (window.nhtml_reverse_map[nid] || 0) : 0;
-    
-    // Toujours envoyer un objet JSON pour la cohérence
-    const formData = {};
-    formData[nid] = target.value;
-    formData['event_key'] = e.key; // Inclure la touche pressée
-    
-    const jsonStr = JSON.stringify(formData);
-    const jsonBytes = new TextEncoder().encode(jsonStr);
-    const handlerBytes = new TextEncoder().encode(handlerAttr);
-    
-    const buffer = new Uint8Array(1 + 4 + 1 + handlerBytes.length + 2 + jsonBytes.length);
-    const view = new DataView(buffer.buffer);
-    
-    buffer[0] = 0x02; // EVENT
-    view.setUint32(1, id_num);
-    buffer[5] = handlerBytes.length;
-    buffer.set(handlerBytes, 6);
-    
-    const payloadOffset = 6 + handlerBytes.length;
-    view.setUint16(payloadOffset, jsonBytes.length);
-    buffer.set(jsonBytes, payloadOffset + 2);
-    
-    sendBinary(buffer);
-});
-
-// --- Auto-Initialization ---
-window.addEventListener('DOMContentLoaded', () => {
-    const host   = window.location.hostname || "127.0.0.1";
-    const port   = 8080;
-    const path   = window.location.pathname.substring(1);
-    
-    // Auto-init sur le port 8080 (Gateway Rust)
+    const host = window.location.hostname || "127.0.0.1";
+    const port = window.location.port || 8080;
+    const path = window.location.pathname.substring(1);
     initNhtml(`ws://${host}:${port}/ws?sid=AUTO&path=${path}`);
 });
+}

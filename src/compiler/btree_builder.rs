@@ -5,12 +5,14 @@
 use super::NodeSpec;
 
 /// Sérialise un nœud et tous ses descendants (depth-first)
+#[allow(dead_code)]
 pub fn serialize_node(node: &NodeSpec) -> Vec<u8> {
     let mut buf = Vec::new();
     write_node(&mut buf, node);
     buf
 }
 
+#[allow(dead_code)]
 fn write_node(buf: &mut Vec<u8>, node: &NodeSpec) {
     // ── HEADER ────────────────────────────────────────────────────────────
     buf.push(node.node_type);  // 0x01=element, 0x02=text

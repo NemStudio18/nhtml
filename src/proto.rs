@@ -1,3 +1,4 @@
+#![allow(dead_code)]
 /// proto.rs — Sérialisation binaire des paquets Nhtml v0.2.1
 /// Source de vérité côté Rust pour le format des paquets.
 /// Doit rester en sync avec NHTML_SPEC_v0.2.1.md et nhtml_types.h
@@ -10,6 +11,7 @@ pub const PKT_PATCH  : u8 = 0x03;
 pub const PKT_BIND   : u8 = 0x04;
 pub const PKT_SYNC   : u8 = 0x05;
 pub const PKT_BTREE  : u8 = 0x07;
+pub const PKT_PUSH_PATCH: u8 = 0x08; // Client -> Server (Zero-Server mode)
 pub const PKT_PING   : u8 = 0x09;
 pub const PKT_LOG    : u8 = 0x10;
 pub const PKT_ERR    : u8 = 0x7F;
@@ -168,6 +170,7 @@ pub fn bind(p: BindParams) -> Vec<u8> {
 
 // ─── PATCH ─────────────────────────────────────────────────────────────────
 
+#[derive(Clone, Debug)]
 pub struct PatchOp {
     pub op_type   : u8,
     pub target_id : u16,
@@ -192,6 +195,18 @@ impl PatchOp {
         let mut data = Vec::new();
         push_str16(&mut data, html);
         Self { op_type: OP_APPEND_HTML, target_id, version, data }
+    }
+
+    pub fn insert_before(target_id: u16, version: u32, html: &str) -> Self {
+        let mut data = Vec::new();
+        push_str16(&mut data, html);
+        Self { op_type: OP_INSERT_BEFORE, target_id, version, data }
+    }
+
+    pub fn insert_after(target_id: u16, version: u32, html: &str) -> Self {
+        let mut data = Vec::new();
+        push_str16(&mut data, html);
+        Self { op_type: OP_INSERT_AFTER, target_id, version, data }
     }
 
     pub fn set_attr(target_id: u16, version: u32, key: &str, val: &str) -> Self {
@@ -268,21 +283,22 @@ pub fn serialize_nodes(nodes: &[(u16, u32, String, String)]) -> Vec<u8> {
 
 pub fn btree(nodes: &[(u16, u32, String, String)]) -> (Vec<u8>, f32) {
     let tree_payload = serialize_nodes(nodes);
-    let pkt = wrap_btree(&tree_payload);
-    let ratio = pkt.len() as f32 / tree_payload.len().max(1) as f32;
+    let (pkt, ratio) = wrap_btree(&tree_payload);
     (pkt, ratio)
 }
 
-pub fn wrap_btree(payload: &[u8]) -> Vec<u8> {
+pub fn wrap_btree(payload: &[u8]) -> (Vec<u8>, f32) {
     let orig_len = payload.len();
     let checksum = crc32fast::hash(payload);
     
     let mut comp_flag: u8 = 0x00;
     let mut final_payload = payload.to_vec();
+    let mut ratio: f32 = 1.0;
     
     // Tentative de compression Zstd niveau 3
     if let Ok(compressed) = zstd::encode_all(payload, 3) {
         if compressed.len() < payload.len() {
+            ratio = compressed.len() as f32 / orig_len.max(1) as f32;
             comp_flag = 0x01;
             final_payload = compressed;
         }
@@ -299,7 +315,7 @@ pub fn wrap_btree(payload: &[u8]) -> Vec<u8> {
     push_u32(&mut out, total_payload_len as u32);
     out.extend_from_slice(&header);
     out.extend_from_slice(&final_payload);
-    out
+    (out, ratio)
 }
 
 // ─── ERR ───────────────────────────────────────────────────────────────────
@@ -321,15 +337,12 @@ pub fn ping(sequence: u8) -> Vec<u8> {
 }
 
 /// Construit un paquet EVENT (0x02)
-pub fn event(node_id: u32, data: &str) -> Vec<u8> {
-    let mut payload = Vec::new();
-    push_u32(&mut payload, node_id);
-    
-    let data_bytes = data.as_bytes();
-    push_u16(&mut payload, data_bytes.len() as u16);
-    payload.extend_from_slice(data_bytes);
-    
-    wrap_packet(PKT_EVENT, payload)
+pub fn event(node_id: u32, handler: &str, payload: &str) -> Vec<u8> {
+    let mut data = Vec::new();
+    push_u32(&mut data, node_id);
+    push_str8(&mut data, handler);
+    push_str16(&mut data, payload);
+    wrap_packet(PKT_EVENT, data)
 }
 
 pub fn sync(checksum: u32) -> Vec<u8> {

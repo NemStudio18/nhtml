@@ -79,6 +79,7 @@ fn handle_log_line(line: &str, tx_m: &broadcast::Sender<MonitoringEvent>, tx_a: 
         handler: Some("PHP_LOG".to_string()),
         latency_ms: None,
         compression_ratio: None,
+        details: Some(line.to_string()),
     });
 
     // 2. Browser Console (NBPS 0x10)

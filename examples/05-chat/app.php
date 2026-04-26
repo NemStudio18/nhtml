@@ -64,6 +64,13 @@ if ($handler === 'init' || !$handler) {
 
 // Envoi d'un message
 if ($handler === 'send') {
+    $eventKey = $formData['event_key'] ?? '';
+    // On n'envoie que si c'est un clic sur bouton (pas de touche) ou la touche 'Enter'
+    if ($eventKey !== '' && $eventKey !== 'Enter') {
+        $p->send(); // On ne fait rien d'autre
+        exit;
+    }
+    
     $content = trim($formData['chat_input'] ?? '');
     if ($content !== '') {
         $stmt = $db->prepare("INSERT INTO messages (session_id, author, content) VALUES (?, ?, ?)");
@@ -74,7 +81,7 @@ if ($handler === 'send') {
                 <div class='author'>$pseudo</div>
                 $content
             </div>
-        ")->broadcast()->setText('chat_input', '')->focus('chat_input');
+        ")->broadcast()->setText('chat_input', '')->focus('chat_input')->scrollTo('msg_list');
     }
 }
 
