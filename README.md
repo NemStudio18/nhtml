@@ -86,9 +86,6 @@ NHTML includes a complete control station accessible locally at `http://127.0.0.
   <img src="assets/devtools_sessions.png" width="400" alt="DevTools Sessions">
 </p>
 
-> [!TIP]
-> Watch the live demonstration: [Replay Demo 1](assets/devtools_demo_1.mp4) | [Flow Analysis Demo 2](assets/devtools_demo_2.mp4)
-
 ---
 
 ### 🏛️ How it works
@@ -191,9 +188,6 @@ NHTML inclut une station de contrôle complète accessible localement sur `http:
   <img src="assets/devtools_flow.png" width="400" alt="DevTools Flow">
   <img src="assets/devtools_sessions.png" width="400" alt="DevTools Sessions">
 </p>
-
-> [!TIP]
-> Voir les démonstrations : [Replay Demo 1](assets/devtools_demo_1.mp4) | [Analyse du Flow Demo 2](assets/devtools_demo_2.mp4)
 
 ---
 
