@@ -300,6 +300,7 @@ async fn handle_connection_axum(
 
     // ── Boucle de messages ─────────────────────────────────────────────────
     let mut sync_interval = tokio::time::interval(std::time::Duration::from_secs(30));
+    let mut app_rx = state.tx_app_broadcast.subscribe();
 
     loop {
         tokio::select! {
@@ -308,6 +309,12 @@ async fn handle_connection_axum(
                     let sync_pkt = proto::sync(checksum);
                     info!("[{}] SYNC envoyé, checksum={:08X}", session_id, checksum);
                     ws_sender.send(WsMessage::Binary(sync_pkt)).await.ok();
+                }
+            }
+            Ok(bcast_data) = app_rx.recv() => {
+                // Relayer les paquets broadcast (0x03 PATCH, ou autres) envoyés par les autres sessions
+                if !bcast_data.is_empty() {
+                    ws_sender.send(WsMessage::Binary(bcast_data)).await.ok();
                 }
             }
             msg_opt = ws_receiver.next() => {
@@ -325,7 +332,7 @@ async fn handle_connection_axum(
 
                         match data[0] {
                             0x02 => { // EVENT
-                                handle_event(&data, &session, &mut ws_sender).await;
+                                handle_event(&data, &session, &mut ws_sender, &state.tx_app_broadcast).await;
                             }
                             0x01 => { // HELLO (Client → Server)
                                 info!("[{}] HELLO reçu du client", session_id);
@@ -355,12 +362,11 @@ async fn handle_connection_axum(
     }
 }
 
-// ─── Dispatch EVENT → PHP ───────────────────────────────────────────────────
-
 async fn handle_event(
     data       : &[u8],
     session    : &Session,
     ws_sender  : &mut (impl SinkExt<WsMessage, Error = axum::Error> + Unpin),
+    tx_app_broadcast: &tokio::sync::broadcast::Sender<Vec<u8>>
 )
 {
     // Parser le paquet EVENT envoyé par bridge.js (v0.4.0)
@@ -424,8 +430,9 @@ async fn handle_event(
     // Envoyer les PATCH résultants
     if !patches.is_empty() {
         let mut final_patches = Vec::new();
+        let mut broadcast_patches = Vec::new();
         // Persister les changements en DB et mettre à jour les versions
-        for mut op in patches {
+        for (mut op, is_broadcast) in patches {
             let nid = session.handler_table.by_id.get(&(op.target_id))
                 .and_then(|e| e.n_id.clone())
                 .unwrap_or_else(|| "".to_string());
@@ -446,11 +453,22 @@ async fn handle_event(
                     }
                 }
             }
-            final_patches.push(op);
+            if is_broadcast {
+                broadcast_patches.push(op.clone());
+            } else {
+                final_patches.push(op);
+            }
         }
 
-        let patch_pkt = proto::patch(&final_patches);
-        ws_sender.send(WsMessage::Binary(patch_pkt)).await.ok();
+        if !broadcast_patches.is_empty() {
+            let patch_pkt = proto::patch(&broadcast_patches);
+            let _ = tx_app_broadcast.send(patch_pkt);
+        }
+
+        if !final_patches.is_empty() {
+            let patch_pkt = proto::patch(&final_patches);
+            ws_sender.send(WsMessage::Binary(patch_pkt)).await.ok();
+        }
     }
 }
 
@@ -541,7 +559,7 @@ async fn call_php(
 fn parse_php_response(
     stdout        : &[u8],
     handler_table : &HandlerTable,
-) -> Vec<proto::PatchOp>
+) -> Vec<(proto::PatchOp, bool)>
 {
     // Nettoyage éventuel du stdout (si PHP a affiché des warnings avant le JSON)
     let json_str = std::str::from_utf8(stdout).unwrap_or("");
@@ -568,6 +586,7 @@ fn parse_php_response(
 
     for op in ops {
         let op_type = op["op"].as_str().unwrap_or("");
+        let is_broadcast = op["broadcast"].as_bool().unwrap_or(false);
 
         // Résoudre le n-id métier en node_id binaire
         let node_id = op["nid"].as_str()
@@ -623,7 +642,7 @@ fn parse_php_response(
             }
         };
 
-        patch_ops.push(patch);
+        patch_ops.push((patch, is_broadcast));
     }
 
     patch_ops

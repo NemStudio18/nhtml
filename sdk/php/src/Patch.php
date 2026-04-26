@@ -68,6 +68,16 @@ class Patch {
         return $this;
     }
 
+    /**
+     * Marque la dernière opération comme devant être diffusée à tous les clients
+     */
+    public function broadcast(bool $b = true): self {
+        if (!empty($this->ops)) {
+            $this->ops[count($this->ops) - 1]['broadcast'] = $b;
+        }
+        return $this;
+    }
+
     public function getOps(): array {
         return $this->ops;
     }

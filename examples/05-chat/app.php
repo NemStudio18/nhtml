@@ -70,11 +70,11 @@ if ($handler === 'send') {
         $stmt->execute([$sessionId, $pseudo, $content]);
         
         $p->appendHtml('msg_list', "
-            <div class='message sent'>
-                <div class='author'>Moi ($pseudo)</div>
+            <div class='message received'>
+                <div class='author'>$pseudo</div>
                 $content
             </div>
-        ")->setText('chat_input', '')->focus('chat_input');
+        ")->broadcast()->setText('chat_input', '')->focus('chat_input');
     }
 }
 
