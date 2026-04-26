@@ -68,11 +68,12 @@ Identifiez les éléments à mettre à jour avec `n-id` et capturez les clics av
 Utilisez le SDK PHP pour envoyer des ordres binaires instantanés.
 ```php
 <?php
-$nhtml = GatewayFactory::create();
+use Nhtml\Nhtml;
 
 if ($event === 'click' && $nodeId === 'btn_hello') {
-    $nhtml->setText('titre', "C'est magique !")
-          ->send();
+    Nhtml::patch()
+         ->setText('titre', "C'est magique !")
+         ->send();
 }
 ```
 

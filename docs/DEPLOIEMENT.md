@@ -91,6 +91,32 @@ Ensuite, configurez votre VirtualHost :
 
 ---
 
+## 🛡️ Sécurité & Accès aux DevTools (Port 8081)
+
+Par défaut, les DevTools NHTML ne sont accessibles que sur `127.0.0.1`. C'est une mesure de sécurité cruciale pour éviter que n'importe qui puisse inspecter votre trafic ou rejouer des sessions en production.
+
+Pour y accéder depuis votre machine locale sur un serveur distant, deux solutions s'offrent à vous :
+
+### Solution 1 : Tunnel SSH (Recommandée)
+C'est la méthode la plus sûre car elle ne nécessite aucune ouverture de port sur votre pare-feu et utilise le chiffrement de votre connexion SSH.
+
+Lancez cette commande dans un terminal sur **votre machine locale** :
+```bash
+ssh -L 8081:127.0.0.1:8081 utilisateur@votre-serveur.com
+```
+Une fois connecté, ouvrez simplement [http://127.0.0.1:8081](http://127.0.0.1:8081) dans votre navigateur local.
+
+### Solution 2 : Exposition directe avec Token
+Si vous préférez un accès direct sans tunnel, vous pouvez demander au Gateway d'écouter sur toutes les interfaces, mais **vous devez impérativement utiliser un token de sécurité**.
+
+Lancez le gateway avec ces paramètres :
+```bash
+./nhtml start --dev --devtools-host 0.0.0.0 --devtools-token VOTRE_CLE_SECRETE
+```
+L'URL d'accès sera alors : `http://votre-serveur.com:8081?token=VOTRE_CLE_SECRETE`
+
+---
+
 ## ⚙️ Configuration du Gateway (`nhtml.config.toml`)
 
 Pour correspondre à cette architecture, placez ce fichier `nhtml.config.toml` à la racine de votre application, à côté du binaire `nhtml` :

@@ -5,12 +5,15 @@
 </p>
 
 <p align="center">
+  <img src="https://img.shields.io/badge/Version-v0.4.0-ff007f?style=flat-square" />
   <img src="https://img.shields.io/badge/Gateway-Rust-orange?style=flat-square&logo=rust" />
   <img src="https://img.shields.io/badge/Backend-PHP_8.x-777bb4?style=flat-square&logo=php" />
   <img src="https://img.shields.io/badge/Transport-Binary_NBPS-blue?style=flat-square" />
   <img src="https://img.shields.io/badge/JS_métier-Zéro-success?style=flat-square" />
-  <img src="https://img.shields.io/badge/License-MIT_/_AGPL-lightgrey?style=flat-square" />
 </p>
+
+> [!IMPORTANT]
+> **NHTML v0.4.0 est arrivé.** Cette version industrialise le Gateway : injection automatique des assets, monitoring SQL intégré, et nouvelles opérations DOM (`setStyle`, `scrollTo`, `focus`).
 
 ---
 
@@ -179,7 +182,7 @@ function page_saluer($event): array {
 
 ## 🛠️ DevTools intégrés
 
-NHTML inclut une station de contrôle complète accessible sur `http://127.0.0.1:8081` :
+NHTML inclut une station de contrôle complète accessible localement sur `http://127.0.0.1:8081` :
 
 - **Network Monitor** — chaque paquet NBPS en temps réel
 - **Time Travel** — rejouer n'importe quelle session action par action
@@ -187,6 +190,8 @@ NHTML inclut une station de contrôle complète accessible sur `http://127.0.0.1
 - **State Diff Viewer** — visualiser les mutations avant/après
 - **Handler Tracer** — profiler la latence de vos handlers PHP
 - **Payload Tester** — injecter des EVENTs manuellement (style Postman)
+
+> **Accès sécurisé en production** : Les DevTools sont liés à `127.0.0.1` pour des raisons de sécurité. Pour y accéder sur un serveur distant (ex: VPS OVH), utilisez un tunnel SSH : `ssh -L 8081:127.0.0.1:8081 user@serveur`. Vous pouvez également utiliser le paramètre CLI `--devtools-host 0.0.0.0` (associé à un `--token`) pour un accès direct sécurisé.
 
 ---
 
@@ -220,10 +225,21 @@ mon-app/
 | [`docs/SPEC.md`](./docs/SPEC.md) | Protocole NBPS — référence complète |
 | [`docs/ARCHITECTURE.md`](./docs/ARCHITECTURE.md) | Architecture et flux fonctionnel |
 | [`docs/GUIDE_DEMARRAGE.md`](./docs/GUIDE_DEMARRAGE.md) | Guide d'installation détaillé |
+| [`docs/FAQ.md`](./docs/FAQ.md) | Réponses aux questions fréquentes |
 | [`docs/DEPLOIEMENT.md`](./docs/DEPLOIEMENT.md) | Nginx / Apache / Systemd |
 | [`docs/INTERNALS.md`](./docs/INTERNALS.md) | Contributeurs Rust |
 | [`CHANGELOG.md`](./CHANGELOG.md) | Historique des versions |
 | [`CONTRIBUTING.md`](./CONTRIBUTING.md) | Comment contribuer |
+
+---
+
+## 🗺️ Feuille de route technique
+
+**Aujourd'hui** — `bridge.js` (~2KB) assure le transport binaire et les patchs dans tous les navigateurs standards. C'est une couche de transition nécessaire : aucun navigateur ne supporte encore NBPS nativement.
+
+**En cours** — Un fork Chromium intégrant NBPS nativement est en développement. Compiler un navigateur complet est un chantier de plusieurs semaines sur machine dédiée. Les contributions de développeurs C++ / Systèmes sont les bienvenues !
+
+**Objectif final** — Proposer NBPS comme standard W3C pour une intégration native et universelle dans tous les navigateurs.
 
 ---
 

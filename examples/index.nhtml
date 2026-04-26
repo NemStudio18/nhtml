@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NHTML v0.4.0 | Showcase Hub</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/examples/assets/premium.css">
+</head>
+<body>
+    <div class="premium-container">
+        <h1>NHTML Showcase</h1>
+        <p class="subtitle">Expérimentez la puissance du protocole NBPS v0.4.0 à travers ces démos interactives.</p>
+
+        <div class="grid">
+            <a href="/examples/counter/index.nhtml" class="card">
+                <span class="badge">Stable</span>
+                <span class="icon">🔢</span>
+                <h3>Counter Demo</h3>
+                <p>Incrémentation temps-réel via WebSocket. La base de la réactivité NHTML.</p>
+            </a>
+
+            <a href="/examples/02-todo-list/index.nhtml" class="card">
+                <span class="badge">New</span>
+                <span class="icon">✅</span>
+                <h3>Todo List</h3>
+                <p>Gestion de liste dynamique avec persistance SQLite et patchs DOM optimisés.</p>
+            </a>
+
+            <a href="/examples/03-live-form/index.nhtml" class="card">
+                <span class="icon">📝</span>
+                <h3>Live Form</h3>
+                <p>Validation côté serveur en temps réel sans rechargement de page.</p>
+            </a>
+
+            <a href="/examples/04-style-lab/index.nhtml" class="card">
+                <span class="icon">🎨</span>
+                <h3>Style Lab</h3>
+                <p>Modification dynamique des propriétés CSS et des classes via le protocole binaire.</p>
+            </a>
+
+            <a href="/examples/05-chat/index.nhtml" class="card highlight">
+                <span class="badge premium">Premium</span>
+                <span class="icon">💬</span>
+                <h3>Live Chat</h3>
+                <p>Expérience de messagerie instantanée fluide avec design premium glassmorphism.</p>
+            </a>
+        </div>
+    </div>
+</body>
+</html>

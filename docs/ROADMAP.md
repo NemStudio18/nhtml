@@ -18,7 +18,7 @@
 - [ ] **Packaging v0.4.0** : Binaires Win/Linux/Mac + PHP portable inclus dans le bundle
 
 ## 🔜 Phase 5 — Release Publique
-- [ ] Split en 3 repos : `nhtml-core` (MIT), `nhtml-gateway` (AGPL), `nhtml-cloud` (Privé)
+- [x] **Monorepo Unifié** : Un seul dépôt `nhtml-gateway` regroupant Rust, PHP SDK et JS Bridge.
 - [x] PHP-WASM : Fallback "Zéro-Serveur" intégré dans le Bridge JS (Local & Sans CDN)
 - [x] `nhtml.config.toml` : Configuration déclarative des ports et chemins
 - [x] Reverse Proxy Doc : Config Nginx/Apache prête à copier-coller
