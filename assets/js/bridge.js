@@ -248,6 +248,8 @@ function processMessage(chunk) {
         const behaviorFlags = chunk[offset++];
         const debounce = chunk[offset++];
         const handler = readStr8(chunk, offset); offset += 1 + handler.length;
+        const n_model = readStr8(chunk, offset); offset += 1 + n_model.length;
+        const n_text = readStr8(chunk, offset); offset += 1 + n_text.length;
         
         console.log(`%c[NHTML] 🔗 BINDING Node ${nodeId} (NID: ${nid}) | Handler: ${handler} | Mask: 0x${listenMask.toString(16)}`, "color: #ffaa00");
 
@@ -258,6 +260,20 @@ function processMessage(chunk) {
             window.nhtml_reverse_map[nid] = nodeId;
             window.nhtml_node_map[nodeId] = nid;
             el.dataset.nhtmlHandler = handler;
+            
+            // Local actions parsing
+            if (offset < chunk.length) {
+                const laCount = chunk[offset++];
+                for (let i = 0; i < laCount; i++) {
+                    const actionType = chunk[offset++];
+                    const triggerType = chunk[offset++];
+                    const param = readStr8(chunk, offset); offset += 1 + param.length;
+                    const flags = chunk[offset++];
+                    const threshold = chunk[offset++];
+                    
+                    bindLocalAction(el, triggerType, actionType, param);
+                }
+            }
         }
         return;
     }
@@ -301,6 +317,39 @@ function readStr16(view, chunk, offset) {
     const len = view.getUint16(offset);
     if (offset + 2 + len > chunk.length) return "";
     return new TextDecoder().decode(chunk.slice(offset + 2, offset + 2 + len));
+}
+
+function bindLocalAction(el, triggerType, actionType, param) {
+    // actionType: 0x01 ADD_CLASS, 0x02 REM_CLASS, 0x03 TOGGLE_CLASS, 0x09 TOGGLE_TARGET
+    // triggerType: 0x01 HOVER, 0x02 SCROLL_VP, 0x07 CLICK_LOCAL
+    
+    if (triggerType === 0x01) { // HOVER
+        if (actionType === 0x01 || actionType === 0x03) { // ADD_CLASS / TOGGLE_CLASS
+            el.addEventListener('mouseenter', () => el.classList.add(param));
+            el.addEventListener('mouseleave', () => el.classList.remove(param));
+        }
+    } else if (triggerType === 0x07) { // CLICK_LOCAL
+        if (actionType === 0x03) { // TOGGLE_CLASS
+            el.addEventListener('click', () => el.classList.toggle(param));
+        } else if (actionType === 0x09) { // TOGGLE_TARGET
+            el.addEventListener('click', () => {
+                const target = document.querySelector(`[n-id="${param}"]`);
+                if (target) {
+                    if (target.style.display === 'none') target.style.display = '';
+                    else target.style.display = 'none';
+                }
+            });
+        }
+    } else if (triggerType === 0x02) { // SCROLL_VP (Scroll Into Viewport)
+        if (actionType === 0x04) { // SET_STYLE
+            // Very simplified implementation for scroll triggers
+            window.addEventListener('scroll', () => {
+                const rect = el.getBoundingClientRect();
+                const inView = (rect.top >= 0 && rect.bottom <= window.innerHeight);
+                if (inView) el.style.cssText += param;
+            }, { passive: true });
+        }
+    }
 }
 
 function calculateLocalChecksum() {
