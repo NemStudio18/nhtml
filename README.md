@@ -74,10 +74,20 @@ NHTML includes a complete control station accessible locally at `http://127.0.0.
 
 ![NHTML DevTools Preview](assets/devtools_preview.png)
 
+#### ✨ Key Features
 - **Network Monitor** — every NBPS packet in real-time.
 - **Time Travel** — replay any session action by action.
 - **Node Inspector** — binary state of every DOM node.
 - **State Diff Viewer** — visualize mutations before/after.
+
+#### 📽️ DevTools in Action
+<p align="center">
+  <img src="assets/devtools_flow.png" width="400" alt="DevTools Flow">
+  <img src="assets/devtools_sessions.png" width="400" alt="DevTools Sessions">
+</p>
+
+> [!TIP]
+> Watch the live demonstration: [Replay Demo 1](assets/devtools_demo_1.mp4) | [Flow Analysis Demo 2](assets/devtools_demo_2.mp4)
 
 ---
 
@@ -170,10 +180,20 @@ NHTML inclut une station de contrôle complète accessible localement sur `http:
 
 ![NHTML DevTools Preview](assets/devtools_preview.png)
 
+#### ✨ Fonctionnalités Clés
 - **Network Monitor** — chaque paquet NBPS en temps réel.
 - **Time Travel** — rejouer n'importe quelle session action par action.
 - **Node Inspector** — état binaire de chaque nœud DOM.
 - **State Diff Viewer** — visualiser les mutations avant/après.
+
+#### 📽️ DevTools en Action
+<p align="center">
+  <img src="assets/devtools_flow.png" width="400" alt="DevTools Flow">
+  <img src="assets/devtools_sessions.png" width="400" alt="DevTools Sessions">
+</p>
+
+> [!TIP]
+> Voir les démonstrations : [Replay Demo 1](assets/devtools_demo_1.mp4) | [Analyse du Flow Demo 2](assets/devtools_demo_2.mp4)
 
 ---
 
