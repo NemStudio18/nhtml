@@ -99,7 +99,7 @@ Votre .nhtml + app.php
         │                                         │
         ▼                                         │
 [ Navigateur ]                              [ PHP Backend ]
-  bridge.js (~2KB)    EVENT (clic) ────────▶  Logique métier
+  bridge.js (~25KB)   EVENT (clic) ────────▶  Logique métier
   Applique les PATCH  PATCH (mutations) ◀────  Renvoie les ops
 ```
 
@@ -255,10 +255,9 @@ mon-app/
 
 ## ⚖️ Licence
 
-- **NHTML Core** (SDK PHP, bridge.js) — [MIT](./LICENSE)
-- **NHTML Gateway** (serveur Rust) — AGPL v3
+- **NHTML** (Gateway, SDK, Bridge) — [AGPL v3](./LICENSE)
 
-> Pour des déploiements cloud propriétaires, contactez NemStudio.
+> Pour des licences commerciales ou des déploiements cloud propriétaires, contactez NemStudio.
 
 ---
 
