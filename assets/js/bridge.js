@@ -592,7 +592,9 @@ async function switchToWasm() {
         // Try to fetch app.php
         const resApp = await fetch(appPath);
         if (resApp.ok) {
-            const code = await resApp.text();
+            let code = await resApp.text();
+            // Patch app.php on the fly to support multiple executions by allowing $input override
+            code = code.replace("file_get_contents('php://stdin')", "($input ?? file_get_contents('php://stdin'))");
             php.FS.writeFile('/app.php', code);
         }
 
@@ -723,12 +725,9 @@ async function wasmRunEvent(id_num, handler, formData) {
         // Use a virtual file instead of stdin to avoid stream exhaustion issues
         php.FS.writeFile('/tmp/event.json', eventPayload);
         
-        // Execute app.php while overriding the stdin read with the file content
+        // Inject $input variable into the global scope before including app.php
         const phpCode = `<?php 
             $input = file_get_contents('/tmp/event.json');
-            $ctx = json_decode($input, true);
-            $handler = $ctx['handler'] ?? '';
-            $payload = json_decode($ctx['payload'] ?? '{}', true);
             chdir('/'); 
             include 'app.php'; 
         ?>`;
