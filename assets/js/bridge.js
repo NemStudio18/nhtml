@@ -2,7 +2,7 @@ if (window.nhtml_initialized) {
     console.warn("🛰️ NHTML Bridge already initialized.");
 } else {
 window.nhtml_initialized = true;
-console.log("🛰️ NHTML v0.4.5 Bridge Loading...");
+console.log("🛰️ NHTML v0.4.6 Bridge Loading...");
 
 let socket = null;
 window.nhtml_transport_mode = "INIT";
@@ -287,6 +287,20 @@ function processMessage(msg) {
         const hudSize = document.getElementById('nhtml-hud-size');
         if (hudSize) hudSize.innerText = (window.nhtml_stats.size / 1024).toFixed(1) + 'K';
 
+        if (type === 0x01) { // HELLO RESPONSE
+            if (window.nhtml_hello_timeout) clearTimeout(window.nhtml_hello_timeout);
+            window.nhtml_transport_mode = "WS_READY";
+            console.log("🛰️ NHTML Gateway Handshake Complete (Binary Mode).");
+            const hudMode = document.getElementById('nhtml-hud-mode');
+            if (hudMode) hudMode.innerText = "(WS)";
+            
+            const statusBadge = document.getElementById('nhtml-status-badge');
+            if (statusBadge) {
+                statusBadge.innerHTML = '<div style="width: 8px; height: 8px; background: #22c55e; border-radius: 50%; box-shadow: 0 0 10px #22c55e;"></div> Gateway Online';
+            }
+            return;
+        }
+
         if (type === 0x09) { // PING
             const pong = new Uint8Array(5); pong[0] = 0x09;
             if(socket && socket.readyState === 1) socket.send(pong);
@@ -531,14 +545,21 @@ function connect(wsUrl, timeoutMs = 5000) {
         socket.onopen = () => { 
             clearTimeout(connTimeout);
             if (window.nhtml_transport_mode === "WASM") {
-                console.log("🛰️ NHTML Socket opened too late, staying in WASM mode.");
                 socket.close();
                 return;
             }
-            window.nhtml_transport_mode = "WS"; 
+            
+            // Start a secondary timeout for the HELLO handshake
+            window.nhtml_hello_timeout = setTimeout(() => {
+                if (window.nhtml_transport_mode !== "WS_READY") {
+                    console.warn("🛰️ NHTML Handshake timeout. Falling back to WASM...");
+                    socket.close();
+                    switchToWasm();
+                }
+            }, 2500);
+
+            window.nhtml_transport_mode = "WS_OPEN"; 
             reconnectAttempts = 0; 
-            const hudMode = document.getElementById('nhtml-hud-mode');
-            if (hudMode) hudMode.innerText = "(WS)";
             sendHello(); 
         };
         
@@ -552,7 +573,9 @@ function connect(wsUrl, timeoutMs = 5000) {
 
         socket.onclose = () => { 
             clearTimeout(connTimeout);
-            if (window.nhtml_transport_mode === "WS" || window.nhtml_transport_mode === "WS_CONNECTING") {
+            if (window.nhtml_hello_timeout) clearTimeout(window.nhtml_hello_timeout);
+            
+            if (window.nhtml_transport_mode.startsWith("WS")) {
                 setTimeout(() => connect(wsUrl), Math.min(MAX_BACKOFF, 500 * Math.pow(2, reconnectAttempts++))); 
             } else {
                 switchToWasm();
@@ -728,10 +751,10 @@ function sendEvent(id_num, handler, formData) {
     console.log(`🛰️ NHTML Sending Event: ${handler} (Transport: ${window.nhtml_transport_mode})`);
     if (window.nhtml_transport_mode === "WASM") {
         wasmRunEvent(id_num, handler, formData);
-    } else if (window.nhtml_transport_mode === "WS") {
+    } else if (window.nhtml_transport_mode === "WS_READY") {
         sendBinary(buf);
     } else {
-        console.warn("🛰️ NHTML Event dropped: Transport not ready.");
+        console.warn("🛰️ NHTML Event dropped: Transport not ready (" + window.nhtml_transport_mode + ")");
     }
 }
 
