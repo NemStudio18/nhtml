@@ -2,7 +2,7 @@ if (window.nhtml_initialized) {
     console.warn("🛰️ NHTML Bridge already initialized.");
 } else {
 window.nhtml_initialized = true;
-console.log("🛰️ NHTML v0.4.0 Bridge Loading...");
+console.log("🛰️ NHTML v0.4.3 Bridge Loading...");
 
 let socket = null;
 let transportMode = "WS";
