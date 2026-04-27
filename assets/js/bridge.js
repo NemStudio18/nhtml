@@ -2,7 +2,7 @@ if (window.nhtml_initialized) {
     console.warn("🛰️ NHTML Bridge already initialized.");
 } else {
 window.nhtml_initialized = true;
-console.log("🛰️ NHTML v0.4.3 Bridge Loading...");
+console.log("🛰️ NHTML v0.4.4 Bridge Loading...");
 
 let socket = null;
 let transportMode = "WS";
@@ -529,6 +529,11 @@ function connect(wsUrl, timeoutMs = 5000) {
 
         socket.onopen = () => { 
             clearTimeout(connTimeout);
+            if (transportMode === "WASM") {
+                console.log("🛰️ NHTML Socket opened too late, staying in WASM mode.");
+                socket.close();
+                return;
+            }
             transportMode = "WS"; 
             reconnectAttempts = 0; 
             const hudMode = document.getElementById('nhtml-hud-mode');
@@ -820,12 +825,17 @@ function processEvent(e, listenFlag, fallbackAttr) {
         if (!hasAttr) return;
     }
     
-    let handler = binding ? binding.handler : "";
-    if (!handler) {
-        handler = Array.isArray(fallbackAttr)
-            ? (target.getAttribute(fallbackAttr[0]) || target.getAttribute(fallbackAttr[1]))
-            : target.getAttribute(fallbackAttr);
+    // Handler Resolution: 
+    // 1. Try target's own attribute (e.g. n-click)
+    let handler = Array.isArray(fallbackAttr)
+        ? (target.getAttribute(fallbackAttr[0]) || target.getAttribute(fallbackAttr[1]))
+        : target.getAttribute(fallbackAttr);
+        
+    // 2. If no direct attribute, fallback to binding handler
+    if (!handler && binding) {
+        handler = binding.handler;
     }
+    
     if (!handler) return;
     
     const formData = {};
