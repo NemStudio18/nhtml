@@ -558,9 +558,9 @@ async function switchToWasm() {
     if (hudMode) hudMode.innerText = "(WASM)";
 
     // Update Showcase UI if present
-    const statusText = document.evaluate("//div[contains(text(), 'Gateway Online')]", document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue;
-    if (statusText) {
-        statusText.innerHTML = '<div style="width: 8px; height: 8px; background: #38bdf8; border-radius: 50%; box-shadow: 0 0 10px #38bdf8;"></div> WASM Mode (Local)';
+    const statusBadge = document.querySelector('.status-badge');
+    if (statusBadge) {
+        statusBadge.innerHTML = '<div style="width: 8px; height: 8px; background: #38bdf8; border-radius: 50%; box-shadow: 0 0 10px #38bdf8;"></div> WASM Mode (Local)';
     }
     
     try {
@@ -571,16 +571,23 @@ async function switchToWasm() {
             window.PhpWeb = module.PhpWeb;
         }
         
-        window.nhtml_wasm_php = new window.PhpWeb();
+        window.nhtml_wasm_php = new window.PhpWeb({ persist: true });
         
         let wasmStdout = "";
         window.nhtml_wasm_php.addEventListener('output', (event) => {
-            wasmStdout += event.detail;
+            wasmStdout += Array.isArray(event.detail) ? event.detail[0] : event.detail;
         });
 
-        window.nhtml_wasm_php.addEventListener('ready', () => {
+        window.nhtml_wasm_php.addEventListener('ready', async () => {
             console.log("🛰️ NHTML WASM VM Ready.");
             
+            // Sync filesystem from IndexedDB
+            const phpInstance = await window.nhtml_wasm_php.binary;
+            if (phpInstance.persist) {
+                await new Promise(r => phpInstance.FS.syncfs(true, r));
+                console.log("🛰️ NHTML WASM Persistent FS Synced.");
+            }
+
             // Trigger initial state hydration
             wasmRunEvent(0, 'init', {});
         });
@@ -719,12 +726,15 @@ async function wasmRunEvent(id_num, handler, formData) {
     // Set stdin
     window.nhtml_wasm_php.inputString(eventPayload);
     
-    const phpCode = `<?php include '/app.php'; ?>`;
+    // We must run in a way that respects the working directory
+    const phpCode = `<?php chdir(dirname('/app.php')); include '/app.php'; ?>`;
     
     try {
         // Run and capture output
         let stdout = "";
-        const listener = (event) => { stdout += event.detail; };
+        const listener = (event) => { 
+            stdout += Array.isArray(event.detail) ? event.detail[0] : event.detail; 
+        };
         window.nhtml_wasm_php.addEventListener('output', listener);
         
         await window.nhtml_wasm_php.run(phpCode);
@@ -738,6 +748,14 @@ async function wasmRunEvent(id_num, handler, formData) {
             const jsonStr = stdout.substring(jsonStart, jsonEnd + 1);
             const res = JSON.parse(jsonStr);
             applyJsonPatch(res.patch || res);
+
+            // Sync back to IDBFS for persistence
+            const phpInstance = await window.nhtml_wasm_php.binary;
+            if (phpInstance.persist) {
+                phpInstance.FS.syncfs(false, (err) => {
+                    if (err) console.warn("🛰️ NHTML Sync error:", err);
+                });
+            }
         }
     } catch (e) {
         console.error("🛰️ NHTML WASM Execution error:", e);
