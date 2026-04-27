@@ -17,6 +17,11 @@ window.nhtml_el_cache = new Map(); // Cache des éléments pour performance
 window.nhtml_session_id = localStorage.getItem('nhtml_session_id') || "";
 
 async function initNhtml(wsUrl, httpUrl = "") {
+    // Protocol fix: if we are on HTTPS, we MUST use WSS for the primary attempt
+    if (window.location.protocol === "https:" && wsUrl.startsWith("ws:")) {
+        wsUrl = wsUrl.replace("ws:", "wss:");
+    }
+    
     console.log("🛰️ NHTML Initializing with WS:", wsUrl);
     httpFallbackUrl = httpUrl;
     if (!window.nhtml_session_id || window.nhtml_session_id.length < 5) {
@@ -487,15 +492,142 @@ function processMessage(msg) {
 }
 
 function connect(wsUrl) {
+    if (transportMode === "WASM") return; // Skip if already in WASM mode
+    
     try {
         const url = new URL(wsUrl);
         url.searchParams.set("sid", window.nhtml_session_id);
         socket = new WebSocket(url.toString());
         socket.binaryType = "arraybuffer";
-        socket.onopen = () => { transportMode = "WS"; reconnectAttempts = 0; sendHello(); };
+        
+        socket.onopen = () => { 
+            transportMode = "WS"; 
+            reconnectAttempts = 0; 
+            const hudMode = document.getElementById('nhtml-hud-mode');
+            if (hudMode) hudMode.innerText = "(WS)";
+            sendHello(); 
+        };
+        
         socket.onmessage = (e) => processMessage(e.data);
-        socket.onclose = () => { setTimeout(() => connect(wsUrl), Math.min(MAX_BACKOFF, 500 * Math.pow(2, reconnectAttempts++))); };
-    } catch(e) { transportMode = "HTTP"; }
+        
+        socket.onerror = (err) => {
+            console.warn("🛰️ NHTML WebSocket Error, checking fallback...");
+            if (reconnectAttempts > 1) {
+                switchToWasm();
+            }
+        };
+
+        socket.onclose = () => { 
+            if (transportMode === "WS") {
+                setTimeout(() => connect(wsUrl), Math.min(MAX_BACKOFF, 500 * Math.pow(2, reconnectAttempts++))); 
+            } else {
+                switchToWasm();
+            }
+        };
+    } catch(e) { 
+        console.error("🛰️ NHTML Connection fail:", e);
+        switchToWasm();
+    }
+}
+
+async function switchToWasm() {
+    if (transportMode === "WASM") return;
+    transportMode = "WASM";
+    console.log("🛰️ NHTML Switching to ZERO-SERVER (WASM) Mode...");
+    const hudMode = document.getElementById('nhtml-hud-mode');
+    if (hudMode) hudMode.innerText = "(WASM)";
+    
+    try {
+        // Load PHP WASM if not already there
+        if (!window.PhpWeb) {
+            // Note: fzstd is not needed for JSON output but bridge.js uses it for B-TREE
+            const module = await import('./php-wasm/PhpWeb.mjs');
+            window.PhpWeb = module.PhpWeb;
+        }
+        
+        window.nhtml_wasm_php = new window.PhpWeb();
+        
+        let wasmStdout = "";
+        window.nhtml_wasm_php.addEventListener('output', (event) => {
+            wasmStdout += event.detail;
+        });
+
+        window.nhtml_wasm_php.addEventListener('ready', () => {
+            console.log("🛰️ NHTML WASM VM Ready.");
+            
+            // Trigger initial state hydration
+            wasmRunEvent(0, 'init', {});
+        });
+        
+        // Initialize Virtual Filesystem
+        await window.nhtml_wasm_php.binary;
+        
+        // Load the local app.php and the SDK
+        const basePath = window.location.pathname.replace(/\/[^\/]*$/, '/');
+        const appPath = basePath + 'app.php';
+        
+        // Try to fetch app.php
+        const resApp = await fetch(appPath);
+        if (resApp.ok) {
+            const code = await resApp.text();
+            window.nhtml_wasm_php.writeFile('/app.php', code);
+        }
+
+        // We also need to mock the SDK paths or provide them
+        // For simplicity in the demo, we assume app.php includes the SDK relatively.
+        // On GitHub Pages, we might need to preload the SDK files into the WASM FS.
+        const sdkFiles = [
+            '../../sdk/php/src/Nhtml.php',
+            '../../sdk/php/src/Patch.php'
+        ];
+        
+        for(const f of sdkFiles) {
+            const res = await fetch(basePath + f);
+            if (res.ok) {
+                const c = await res.text();
+                // Create directory structure
+                const parts = f.split('/');
+                let cur = "";
+                for(let i=0; i<parts.length -1; i++) {
+                    cur += "/" + parts[i];
+                    try { window.nhtml_wasm_php.mkdir(cur); } catch(e){}
+                }
+                window.nhtml_wasm_php.writeFile("/" + f, c);
+            }
+        }
+
+    } catch (e) {
+        console.error("🛰️ NHTML WASM initialization failed:", e);
+    }
+}
+
+function applyJsonPatch(ops) {
+    if (!Array.isArray(ops)) return;
+    console.log(`%c[WASM PATCH] %cApplying ${ops.length} operations`, 'color:#ff007f;font-weight:bold', 'color:#fff');
+    
+    ops.forEach(op => {
+        const nid = op.nid;
+        const el = document.querySelector(`[n-id="${nid}"]`);
+        if (!el) return;
+        
+        switch (op.op) {
+            case 'set_text':
+                if (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA') el.value = op.val;
+                else el.textContent = op.val;
+                break;
+            case 'add_class': el.classList.add(op.val); break;
+            case 'del_class': el.classList.remove(op.val); break;
+            case 'set_attr': el.setAttribute(op.key, op.val); break;
+            case 'del_attr': el.removeAttribute(op.key); break;
+            case 'set_style': el.style[op.prop] = op.val; break;
+            case 'replace_inner': el.innerHTML = op.val; break;
+            case 'append_html': el.insertAdjacentHTML('beforeend', op.val); break;
+            case 'remove': el.remove(); break;
+            case 'scroll_to': el.scrollIntoView({ behavior: 'smooth', block: 'end' }); break;
+            case 'focus': el.focus(); break;
+        }
+        triggerGlow(el);
+    });
 }
 
 function sendHello() {
@@ -538,11 +670,50 @@ function sendEvent(id_num, handler, formData) {
     view.setUint16(pOff, jsonBytes.length); // PayloadLen
     buf.set(jsonBytes, pOff + 2); // Payload
     
-    console.log(`%c[EVENT] %c${handler} %con node %c#${window.nhtml_node_map[id_num] || id_num}`, 
-        'color:#0f0;font-weight:bold', 'color:#fff', 'color:#aaa', 'color:#0f0');
     if (Object.keys(formData).length > 0) console.dir(formData);
     
-    sendBinary(buf);
+    if (transportMode === "WASM") {
+        wasmRunEvent(id_num, handler, formData);
+    } else {
+        sendBinary(buf);
+    }
+}
+
+async function wasmRunEvent(id_num, handler, formData) {
+    if (!window.nhtml_wasm_php) return;
+    
+    // Prepare PHP context
+    const eventPayload = JSON.stringify({
+        handler: handler,
+        payload: JSON.stringify(formData)
+    });
+    
+    // Set stdin
+    window.nhtml_wasm_php.inputString(eventPayload);
+    
+    const phpCode = `<?php include '/app.php'; ?>`;
+    
+    try {
+        // Run and capture output
+        let stdout = "";
+        const listener = (event) => { stdout += event.detail; };
+        window.nhtml_wasm_php.addEventListener('output', listener);
+        
+        await window.nhtml_wasm_php.run(phpCode);
+        
+        window.nhtml_wasm_php.removeEventListener('output', listener);
+        
+        // Parse JSON output
+        const jsonStart = stdout.indexOf('{');
+        const jsonEnd = stdout.lastIndexOf('}');
+        if (jsonStart !== -1 && jsonEnd !== -1) {
+            const jsonStr = stdout.substring(jsonStart, jsonEnd + 1);
+            const res = JSON.parse(jsonStr);
+            applyJsonPatch(res.patch || res);
+        }
+    } catch (e) {
+        console.error("🛰️ NHTML WASM Execution error:", e);
+    }
 }
 
 function processEvent(e, listenFlag, fallbackAttr) {
