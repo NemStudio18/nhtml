@@ -105,23 +105,33 @@ $lang = get_db_val('lang', 'fr');
 
 if (!function_exists('refresh_ui')) {
     function refresh_ui($l) {
+        global $ctx;
+        $isWasm = ($ctx['transport'] ?? '') === 'WASM';
+        
         $trans = [
             'fr' => [
                 'title' => '📊 Dashboard de Démo',
                 'desc' => 'Bienvenue dans l\'écosystème NHTML. Explorez la réactivité binaire ultra-rapide.',
                 'stock_title' => '📦 Gestion des Stocks',
-                'messenger_title' => '💬 NHTML Messenger'
+                'messenger_title' => '💬 NHTML Messenger',
+                'wasm_notice' => '🚀 <b>Mode Zero-Server Actif</b> : Vos données sont persistées localement dans votre navigateur.'
             ],
             'en' => [
                 'title' => '📊 Demo Dashboard',
                 'desc' => 'Welcome to the NHTML ecosystem. Explore ultra-fast binary reactivity.',
                 'stock_title' => '📦 Inventory Management',
-                'messenger_title' => '💬 NHTML Messenger'
+                'messenger_title' => '💬 NHTML Messenger',
+                'wasm_notice' => '🚀 <b>Zero-Server Mode Active</b> : Your data is persisted locally in your browser.'
             ]
         ];
         $t = $trans[$l] ?? $trans['fr'];
         patch('page_title', 'set_text', $t['title']);
         patch('page_desc', 'set_text', $t['desc']);
+        
+        if ($isWasm) {
+            patch('wasm_notice_box', 'set_html', $t['wasm_notice']);
+            patch('wasm_notice_box', 'add_class', 'active');
+        }
     }
 }
 

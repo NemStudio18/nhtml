@@ -2,7 +2,7 @@ if (window.nhtml_initialized) {
     console.warn("🛰️ NHTML Bridge already initialized.");
 } else {
 window.nhtml_initialized = true;
-console.log("🛰️ NHTML v0.4.7 Bridge Loading...");
+console.log("🛰️ NHTML v0.4.8 Bridge Loading...");
 
 let socket = null;
 window.nhtml_transport_mode = "INIT";
@@ -611,62 +611,44 @@ async function switchToWasm() {
         window.nhtml_wasm_php = new window.PhpWeb({ persist: true });
         
         let wasmStdout = "";
-        window.nhtml_wasm_php.addEventListener('output', (event) => {
-            wasmStdout += Array.isArray(event.detail) ? event.detail[0] : event.detail;
-        });
-
-        window.nhtml_wasm_php.addEventListener('ready', () => {
-            console.log("🛰️ NHTML WASM VM Ready.");
-        });
-        
-        // Initialize Virtual Filesystem
+    try {
         const php = await window.nhtml_wasm_php.binary;
         
-        // Load the local app.php and the SDK
+        // Load the local app.php and the SDK with Cache Busting
         const basePath = window.location.pathname.replace(/\/[^\/]*$/, '/');
-        const appPath = basePath + 'app.php';
+        const cacheBust = "?v=" + Date.now();
         
-        // Try to fetch app.php
-        const resApp = await fetch(appPath);
+        const resApp = await fetch(basePath + 'app.php' + cacheBust);
         if (resApp.ok) {
             let code = await resApp.text();
-            // Robust regex patch to support different formatting of file_get_contents('php://stdin')
             code = code.replace(/file_get_contents\s*\(\s*['"]php:\/\/stdin['"]\s*\)/g, "($input ?? file_get_contents('php://stdin'))");
             php.FS.writeFile('/app.php', code);
-            console.log("🛰️ NHTML app.php patched for WASM input.");
+            console.log("🛰️ NHTML app.php hydrated fresh.");
         }
 
-        // Preload SDK files
         const sdkFiles = [
             '../../sdk/php/src/Nhtml.php',
-            '../../sdk/php/src/Patch.php'
+            '../../sdk/php/src/Protocol.php'
         ];
-        
-        for(const f of sdkFiles) {
-            try {
-                const res = await fetch(basePath + f);
-                if (res.ok) {
-                    const c = await res.text();
-                    // Create directory structure in WASM FS
-                    const parts = f.split('/');
-                    let cur = "";
-                    for(let i=0; i<parts.length -1; i++) {
-                        cur += (cur === "" ? "" : "/") + parts[i];
-                        try { php.FS.mkdir(cur); } catch(e){}
-                    }
-                    php.FS.writeFile("/" + f, c);
+        for (const f of sdkFiles) {
+            const res = await fetch(basePath + f + cacheBust);
+            if (res.ok) {
+                const sdkCode = await res.text();
+                const parts = f.split('/');
+                let current = '';
+                for (let i = 0; i < parts.length - 1; i++) {
+                    current += (current ? '/' : '') + parts[i];
+                    try { php.FS.mkdir(current); } catch(e){}
                 }
-            } catch (e) {
-                console.warn("🛰️ NHTML Preload fail:", f);
+                php.FS.writeFile(f, sdkCode);
             }
         }
 
-        // Trigger initial state hydration AFTER all files are ready
         console.log("🛰️ NHTML WASM Filesystem Ready. Hydrating...");
         wasmRunEvent(0, 'init', {});
-
+        
     } catch (e) {
-        console.error("🛰️ NHTML WASM initialization failed:", e);
+        console.error("🛰️ NHTML WASM Init Failed:", e);
     }
 }
 
@@ -764,7 +746,8 @@ async function wasmRunEvent(id_num, handler, formData) {
     // Prepare PHP context
     const eventPayload = JSON.stringify({
         handler: handler,
-        payload: JSON.stringify(formData)
+        payload: JSON.stringify(formData),
+        transport: window.nhtml_transport_mode
     });
     
     try {
