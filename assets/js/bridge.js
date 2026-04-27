@@ -645,20 +645,29 @@ function applyJsonPatch(ops) {
     console.log(`%c[WASM PATCH] %cApplying ${ops.length} operations`, 'color:#ff007f;font-weight:bold', 'color:#fff');
     
     ops.forEach(op => {
-        const nid = op.nid;
+        const nid = op.nid || op.id;
         const el = document.querySelector(`[n-id="${nid}"]`);
-        if (!el) return;
+        if (!el) {
+            console.warn(`🛰️ NHTML Patch: Node ${nid} not found for op ${op.op}`);
+            return;
+        }
         
+        console.log(`  [OP] ${op.op} on ${nid}`, op);
+
         switch (op.op) {
             case 'set_text':
                 if (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA') el.value = op.val;
                 else el.textContent = op.val;
                 break;
             case 'add_class': el.classList.add(op.val); break;
-            case 'del_class': el.classList.remove(op.val); break;
-            case 'set_attr': el.setAttribute(op.key, op.val); break;
-            case 'del_attr': el.removeAttribute(op.key); break;
-            case 'set_style': el.style[op.prop] = op.val; break;
+            case 'del_class': 
+            case 'remove_class': el.classList.remove(op.val); break;
+            case 'set_attr': el.setAttribute(op.key || op.name, op.val); break;
+            case 'del_attr': el.removeAttribute(op.key || op.name); break;
+            case 'set_style': 
+                const prop = op.prop || op.key;
+                el.style[prop] = op.val; 
+                break;
             case 'replace_inner': el.innerHTML = op.val; break;
             case 'append_html': el.insertAdjacentHTML('beforeend', op.val); break;
             case 'remove': el.remove(); break;
@@ -709,8 +718,7 @@ function sendEvent(id_num, handler, formData) {
     view.setUint16(pOff, jsonBytes.length); // PayloadLen
     buf.set(jsonBytes, pOff + 2); // Payload
     
-    if (Object.keys(formData).length > 0) console.dir(formData);
-    
+    console.log(`🛰️ NHTML Sending Event: ${handler} (Transport: ${transportMode})`);
     if (transportMode === "WASM") {
         wasmRunEvent(id_num, handler, formData);
     } else {
@@ -765,8 +773,11 @@ async function wasmRunEvent(id_num, handler, formData) {
         const jsonEnd = stdout.lastIndexOf('}');
         if (jsonStart !== -1 && jsonEnd !== -1) {
             const jsonStr = stdout.substring(jsonStart, jsonEnd + 1);
+            console.log("🛰️ NHTML WASM RAW:", jsonStr);
             const res = JSON.parse(jsonStr);
             applyJsonPatch(res.patch || res);
+        } else if (stdout.trim()) {
+            console.log("🛰️ NHTML WASM STDOUT (Non-JSON):", stdout);
         }
     } catch (e) {
         console.error("🛰️ NHTML WASM Execution error:", e);
@@ -774,14 +785,20 @@ async function wasmRunEvent(id_num, handler, formData) {
 }
 
 function processEvent(e, listenFlag, fallbackAttr) {
+    console.log(`🛰️ NHTML Event: ${e.type} on`, e.target, "Fallback:", fallbackAttr);
+    
     // Search for either n-id or the specific trigger attribute (e.g. n-click)
     const target = e.target.closest('[n-id]') || (Array.isArray(fallbackAttr) 
         ? (e.target.closest(`[${fallbackAttr[0]}]`) || e.target.closest(`[${fallbackAttr[1]}]`))
         : e.target.closest(`[${fallbackAttr}]`));
         
-    if (!target) return;
+    if (!target) {
+        console.log("  -> No NHTML target found.");
+        return;
+    }
     
     const nid = target.getAttribute('n-id');
+    console.log(`  -> Target Found: ${nid || 'no-id'}`, target);
     const id_num = window.nhtml_reverse_map[nid] || 0;
     const binding = window.nhtml_bindings && window.nhtml_bindings[id_num];
     
