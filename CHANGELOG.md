@@ -1,6 +1,6 @@
 # 📜 Changelog NHTML
 
-## v0.4.0 (April 2027) — "Industrial Launch"
+## v0.4.0 (April 2026) — "Industrial Launch"
 ### Added
 - **Multi-Platform Releases**: Automated builds for Windows, Linux, and macOS.
 - **Premium Showcase MVC**: A complete flagship application with real-time inventory and dashboard.
