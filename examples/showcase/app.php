@@ -29,59 +29,73 @@ if ($initCheck == 0) {
 /**
  * Helpers State
  */
-function get_db_val($key, $default = '') {
-    global $db;
-    $stmt = $db->prepare("SELECT val FROM state WHERE key = ?");
-    $stmt->execute([$key]);
-    $res = $stmt->fetchColumn();
-    return $res !== false ? $res : $default;
+if (!function_exists('get_db_val')) {
+    function get_db_val($key, $default = '') {
+        global $db;
+        $stmt = $db->prepare("SELECT val FROM state WHERE key = ?");
+        $stmt->execute([$key]);
+        $res = $stmt->fetchColumn();
+        return $res !== false ? $res : $default;
+    }
 }
 
-function set_db_val($key, $val) {
-    global $db;
-    $stmt = $db->prepare("INSERT OR REPLACE INTO state (key, val) VALUES (?, ?)");
-    $stmt->execute([$key, $val]);
+if (!function_exists('set_db_val')) {
+    function set_db_val($key, $val) {
+        global $db;
+        $stmt = $db->prepare("INSERT OR REPLACE INTO state (key, val) VALUES (?, ?)");
+        $stmt->execute([$key, $val]);
+    }
 }
 
-function get_stock($item) {
-    global $db;
-    $stmt = $db->prepare("SELECT stock FROM inventory WHERE item = ?");
-    $stmt->execute([$item]);
-    return (int)$stmt->fetchColumn();
+if (!function_exists('get_stock')) {
+    function get_stock($item) {
+        global $db;
+        $stmt = $db->prepare("SELECT stock FROM inventory WHERE item = ?");
+        $stmt->execute([$item]);
+        return (int)$stmt->fetchColumn();
+    }
 }
 
-function add_stock($item) {
-    global $db;
-    $stmt = $db->prepare("UPDATE inventory SET stock = stock + 1 WHERE item = ?");
-    $stmt->execute([$item]);
+if (!function_exists('add_stock')) {
+    function add_stock($item) {
+        global $db;
+        $stmt = $db->prepare("UPDATE inventory SET stock = stock + 1 WHERE item = ?");
+        $stmt->execute([$item]);
+    }
 }
 
 /**
  * Helpers Patch
  */
 $PATCHES = [];
-function patch($nid, $op, $val = '', $extra = []) {
-    global $PATCHES;
-    $p = ["nid" => $nid, "op" => $op, "val" => $val];
-    foreach($extra as $k => $v) $p[$k] = $v;
-    $PATCHES[] = $p;
+if (!function_exists('patch')) {
+    function patch($nid, $op, $val = '', $extra = []) {
+        global $PATCHES;
+        $p = ["nid" => $nid, "op" => $op, "val" => $val];
+        foreach($extra as $k => $v) $p[$k] = $v;
+        $PATCHES[] = $p;
+    }
 }
 
-function log_activity($msg) {
-    $time = date('H:i:s');
-    patch('log_stream', 'append_html', "<div class='log-entry'><span class='time'>$time</span> <span class='action'>$msg</span></div>");
+if (!function_exists('log_activity')) {
+    function log_activity($msg) {
+        $time = date('H:i:s');
+        patch('log_stream', 'append_html', "<div class='log-entry'><span class='time'>$time</span> <span class='action'>$msg</span></div>");
+    }
 }
 
-function switch_view($view) {
-    $views = ['dashboard', 'messenger', 'inventory', 'settings'];
-    foreach ($views as $v) {
-        $active = ($v === $view);
-        if ($active) {
-            patch("view_$v", 'add_class', 'active');
-            patch("nav_$v", 'add_class', 'active');
-        } else {
-            patch("view_$v", 'del_class', 'active');
-            patch("nav_$v", 'del_class', 'active');
+if (!function_exists('switch_view')) {
+    function switch_view($view) {
+        $views = ['dashboard', 'messenger', 'inventory', 'settings'];
+        foreach ($views as $v) {
+            $active = ($v === $view);
+            if ($active) {
+                patch("view_$v", 'add_class', 'active');
+                patch("nav_$v", 'add_class', 'active');
+            } else {
+                patch("view_$v", 'del_class', 'active');
+                patch("nav_$v", 'del_class', 'active');
+            }
         }
     }
 }
@@ -89,24 +103,26 @@ function switch_view($view) {
 // 3. Logique Applicative
 $lang = get_db_val('lang', 'fr');
 
-function refresh_ui($l) {
-    $trans = [
-        'fr' => [
-            'title' => '📊 Dashboard de Démo',
-            'desc' => 'Bienvenue dans l\'écosystème NHTML. Explorez la réactivité binaire ultra-rapide.',
-            'stock_title' => '📦 Gestion des Stocks',
-            'messenger_title' => '💬 NHTML Messenger'
-        ],
-        'en' => [
-            'title' => '📊 Demo Dashboard',
-            'desc' => 'Welcome to the NHTML ecosystem. Explore ultra-fast binary reactivity.',
-            'stock_title' => '📦 Inventory Management',
-            'messenger_title' => '💬 NHTML Messenger'
-        ]
-    ];
-    $t = $trans[$l] ?? $trans['fr'];
-    patch('page_title', 'set_text', $t['title']);
-    patch('page_desc', 'set_text', $t['desc']);
+if (!function_exists('refresh_ui')) {
+    function refresh_ui($l) {
+        $trans = [
+            'fr' => [
+                'title' => '📊 Dashboard de Démo',
+                'desc' => 'Bienvenue dans l\'écosystème NHTML. Explorez la réactivité binaire ultra-rapide.',
+                'stock_title' => '📦 Gestion des Stocks',
+                'messenger_title' => '💬 NHTML Messenger'
+            ],
+            'en' => [
+                'title' => '📊 Demo Dashboard',
+                'desc' => 'Welcome to the NHTML ecosystem. Explore ultra-fast binary reactivity.',
+                'stock_title' => '📦 Inventory Management',
+                'messenger_title' => '💬 NHTML Messenger'
+            ]
+        ];
+        $t = $trans[$l] ?? $trans['fr'];
+        patch('page_title', 'set_text', $t['title']);
+        patch('page_desc', 'set_text', $t['desc']);
+    }
 }
 
 if ($handler === 'init') {
