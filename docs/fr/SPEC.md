@@ -1,5 +1,5 @@
-# 🛰️ NHTML Protocol Specification (NBPS) v0.4.0
-**Source de Vérité Unique**
+# 🛰️ NHTML Protocol Specification (NBPS) v0.5.0
+**Édition Sécurité Industrielle**
 
 ## 1. Structure Universelle des Paquets
 Chaque paquet binaire commence par un **Header de 5 octets** :
@@ -9,12 +9,8 @@ Le champ `Length` représente la taille totale du payload (excluant le header).
 
 ---
 
-## 2. Table des Paquets (NBPS v0.4.0)
-
-| Code | Nom | Direction | Description |
-|:---|:---|:---|:---|
-| `0x01` | **HELLO** | Bidirectionnel | Handshake, Sync Session & Version. |
-| `0x02` | **EVENT** | Client -> Srv | Interaction utilisateur (Clic, Input). |
+| `0x01` | **HELLO** | Bidirectionnel | Handshake, Sync Session & Version. Inclut désormais un `Challenge` de 32 octets. |
+| `0x02` | **EVENT** | Client -> Srv | Interaction utilisateur. Inclut désormais `SequenceID` (4 octets) + `HMAC` (32 octets). |
 | `0x03` | **PATCH** | Srv -> Client | Instructions de mutation DOM atomiques. |
 | `0x04` | **BIND** | Srv -> Client | Enregistrement de Local Actions & Handlers. |
 | `0x05` | **SYNC** | Srv -> Client | Vérification d'intégrité (Checksum comparison). |
@@ -22,6 +18,20 @@ Le champ `Length` représente la taille totale du payload (excluant le header).
 | `0x09` | **PING/PONG** | Bidirectionnel | Keep-Alive & Heartbeat (0xFF = Force Reload). |
 | `0x10` | **LOG** | Srv -> Client | Relai des logs console backend. |
 | `0x7F` | **ERR** | Srv -> Client | Rapport d'erreur structuré binaire. |
+
+---
+
+## 2.5 Détail de la Sécurité (v0.5.0)
+
+### Format du Paquet EVENT (0x02)
+`[Type: 1b] [Length: 4b] [SeqID: 4b] [Signature: 32b] [HandlerLen: 1b] [Handler: ...] [PayloadLen: 2b] [Payload: ...]`
+
+*   **SeqID** : Entier incrémentiel. Le serveur rejette tout paquet `<= lastSeqID`.
+*   **Signature** : HMAC-SHA256 calculé sur `[Type + Length + SeqID + Handler + Payload]` en utilisant le `SessionSecret`.
+
+### Format du Handshake HELLO (0x01)
+`[Type: 1b] [Length: 4b] [SessionID: str16] [Version: u16] [SessionSecret: 32b]`
+*Le `SessionSecret` est généré par le Gateway et utilisé par le Bridge pour signer tous les événements futurs.*
 
 ---
 

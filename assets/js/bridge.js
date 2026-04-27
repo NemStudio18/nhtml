@@ -587,10 +587,10 @@ function connect(wsUrl, timeoutMs = 5000) {
     }
 }
 
-let nhtml_wasm_lock = false;
+let nhtml_wasm_init_started = false;
 async function switchToWasm() {
-    if (window.nhtml_transport_mode === "WASM" || nhtml_wasm_lock) return;
-    nhtml_wasm_lock = true;
+    if (window.nhtml_transport_mode === "WASM" || nhtml_wasm_init_started) return;
+    nhtml_wasm_init_started = true;
     
     window.nhtml_transport_mode = "WASM";
     console.log("🛰️ NHTML Switching to ZERO-SERVER (WASM) Mode...");
@@ -611,14 +611,22 @@ async function switchToWasm() {
         window.nhtml_wasm_php = new window.PhpWeb({ persist: true });
         const php = await window.nhtml_wasm_php.binary;
 
-        // --- NEW: PERSISTENCE LAYER ---
-        // Mount IDBFS to /persist
-        try { php.FS.mkdir('/persist'); } catch(e){}
-        php.FS.mount(php.FS.filesystems.IDBFS, {}, '/persist');
+        // --- SAFE PERSISTENCE LAYER ---
+        const MOUNT_POINT = '/persist';
         
-        // Sync FROM IndexedDB TO Memory
-        await new Promise(resolve => php.FS.syncfs(true, resolve));
-        console.log("🛰️ NHTML Persistence Layer Synced.");
+        // Check if already mounted (to avoid EBUSY)
+        let isMounted = false;
+        try {
+            const m = php.FS.analyzePath(MOUNT_POINT);
+            if (m.exists && m.object.mount) isMounted = true;
+        } catch(e) {}
+
+        if (!isMounted) {
+            try { php.FS.mkdir(MOUNT_POINT); } catch(e){}
+            php.FS.mount(php.FS.filesystems.IDBFS, {}, MOUNT_POINT);
+            await new Promise(resolve => php.FS.syncfs(true, resolve));
+            console.log("🛰️ NHTML Persistence Layer Mounted & Synced.");
+        }
         // ------------------------------
         
         const basePath = window.location.pathname.replace(/\/[^\/]*$/, '/');
