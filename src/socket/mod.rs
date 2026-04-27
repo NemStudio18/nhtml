@@ -38,26 +38,38 @@ pub struct Session {
     pub php_script: String,
     pub handler_table: HandlerTable,
     pub sm: Arc<SessionManager>,
+    pub fpm_addr: Option<String>,
 }
 
 impl Session {
-    fn new(id: String, result: &CompileResult, php_script: String, sm: Arc<SessionManager>) -> Self {
+    fn new(id: String, result: &CompileResult, php_script: String, sm: Arc<SessionManager>, fpm_addr: Option<String>) -> Self {
         let handler_table = build_from_tree(&result.root);
         Self { 
             state: SessionState::new(id), 
             php_script, 
             handler_table,
-            sm
+            sm,
+            fpm_addr
         }
     }
 }
 
 // ─── Point d'entrée ─────────────────────────────────────────────────────────
 
-pub async fn serve(port: u16, root: String, _entry: String, _php: String, sm: Arc<SessionManager>, tx_monitor: tokio::sync::broadcast::Sender<crate::MonitoringEvent>, tx_app_broadcast: tokio::sync::broadcast::Sender<Vec<u8>>) {
+pub async fn serve(
+    port: u16, 
+    root: String, 
+    _entry: String, 
+    php: String, 
+    fpm_addr: Option<String>,
+    sm: Arc<SessionManager>, 
+    tx_monitor: tokio::sync::broadcast::Sender<crate::MonitoringEvent>, 
+    tx_app_broadcast: tokio::sync::broadcast::Sender<Vec<u8>>
+) {
     let shared_state = Arc::new(GatewayState {
         root: root.clone(),
         sm: sm.clone(),
+        fpm_addr,
         tx_monitor,
         tx_app_broadcast,
     });
@@ -88,6 +100,7 @@ async fn handle_ws_route(
 struct GatewayState {
     root: String,
     sm: Arc<SessionManager>,
+    fpm_addr: Option<String>,
     tx_monitor: tokio::sync::broadcast::Sender<crate::MonitoringEvent>,
     tx_app_broadcast: tokio::sync::broadcast::Sender<Vec<u8>>,
 }
@@ -292,7 +305,7 @@ async fn handle_connection_axum(
     };
 
     let (mut ws_sender, mut ws_receiver) = socket.split();
-    let mut session = Session::new(session_id.clone(), &result, php_script, sm.clone());
+    let mut session = Session::new(session_id.clone(), &result, php_script, sm.clone(), state.fpm_addr.clone());
 
     // ── Séquence d'initialisation ──────────────────────────────────────────
 
@@ -314,13 +327,22 @@ async fn handle_connection_axum(
     }
 
     // ─── Hydratation initiale (Appel PHP Init) ───────────────────────────
-    let init_patches = call_php(
+    let init_patches_res = call_php(
         &session.php_script,
         &session.handler_table,
         0, 0, "init", &[], 
         &session_id, 0,
-        sm.clone()
+        sm.clone(),
+        &session.fpm_addr
     ).await;
+    
+    let init_patches = match init_patches_res {
+        Ok(p) => p,
+        Err(e) => {
+            error!("[{}] PHP Init Error: {}", session_id, e);
+            Vec::new()
+        }
+    };
     
     if !init_patches.is_empty() {
         let mut final_patches = Vec::new();
@@ -364,11 +386,25 @@ async fn handle_connection_axum(
     // ── Boucle de messages ─────────────────────────────────────────────────
     let mut app_rx = state.tx_app_broadcast.subscribe();
     loop {
-        tokio::select! {
-            Ok(bcast_data) = app_rx.recv() => {
-                // Relayer les paquets broadcast (0x03 PATCH, ou autres) envoyés par les autres sessions
-                if !bcast_data.is_empty() {
-                    ws_sender.send(WsMessage::Binary(bcast_data)).await.ok();
+            // ─── Écouteur de Broadcast Applicatif (Multi-utilisateur) ───────
+            Ok(msg) = app_rx.recv() => {
+                if msg.len() > 2 {
+                    let scope_type = msg[0];
+                    let sid_len = msg[1] as usize;
+                    if msg.len() >= 2 + sid_len {
+                        let sender_sid = String::from_utf8_lossy(&msg[2..2+sid_len]);
+                        let pkt = &msg[2+sid_len..];
+                        
+                        let should_send = match scope_type {
+                            0x01 => sender_sid != session_id, // others
+                            0x02 => true, // all
+                            _ => false
+                        };
+                        
+                        if should_send {
+                            let _ = ws_sender.send(WsMessage::Binary(pkt.to_vec())).await;
+                        }
+                    }
                 }
             }
             msg_opt = ws_receiver.next() => {
@@ -562,15 +598,27 @@ async fn handle_event(
 
     // Appeler PHP
     let start = std::time::Instant::now();
-    let patches = call_php(
+    let res = call_php(
         &session.php_script,
         &session.handler_table,
         node_id as u16,
         0, &handler, payload,
         &session.state.session_id,
         session.state.last_version,
-        session.sm.clone()
+        session.sm.clone(),
+        &session.fpm_addr
     ).await;
+
+    let (patches, broadcast_instr) = match res {
+        Ok(p) => p,
+        Err(e) => {
+            error!("[{}] PHP Error: {}", session.state.session_id, e);
+            // Envoyer un message d'erreur au client
+            let err_msg = format!("Internal Server Error: {}", e);
+            let err_pkt = proto::log_msg(3, &err_msg); // 3 = ERROR level
+            return Some(err_pkt);
+        }
+    };
 
     if !patches.is_empty() {
         let mut final_patches = Vec::new();
@@ -592,19 +640,28 @@ async fn handle_event(
             if is_broadcast { broadcast_patches.push(op.clone()); } else { final_patches.push(op); }
         }
 
-        if !broadcast_patches.is_empty() {
-            let patch_pkt = proto::patch(&broadcast_patches);
-            monitor_pkt(tx_monitor, "OUT", 0x03, patch_pkt.len(), &session.state.session_id, Some("BROADCAST".to_string()), Some("Shared State Sync".to_string()), None).await;
-            let _ = tx_app_broadcast.send(patch_pkt);
-        }
-
         if !final_patches.is_empty() {
             if let Some(max_ver) = final_patches.iter().map(|op| op.version).max() {
                 if max_ver > 0 { session.state.last_version = max_ver; }
             }
             let elapsed = start.elapsed().as_millis() as u64;
             let patch_pkt = proto::patch(&final_patches);
-            monitor_pkt(tx_monitor, "OUT", 0x03, patch_pkt.len(), &session.state.session_id, Some(handler), Some(format!("{} mutations", final_patches.len())), Some(elapsed)).await;
+            monitor_pkt(tx_monitor, "OUT", proto::PKT_PATCH, patch_pkt.len(), &session.state.session_id, Some(handler.clone()), Some(format!("Applied {} patches", final_patches.len())), Some(elapsed)).await;
+            
+            // --- Traitement du Broadcast v0.6.0 (SDK-driven) ---
+            if let Some(bc) = broadcast_instr {
+                info!("[{}] BROADCAST via PHP (scope: {})", session.state.session_id, bc.scope);
+                let bc_pkt = proto::patch(&bc.patches);
+                
+                let mut msg = Vec::new();
+                msg.push(if bc.scope == "all" { 0x02 } else { 0x01 });
+                msg.push(session.state.session_id.len() as u8);
+                msg.extend_from_slice(session.state.session_id.as_bytes());
+                msg.extend_from_slice(&bc_pkt);
+                
+                let _ = tx_app_broadcast.send(msg);
+            }
+
             return Some(patch_pkt);
         }
     }
@@ -648,15 +705,15 @@ async fn call_php(
     session_id    : &str,
     last_version  : u32,
     sm            : Arc<SessionManager>,
-) -> Vec<(proto::PatchOp, bool)>
+    fpm_addr      : &Option<String>,
+) -> crate::core::Result<(Vec<(proto::PatchOp, bool)>, Option<proto::BroadcastInstruction>)>
 {
-    use std::process::Stdio;
-    use tokio::process::Command;
-    use tokio::io::AsyncWriteExt;
     use serde_json::json;
 
     // Récupérer tous les nœuds actuels pour cette session
-    let db_nodes = sm.get_all_nodes(session_id.to_string()).await.unwrap_or_default();
+    let db_nodes = sm.get_all_nodes(session_id.to_string()).await
+        .map_err(|e| crate::core::GatewayError::DatabaseError(e.to_string()))?;
+        
     let mut nodes_map = serde_json::Map::new();
     for (_id, ver, tag, val, is_append) in db_nodes {
         nodes_map.insert(tag.clone(), json!({
@@ -671,7 +728,7 @@ async fn call_php(
         .and_then(|e| e.n_id.clone())
         .unwrap_or_else(|| source_id.to_string());
 
-    // Construire le contexte JSON transmis au PHP via stdin
+    // Construire le contexte JSON
     let context = json!({
         "handler": handler,
         "source_id": n_id,
@@ -683,12 +740,24 @@ async fn call_php(
         "nodes": nodes_map, 
     });
 
+    if let Some(ref addr) = fpm_addr {
+        call_php_fpm(addr, php_script, &context, handler_table).await
+    } else {
+        call_php_process(php_script, &context, handler_table).await
+    }
+}
+
+async fn call_php_process(
+    php_script: &str,
+    context: &serde_json::Value,
+    handler_table: &HandlerTable,
+) -> crate::core::Result<(Vec<(proto::PatchOp, bool)>, Option<proto::BroadcastInstruction>)> {
+    use std::process::Stdio;
+    use tokio::process::Command;
+    use tokio::io::AsyncWriteExt;
+
     let input = context.to_string();
-
-    info!("[{}] Appel PHP: {} | Handler: {} | NodeID: {}", 
-        session_id, php_script, handler, source_id);
-
-    // php -f script.php — lit le contexte sur stdin, retourne JSON sur stdout
+    
     let mut child = Command::new("php")
         .arg("-f")
         .arg(php_script)
@@ -696,31 +765,60 @@ async fn call_php(
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .spawn()
-        .map_err(|e| {
-            error!("Impossible de lancer PHP: {}", e);
-            e
-        })
-        .expect("Échec du lancement de PHP");
+        .map_err(|e| crate::core::GatewayError::PhpNotFound(e.to_string()))?;
 
     if let Some(mut stdin) = child.stdin.take() {
         let _ = stdin.write_all(input.as_bytes()).await;
     }
 
-    let output = child.wait_with_output().await;
+    let output = child.wait_with_output().await
+        .map_err(|e| crate::core::GatewayError::PhpExecutionError(e.to_string()))?;
 
-    match output {
-        Ok(out) if out.status.success() => {
-            parse_php_response(&out.stdout, handler_table)
-        }
-        Ok(out) => {
-            let stderr = String::from_utf8_lossy(&out.stderr);
-            error!("[NHTML] PHP erreur (exit {}): {}", out.status.code().unwrap_or(-1), stderr);
-            vec![]
-        }
-        Err(e) => {
-            error!("Erreur exécution PHP: {}", e);
-            vec![]
-        }
+    if output.status.success() {
+        Ok(parse_php_response(&output.stdout, handler_table))
+    } else {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        Err(crate::core::GatewayError::PhpExecutionError(stderr.to_string()))
+    }
+}
+
+async fn call_php_fpm(
+    addr: &str,
+    php_script: &str,
+    context: &serde_json::Value,
+    handler_table: &HandlerTable,
+) -> crate::core::Result<(Vec<(proto::PatchOp, bool)>, Option<proto::BroadcastInstruction>)> {
+    use fastcgi_client::{Client, Params};
+    use std::io::{Cursor, Read};
+    use std::net::TcpStream;
+
+    let addr_own = addr.to_string();
+    let script_own = php_script.to_string();
+    let input = context.to_string();
+
+    let result = tokio::task::spawn_blocking(move || {
+        // Support simple TCP pour l'instant (127.0.0.1:9000)
+        let stream = TcpStream::connect(&addr_own).map_err(|e| e.to_string())?;
+        let mut client = Client::new(stream, false);
+
+        let mut params = Params::default();
+        params.insert("SCRIPT_FILENAME".into(), script_own.into());
+        params.insert("REQUEST_METHOD".into(), "POST".into());
+        params.insert("CONTENT_TYPE".into(), "application/json".into());
+        params.insert("CONTENT_LENGTH".into(), input.len().to_string().into());
+
+        let mut body = Cursor::new(input);
+        let output = client.execute(params, &mut body).map_err(|e| e.to_string())?;
+
+        let mut stdout = Vec::new();
+        output.get_stdout().read_to_end(&mut stdout).map_err(|e| e.to_string())?;
+        
+        Ok::<Vec<u8>, String>(stdout)
+    }).await.map_err(|e| crate::core::GatewayError::FastCgiError(e.to_string()))?;
+
+    match result {
+        Ok(stdout) => Ok(parse_php_response(&stdout, handler_table)),
+        Err(e) => Err(crate::core::GatewayError::FastCgiError(e))
     }
 }
 
@@ -729,7 +827,7 @@ async fn call_php(
 fn parse_php_response(
     stdout        : &[u8],
     handler_table : &HandlerTable,
-) -> Vec<(proto::PatchOp, bool)>
+) -> (Vec<(proto::PatchOp, bool)>, Option<proto::BroadcastInstruction>)
 {
     // Nettoyage éventuel du stdout (PHP peut afficher des warnings avant le JSON)
     let json_str = std::str::from_utf8(stdout).unwrap_or("");
@@ -759,78 +857,103 @@ fn parse_php_response(
         json.get("patch").and_then(|v| v.as_array())
     };
 
+    let mut broadcast = None;
+    if !json.is_array() {
+        if let Some(bc) = json.get("broadcast") {
+            let scope = bc["scope"].as_str().unwrap_or("others").to_string();
+            let mut bc_ops = Vec::new();
+            if let Some(patches) = bc["patch"].as_array() {
+                for op in patches {
+                    if let Some(p) = parse_single_op(op, handler_table) {
+                        bc_ops.push(p);
+                    }
+                }
+            }
+            if !bc_ops.is_empty() {
+                broadcast = Some(proto::BroadcastInstruction { scope, patches: bc_ops });
+            }
+        }
+    }
+
     let mut patch_ops = Vec::new();
     let Some(ops) = ops_array else { return vec![]; };
 
     for op in ops {
-        let op_type = op["op"].as_str().unwrap_or("");
         let is_broadcast = op["broadcast"].as_bool().unwrap_or(false);
-
-        // Résoudre le n-id métier en node_id binaire
-        let node_id = op["nid"].as_str()
-            .and_then(|nid| handler_table.resolve_nid(nid))
-            .or_else(|| op["node_id"].as_u64().map(|n| n as u16))
-            .unwrap_or(0);
-
-        if node_id == 0 {
-            warn!("PatchOp sans node_id résolvable: {:?}", op);
-            continue;
+        if let Some(patch) = parse_single_op(op, handler_table) {
+            patch_ops.push((patch, is_broadcast));
         }
-
-        let patch = match op_type {
-            "set_text" => {
-                let val = op["val"].as_str().unwrap_or("");
-                proto::PatchOp::set_text(node_id, 0, val)
-            }
-            "add_class" => {
-                let val = op["val"].as_str().unwrap_or("");
-                proto::PatchOp::add_class(node_id, 0, val)
-            }
-            "del_class" => {
-                let val = op["val"].as_str().unwrap_or("");
-                proto::PatchOp::del_class(node_id, 0, val)
-            }
-            "set_attr" => {
-                let key = op["key"].as_str().unwrap_or("");
-                let val = op["val"].as_str().unwrap_or("");
-                proto::PatchOp::set_attr(node_id, 0, key, val)
-            }
-            "del_attr" => {
-                let key = op["key"].as_str().unwrap_or("");
-                proto::PatchOp::del_attr(node_id, 0, key)
-            }
-            "set_style" => {
-                let prop = op["prop"].as_str().unwrap_or("");
-                let val  = op["val"].as_str().unwrap_or("");
-                proto::PatchOp::set_style(node_id, 0, prop, val)
-            }
-            "set_html" | "replace_inner" => {
-                let val = op["val"].as_str().unwrap_or("");
-                proto::PatchOp::replace_inner(node_id, 0, val)
-            }
-            "append_html" => {
-                let val = op["val"].as_str().unwrap_or("");
-                proto::PatchOp::append_html(node_id, 0, val)
-            }
-            "insert_before" => {
-                let val = op["val"].as_str().unwrap_or("");
-                proto::PatchOp::insert_before(node_id, 0, val)
-            }
-            "insert_after" => {
-                let val = op["val"].as_str().unwrap_or("");
-                proto::PatchOp::insert_after(node_id, 0, val)
-            }
-            "remove" => proto::PatchOp::remove(node_id, 0),
-            "focus"  => proto::PatchOp::focus(node_id, 0),
-            "scroll_to" => proto::PatchOp::scroll_to(node_id, 0),
-            _ => {
-                warn!("PatchOp inconnue: {}", op_type);
-                continue;
-            }
-        };
-
-        patch_ops.push((patch, is_broadcast));
     }
 
-    patch_ops
+    (patch_ops, broadcast)
+}
+
+fn parse_single_op(op: &serde_json::Value, handler_table: &HandlerTable) -> Option<proto::PatchOp> {
+    let op_type = op["op"].as_str().unwrap_or("");
+    
+    // Résoudre le n-id métier en node_id binaire
+    let node_id = op["nid"].as_str()
+        .and_then(|nid| handler_table.resolve_nid(nid))
+        .or_else(|| op["node_id"].as_u64().map(|n| n as u16))
+        .unwrap_or(0);
+
+    if node_id == 0 {
+        warn!("PatchOp sans node_id résolvable: {:?}", op);
+        return None;
+    }
+
+    let patch = match op_type {
+        "set_text" => {
+            let val = op["val"].as_str().unwrap_or("");
+            proto::PatchOp::set_text(node_id, 0, val)
+        }
+        "add_class" => {
+            let val = op["val"].as_str().unwrap_or("");
+            proto::PatchOp::add_class(node_id, 0, val)
+        }
+        "del_class" => {
+            let val = op["val"].as_str().unwrap_or("");
+            proto::PatchOp::del_class(node_id, 0, val)
+        }
+        "set_attr" => {
+            let key = op["key"].as_str().unwrap_or("");
+            let val = op["val"].as_str().unwrap_or("");
+            proto::PatchOp::set_attr(node_id, 0, key, val)
+        }
+        "del_attr" => {
+            let key = op["key"].as_str().unwrap_or("");
+            proto::PatchOp::del_attr(node_id, 0, key)
+        }
+        "set_style" => {
+            let prop = op["prop"].as_str().unwrap_or("");
+            let val  = op["val"].as_str().unwrap_or("");
+            proto::PatchOp::set_style(node_id, 0, prop, val)
+        }
+        "set_html" | "replace_inner" => {
+            let val = op["val"].as_str().unwrap_or("");
+            proto::PatchOp::replace_inner(node_id, 0, val)
+        }
+        "append_html" => {
+            let val = op["val"].as_str().unwrap_or("");
+            proto::PatchOp::append_html(node_id, 0, val)
+        }
+        "insert_before" => {
+            let val = op["val"].as_str().unwrap_or("");
+            proto::PatchOp::insert_before(node_id, 0, val)
+        }
+        "insert_after" => {
+            let val = op["val"].as_str().unwrap_or("");
+            proto::PatchOp::insert_after(node_id, 0, val)
+        }
+        "remove" => proto::PatchOp::remove(node_id, 0),
+        "focus"  => proto::PatchOp::focus(node_id, 0),
+        "scroll_to" => proto::PatchOp::scroll_to(node_id, 0),
+        _ => {
+            warn!("PatchOp inconnue: {}", op_type);
+            return None;
+        }
+    };
+
+    Some(patch)
+}
 }

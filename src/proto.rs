@@ -366,3 +366,10 @@ pub fn log_msg(severity: u8, message: &str) -> Vec<u8> {
     push_str16(&mut payload, message);
     wrap_packet(PKT_LOG, payload)
 }
+
+/// Instruction de diffusion multi-utilisateur (v0.6.0)
+#[derive(Debug, Clone)]
+pub struct BroadcastInstruction {
+    pub scope: String, // "all", "others", "group:X"
+    pub patches: Vec<PatchOp>,
+}

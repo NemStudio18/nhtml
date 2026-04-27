@@ -4,6 +4,7 @@ use std::fs;
 #[derive(Debug, Deserialize, Default)]
 pub struct NhtmlConfig {
     pub ports: Option<PortsConfig>,
+    pub fpm: Option<String>,
     #[allow(dead_code)]
     pub dev: Option<DevConfig>,
 }

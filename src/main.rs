@@ -47,6 +47,10 @@ enum Commands {
         /// Script PHP (default: app.php)
         #[arg(short = 's', long, default_value = "app.php")]
         php: String,
+
+        /// Adresse PHP-FPM (ex: 127.0.0.1:9000 ou unix:/var/run/php-fpm.sock)
+        #[arg(long)]
+        fpm: Option<String>,
     },
     /// Inspecte un paquet binaire NBPS (hex)
     Inspect { hex: String },
@@ -97,10 +101,16 @@ async fn main() {
         Commands::New { name } => {
             cli::create_new_project(&name);
         }
-        Commands::Start { dev: _, port, path, entry, php } => {
+        Commands::Start { dev: _, port, path, entry, php, fpm } => {
             println!("🛰️ NHTML Gateway v0.4.0");
             println!("📂 Projet : {}", path);
             println!("🌐 Port   : {}", port);
+
+            // Priorité : Argument CLI > Fichier Config
+            let fpm_addr = fpm.or(config.fpm);
+            if let Some(ref addr) = fpm_addr {
+                println!("🚀 Mode Performance : PHP-FPM via {}", addr);
+            }
             
             // Lancement du superviseur PHP
             let php_port = config.ports.as_ref().and_then(|p| p.php).unwrap_or(8000);
@@ -119,7 +129,7 @@ async fn main() {
 
             info!("🚀 NHTML Gateway starting...");
             let sm = crate::session::SessionManager::new().await.expect("Impossible d'init le SessionManager");
-            socket::serve(port, path, entry, php, std::sync::Arc::new(sm), tx_monitor, tx_app_broadcast).await;
+            socket::serve(port, path, entry, php, fpm_addr, std::sync::Arc::new(sm), tx_monitor, tx_app_broadcast).await;
         }
         Commands::Devtools => {
             let devtools_port = config.ports.as_ref().and_then(|p| p.devtools).unwrap_or(8081);
