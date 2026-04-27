@@ -586,7 +586,7 @@ async function switchToWasm() {
         });
         
         // Initialize Virtual Filesystem
-        await window.nhtml_wasm_php.binary;
+        const php = await window.nhtml_wasm_php.binary;
         
         // Load the local app.php and the SDK
         const basePath = window.location.pathname.replace(/\/[^\/]*$/, '/');
@@ -596,29 +596,31 @@ async function switchToWasm() {
         const resApp = await fetch(appPath);
         if (resApp.ok) {
             const code = await resApp.text();
-            window.nhtml_wasm_php.writeFile('/app.php', code);
+            php.FS.writeFile('/app.php', code);
         }
 
-        // We also need to mock the SDK paths or provide them
-        // For simplicity in the demo, we assume app.php includes the SDK relatively.
-        // On GitHub Pages, we might need to preload the SDK files into the WASM FS.
+        // Preload SDK files
         const sdkFiles = [
             '../../sdk/php/src/Nhtml.php',
             '../../sdk/php/src/Patch.php'
         ];
         
         for(const f of sdkFiles) {
-            const res = await fetch(basePath + f);
-            if (res.ok) {
-                const c = await res.text();
-                // Create directory structure
-                const parts = f.split('/');
-                let cur = "";
-                for(let i=0; i<parts.length -1; i++) {
-                    cur += "/" + parts[i];
-                    try { window.nhtml_wasm_php.mkdir(cur); } catch(e){}
+            try {
+                const res = await fetch(basePath + f);
+                if (res.ok) {
+                    const c = await res.text();
+                    // Create directory structure in WASM FS
+                    const parts = f.split('/');
+                    let cur = "";
+                    for(let i=0; i<parts.length -1; i++) {
+                        cur += (cur === "" ? "" : "/") + parts[i];
+                        try { php.FS.mkdir(cur); } catch(e){}
+                    }
+                    php.FS.writeFile("/" + f, c);
                 }
-                window.nhtml_wasm_php.writeFile("/" + f, c);
+            } catch (e) {
+                console.warn("🛰️ NHTML Preload fail:", f);
             }
         }
 
