@@ -829,7 +829,7 @@ function processEvent(e, listenFlag, fallbackAttr) {
                 formData[el.getAttribute('n-id')] = el.value;
             }
         });
-    } else {
+    } else if (nid) {
         formData[nid] = target.value;
         if (e.type === 'keydown') formData.event_key = e.key;
     }
