@@ -558,7 +558,7 @@ async function switchToWasm() {
     if (hudMode) hudMode.innerText = "(WASM)";
 
     // Update Showcase UI if present
-    const statusBadge = document.querySelector('.status-badge');
+    const statusBadge = document.getElementById('nhtml-status-badge');
     if (statusBadge) {
         statusBadge.innerHTML = '<div style="width: 8px; height: 8px; background: #38bdf8; border-radius: 50%; box-shadow: 0 0 10px #38bdf8;"></div> WASM Mode (Local)';
     }
@@ -581,13 +581,6 @@ async function switchToWasm() {
         window.nhtml_wasm_php.addEventListener('ready', async () => {
             console.log("🛰️ NHTML WASM VM Ready.");
             
-            // Sync filesystem from IndexedDB
-            const phpInstance = await window.nhtml_wasm_php.binary;
-            if (phpInstance.persist) {
-                await new Promise(r => phpInstance.FS.syncfs(true, r));
-                console.log("🛰️ NHTML WASM Persistent FS Synced.");
-            }
-
             // Trigger initial state hydration
             wasmRunEvent(0, 'init', {});
         });
@@ -757,14 +750,6 @@ async function wasmRunEvent(id_num, handler, formData) {
             const jsonStr = stdout.substring(jsonStart, jsonEnd + 1);
             const res = JSON.parse(jsonStr);
             applyJsonPatch(res.patch || res);
-
-            // Sync back to IDBFS for persistence
-            const phpInstance = await window.nhtml_wasm_php.binary;
-            if (phpInstance.persist) {
-                phpInstance.FS.syncfs(false, (err) => {
-                    if (err) console.warn("🛰️ NHTML Sync error:", err);
-                });
-            }
         }
     } catch (e) {
         console.error("🛰️ NHTML WASM Execution error:", e);
