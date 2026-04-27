@@ -20,6 +20,16 @@ use crate::compiler::handler_table::{HandlerTable, build_from_tree};
 use crate::proto;
 use crate::core::SessionState;
 use crate::session::SessionManager;
+use hmac::{Hmac, Mac};
+use sha2::Sha256;
+
+type HmacSha256 = Hmac<Sha256>;
+
+fn verify_hmac(secret: &[u8], data: &[u8], signature: &[u8]) -> bool {
+    let mut mac = HmacSha256::new_from_slice(secret).expect("HMAC can take key of any size");
+    mac.update(data);
+    mac.verify_slice(signature).is_ok()
+}
 
 // ─── État de session ────────────────────────────────────────────────────────
 
@@ -239,9 +249,13 @@ async fn handle_connection_axum(
         requested_sid
     };
 
-    if let Err(e) = sm.register_session(session_id.clone(), requested_path.clone()).await {
-        warn!("[{}] Impossible d'enregistrer la session en DB : {}", session_id, e);
-    }
+    let secret = match sm.register_session(session_id.clone(), requested_path.clone()).await {
+        Ok(s) => s,
+        Err(e) => {
+            error!("[{}] Impossible d'enregistrer la session en DB : {}", session_id, e);
+            return;
+        }
+    };
 
     // Charger les états depuis SQLite si existants
     let mut append_patches = Vec::new();
@@ -279,7 +293,7 @@ async fn handle_connection_axum(
     // ── Séquence d'initialisation ──────────────────────────────────────────
 
     // 1. HELLO
-    let hello = proto::hello(&session_id, 5000);
+    let hello = proto::hello(&session_id, &secret);
     ws_sender.send(WsMessage::Binary(hello)).await.ok();
 
     // 2. B-TREE
@@ -370,7 +384,9 @@ async fn handle_connection_axum(
 
                         if type_byte == 0x02 { // EVENT
                             monitor_pkt(&state.tx_monitor, "IN", 0x02, data.len(), &session_id, None, Some(format!("Raw Event Data ({} bytes)", data.len())), None).await;
-                            handle_event(&data, &mut session, &mut ws_sender, &state.tx_app_broadcast, &state.tx_monitor).await;
+                            if let Some(patch_pkt) = handle_event(&data, &mut session, &state.tx_app_broadcast, &state.tx_monitor).await {
+                                ws_sender.send(WsMessage::Binary(patch_pkt)).await.ok();
+                            }
                         } else if type_byte == 0x01 { // HELLO (Client → Server)
                             info!("[{}] HELLO reçu du client", session_id);
                             monitor_pkt(&state.tx_monitor, "IN", 0x01, data.len(), &session_id, None, Some("Session Handshake".to_string()), None).await;
@@ -475,47 +491,59 @@ async fn handle_connection_axum(
 async fn handle_event(
     data       : &[u8],
     session    : &mut Session,
-    ws_sender  : &mut (impl SinkExt<WsMessage, Error = axum::Error> + Unpin),
     tx_app_broadcast: &tokio::sync::broadcast::Sender<Vec<u8>>,
     tx_monitor: &tokio::sync::broadcast::Sender<crate::MonitoringEvent>
-)
+) -> Option<Vec<u8>>
 {
-    // Parser le paquet EVENT envoyé par bridge.js (v0.4.0)
-    // Format: [0x02][4B TotalLen][4B node_id][1B handler_len][handler_bytes][2B payload_len][payload]
-    if data.len() < 12 { return; }
-
-    let node_id = u32::from_be_bytes([data[5], data[6], data[7], data[8]]);
-    let handler_len = data[9] as usize;
-    
-    if data.len() < 12 + handler_len { return; }
-    let handler_bytes = &data[10..10 + handler_len];
-    let handler_from_pkt = String::from_utf8_lossy(handler_bytes).to_string();
-
-    let payload_offset = 10 + handler_len;
-    let payload_len = u16::from_be_bytes([data[payload_offset], data[payload_offset+1]]) as usize;
-    
-    let payload = if data.len() >= payload_offset + 2 + payload_len {
-        &data[payload_offset + 2 .. payload_offset + 2 + payload_len]
-    } else {
-        &data[payload_offset + 2 ..]
+    // 1. Décodage v0.5.0 (Sécurité Industrielle)
+    let decoded = crate::decoder::decode(data);
+    let (seq_id, signature, node_id, handler_name, payload_str) = match decoded {
+        crate::decoder::DecodedMessage::Event { seq_id, signature, node_id, handler, payload } => {
+            (seq_id, signature, node_id, handler, payload)
+        }
+        _ => {
+            warn!("[{}] Paquet EVENT invalide ou mal formé", session.state.session_id);
+            return None;
+        }
     };
 
-    // Si le paquet contient un handler, on l'utilise, sinon on cherche dans la table
-    let handler = if !handler_from_pkt.is_empty() {
-        handler_from_pkt
+    // 2. Vérification de la Séquence (Anti-Replay)
+    if let Ok(Some((secret, last_seq))) = session.sm.get_session_security(session.state.session_id.clone()).await {
+        if seq_id <= last_seq {
+            warn!("[{}] REJET: Attaque par rejeu détectée (SeqID {} <= {})", session.state.session_id, seq_id, last_seq);
+            return None;
+        }
+
+        // 3. Vérification HMAC (Authenticité)
+        let mut sign_data = Vec::new();
+        sign_data.push(0x02); // Type
+        let total_len = u32::from_be_bytes([data[1], data[2], data[3], data[4]]);
+        sign_data.extend_from_slice(&total_len.to_be_bytes());
+        sign_data.extend_from_slice(&seq_id.to_be_bytes());
+        if data.len() >= 41 { sign_data.extend_from_slice(&data[41..]); }
+
+        if !verify_hmac(&secret, &sign_data, &signature) {
+            error!("[{}] REJET: Signature HMAC invalide !", session.state.session_id);
+            return None;
+        }
+        let _ = session.sm.update_seq_id(session.state.session_id.clone(), seq_id).await;
+    }
+
+    let handler = if !handler_name.is_empty() {
+        handler_name
     } else {
         session.handler_table.by_id.get(&(node_id as u16))
             .and_then(|e| e.handler.clone())
             .unwrap_or_else(|| "".to_string())
     };
 
-    info!("[{}] EVENT node={} handler='{}' payload_len={}", 
-        session.state.session_id, node_id, handler, payload_len);
+    let payload = payload_str.as_bytes();
+    info!("[{}] EVENT validé (Seq:{}) node={} handler='{}'", 
+        session.state.session_id, seq_id, node_id, handler);
 
-    // Monitor INCOMING EVENT
-    monitor_pkt(tx_monitor, "IN", proto::PKT_EVENT, data.len(), &session.state.session_id, Some(handler.clone()), Some(format!("Payload: {} bytes", payload_len)), None).await;
+    monitor_pkt(tx_monitor, "IN", proto::PKT_EVENT, data.len(), &session.state.session_id, Some(handler.clone()), Some(format!("Payload: {} bytes", payload.len())), None).await;
 
-    // --- Mise à jour AUTO de l'état local depuis le payload (Industrial Sync) ---
+    // --- Mise à jour AUTO de l'état local depuis le payload ---
     if let Ok(json_payload) = serde_json::from_slice::<serde_json::Value>(payload) {
         if let Some(obj) = json_payload.as_object() {
             for (nid, val) in obj {
@@ -528,40 +556,28 @@ async fn handle_event(
         }
     }
 
-    // Appeler PHP avec le contexte complet
+    // Appeler PHP
     let start = std::time::Instant::now();
     let patches = call_php(
         &session.php_script,
         &session.handler_table,
         node_id as u16,
-        0, // event_type
-        &handler,
-        payload,
+        0, &handler, payload,
         &session.state.session_id,
         session.state.last_version,
         session.sm.clone()
     ).await;
 
-    // Envoyer les PATCH résultants
     if !patches.is_empty() {
         let mut final_patches = Vec::new();
         let mut broadcast_patches = Vec::new();
-        // Persister les changements en DB et mettre à jour les versions
         for (mut op, is_broadcast) in patches {
-            let nid = session.handler_table.by_id.get(&(op.target_id))
-                .and_then(|e| e.n_id.clone())
-                .unwrap_or_else(|| "".to_string());
-            
+            let nid = session.handler_table.by_id.get(&(op.target_id)).and_then(|e| e.n_id.clone()).unwrap_or_default();
             if !nid.is_empty() {
-                // On ne persiste que le CONTENU du nœud (SET_TEXT, REPLACE_INNER, APPEND_HTML)
-                // Persister les styles ou attributs ici corromprait la valeur principale du nœud.
                 let val = match op.op_type {
-                    0x01 | 0x0A | 0x0B => {
-                        if op.data.len() >= 2 { Some(String::from_utf8_lossy(&op.data[2..]).to_string()) } else { None }
-                    }
+                    0x01 | 0x0A | 0x0B => { if op.data.len() >= 2 { Some(String::from_utf8_lossy(&op.data[2..]).to_string()) } else { None } }
                     _ => None
                 };
-                
                 if let Some(v) = val {
                     let is_append = op.op_type == 0x0B;
                     if let Ok(new_ver) = session.sm.update_node(session.state.session_id.clone(), op.target_id as u32, nid, v, is_append).await {
@@ -569,11 +585,7 @@ async fn handle_event(
                     }
                 }
             }
-            if is_broadcast {
-                broadcast_patches.push(op.clone());
-            } else {
-                final_patches.push(op);
-            }
+            if is_broadcast { broadcast_patches.push(op.clone()); } else { final_patches.push(op); }
         }
 
         if !broadcast_patches.is_empty() {
@@ -583,19 +595,16 @@ async fn handle_event(
         }
 
         if !final_patches.is_empty() {
-            // Mettre à jour last_version avec la version max des patches envoyés
             if let Some(max_ver) = final_patches.iter().map(|op| op.version).max() {
-                if max_ver > 0 {
-                    session.state.last_version = max_ver;
-                }
+                if max_ver > 0 { session.state.last_version = max_ver; }
             }
             let elapsed = start.elapsed().as_millis() as u64;
             let patch_pkt = proto::patch(&final_patches);
-            let summary = format!("{} mutation(s)", final_patches.len());
-            monitor_pkt(tx_monitor, "OUT", 0x03, patch_pkt.len(), &session.state.session_id, Some(handler), Some(summary), Some(elapsed)).await;
-            ws_sender.send(WsMessage::Binary(patch_pkt)).await.ok();
+            monitor_pkt(tx_monitor, "OUT", 0x03, patch_pkt.len(), &session.state.session_id, Some(handler), Some(format!("{} mutations", final_patches.len())), Some(elapsed)).await;
+            return Some(patch_pkt);
         }
     }
+    None
 }
 
 async fn monitor_pkt(

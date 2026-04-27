@@ -34,6 +34,16 @@ impl SessionManager {
                 [],
             )?;
 
+            // Table de sécurité pour HMAC et Sequence IDs
+            conn.execute(
+                "CREATE TABLE IF NOT EXISTS session_security (
+                    session_id TEXT PRIMARY KEY,
+                    secret BLOB,
+                    last_seq INTEGER DEFAULT 0
+                )",
+                [],
+            )?;
+
             // Migration simple : on tente d'ajouter la colonne, on ignore si elle existe déjà
             let _ = conn.execute("ALTER TABLE nodes ADD COLUMN is_append INTEGER DEFAULT 0", []);
 
@@ -67,15 +77,56 @@ impl SessionManager {
     }
 
 
-    pub async fn register_session(&self, session_id: String, app_path: String) -> tokio_rusqlite::Result<()> {
+    pub async fn register_session(&self, session_id: String, app_path: String) -> tokio_rusqlite::Result<Vec<u8>> {
+        let sid_clone = session_id.clone();
         self.conn.call(move |conn| {
             conn.execute(
                 "INSERT OR REPLACE INTO sessions (session_id, app_path) VALUES (?1, ?2)",
                 rusqlite::params![session_id, app_path],
             )?;
+
+            // Générer un secret si inexistant
+            let secret: Vec<u8> = conn.query_row(
+                "SELECT secret FROM session_security WHERE session_id = ?1",
+                [session_id.clone()],
+                |row| row.get(0),
+            ).unwrap_or_else(|_| {
+                let mut s = vec![0u8; 32];
+                getrandom::getrandom(&mut s).ok();
+                conn.execute(
+                    "INSERT INTO session_security (session_id, secret, last_seq) VALUES (?1, ?2, 0)",
+                    rusqlite::params![session_id, s],
+                ).ok();
+                s
+            });
+
+            Ok(secret)
+        }).await
+    }
+
+    pub async fn get_session_security(&self, session_id: String) -> tokio_rusqlite::Result<Option<(Vec<u8>, u32)>> {
+        self.conn.call(move |conn| {
+            let res = conn.query_row(
+                "SELECT secret, last_seq FROM session_security WHERE session_id = ?1",
+                [session_id],
+                |row| Ok((row.get::<_, Vec<u8>>(0)?, row.get::<_, u32>(1)?))
+            );
+            match res {
+                Ok(v) => Ok(Some(v)),
+                Err(rusqlite::Error::QueryReturnedNoRows) => Ok(None),
+                Err(e) => Err(e),
+            }
+        }).await
+    }
+
+    pub async fn update_seq_id(&self, session_id: String, seq: u32) -> tokio_rusqlite::Result<()> {
+        self.conn.call(move |conn| {
+            conn.execute(
+                "UPDATE session_security SET last_seq = ?1 WHERE session_id = ?2",
+                rusqlite::params![seq, session_id],
+            )?;
             Ok(())
-        }).await?;
-        Ok(())
+        }).await
     }
 
     pub async fn update_node(&self, session_id: String, node_id: u32, tag: String, value: String, append: bool) -> tokio_rusqlite::Result<u32> {
@@ -130,4 +181,5 @@ impl SessionManager {
             Ok(res)
         }).await
     }
+
 }
