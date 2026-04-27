@@ -11,7 +11,7 @@ $handler = $ctx['handler'] ?? '';
 $payload = json_decode($ctx['payload'] ?? '{}', true);
 
 // 2. Initialisation de la BDD Locale (Showcase)
-$dbFile = __DIR__ . '/showcase.db';
+$dbFile = (is_dir('/persist') || file_exists('/persist')) ? '/persist/showcase.db' : __DIR__ . '/showcase.db';
 $db = new PDO("sqlite:$dbFile");
 $db->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 

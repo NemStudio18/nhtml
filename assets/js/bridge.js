@@ -607,6 +607,16 @@ async function switchToWasm() {
         
         window.nhtml_wasm_php = new window.PhpWeb({ persist: true });
         const php = await window.nhtml_wasm_php.binary;
+
+        // --- NEW: PERSISTENCE LAYER ---
+        // Mount IDBFS to /persist
+        try { php.FS.mkdir('/persist'); } catch(e){}
+        php.FS.mount(php.FS.filesystems.IDBFS, {}, '/persist');
+        
+        // Sync FROM IndexedDB TO Memory
+        await new Promise(resolve => php.FS.syncfs(true, resolve));
+        console.log("🛰️ NHTML Persistence Layer Synced.");
+        // ------------------------------
         
         const basePath = window.location.pathname.replace(/\/[^\/]*$/, '/');
         const cacheBust = "?v=" + Date.now();
