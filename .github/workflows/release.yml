@@ -7,6 +7,10 @@ on:
 permissions:
   contents: write
   attestations: write
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
 jobs:
   build:
     name: Build for ${{ matrix.os }}
@@ -70,24 +74,24 @@ jobs:
         with:
           name: NHTML Gateway v${{ github.ref_name }}
           body: |
-            ## 🚀 First Public Release: NHTML Gateway v${{ github.ref_name }}
+            ## 🌍 NHTML Gateway v${{ github.ref_name }} — "Global Connect"
             
-            Welcome to the first stable release of the **NHTML Gateway**, the industrial-grade server for the Server-Driven DOM Protocol.
+            This release marks the transition to the **v0.6.0 Global Connect** architecture, focusing on high-performance backends and real-time collaboration.
             
             ### ✨ Philosophy
-            - **Zero Business JS**: Focus on your backend logic (PHP), the gateway handles the rest.
-            - **Binary Efficiency**: Ultra-compact NBPS protocol for near-instant reactivity.
-            - **Developer Experience**: Built-in pedagogical DevTools with Time-Travel.
+            - **Native Performance**: FastCGI support for ultra-low latency (< 2ms).
+            - **Industrial Security**: HMAC-SHA256 signatures and Sequence ID protection.
+            - **Seamless Collaboration**: Scoped broadcasting for real-time multi-user synchronization.
             
             ### 🛠️ Core Features
-            - **Industrial Gateway (Rust)**: Automated asset injection and high-performance WebSocket proxy.
-            - **NBPS v0.4.0**: Fully aligned binary protocol with built-in versioning and CRC32 safety.
-            - **Premium Showcase MVC**: A complete demo app with local SQLite persistence and modern UI.
-            - **DevTools Pro**: Real-time packet inspection, session replay, and state diffing.
-            - **Bilingual Documentation**: Complete technical reference in English and French.
+            - **FastCGI/PHP-FPM Bridge**: Native support for PHP worker pools.
+            - **Scoped Broadcasting**: Real-time patches for `all` or `others`.
+            - **Industrial Error Handling**: Robust `GatewayError` system with automatic recovery.
+            - **Responsive Showcase**: Premium mobile-first flagship application.
+            - **WASM Persistence**: Local data persistence via IDBFS in zero-server mode.
             
             ### 📦 Deployment
-            Download the binary for your platform and run `./nhtml start --dev` to explore the future of web development.
+            Download the binary for your platform and run `./nhtml start --dev` to explore. Use `--fpm 127.0.0.1:9000` for high-performance mode.
           files: |
             artifacts/nhtml-linux
             artifacts/nhtml-windows.exe

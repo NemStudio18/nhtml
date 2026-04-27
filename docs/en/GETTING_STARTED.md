@@ -1,4 +1,4 @@
-# 🚀 NHTML Getting Started Guide (v0.4.0)
+# 🚀 NHTML Getting Started Guide (v0.6.0)
 **Welcome to the Web without JavaScript. Native Performance, Server Logic.**
 
 This guide will walk you through installation to your first reactive interaction.
@@ -11,9 +11,9 @@ NHTML adapts to your infrastructure:
 
 | Mode | Usage | Infrastructure | Status |
 |:---|:---|:---|:---|
-| **Dedicated (Rust)** | **Recommended**. Pure real-time. | VPS / Dedicated (CLI access) | 🟢 Operational |
-| **Shared (HTTP)** | Connectivity fallback. | Standard PHP hosting | 🟢 Operational |
-| **WASM (Zero-Server)** | 100% Client-side. | GitHub Pages / Static | 🟢 Operational (Zero CDN) |
+| **Dedicated (FastCGI)** | **Recommended**. High performance. | VPS / Dedicated (PHP-FPM) | 🟢 Operational |
+| **Dedicated (Rust CGI)** | Development simplicity. | VPS / Dedicated (PHP CLI) | 🟢 Operational |
+| **WASM (Zero-Server)** | 100% Client-side. | GitHub Pages / Static | 🟢 Operational |
 
 ---
 
@@ -22,15 +22,18 @@ NHTML adapts to your infrastructure:
 This is the most performant method. The **Rust Gateway** manages WebSockets and supervises your PHP code.
 
 ### Step 1: Launch the Gateway
-Download the `nhtml` binary and launch it in your project root:
-```bash
-# Development mode with auto-reload (Default ports: WS=8080, PHP=8000)
-./nhtml start --dev
+Download the `nhtml` binary and launch it in your project root.
 
-# You can customize ports:
-./nhtml start --dev --ws-port 9080 --php-port 9000
+**Standard Mode (CGI):**
+```bash
+nhtml start --dev
 ```
-*The Gateway starts an HTTP server (default on 3000) and the PHP server.*
+
+**High Performance Mode (FastCGI):**
+If you have a PHP-FPM pool running (e.g., on port 9000):
+```bash
+nhtml start --dev --fpm 127.0.0.1:9000
+```
 
 ### Step 2: Project Structure
 Place your files in a folder (e.g., `/my-app`):
@@ -39,33 +42,36 @@ Place your files in a folder (e.g., `/my-app`):
 
 ---
 
-## 3. 🪶 "Zero-Server" Mode (GitHub Pages / Static)
+## 3. 🛡️ Built-in Security (v0.5.0+)
 
-No backend? No problem.
-Simply host your files statically (on GitHub Pages, Vercel, or S3).
-
-1. The NHTML Bridge will attempt to reach the server.
-2. If no WebSocket server or PHP backend is found, it **automatically switches to WASM mode**.
-3. It downloads the PHP WebAssembly virtual machine into the browser.
-4. Your `app.php` file is executed locally in RAM at lightning speed.
-
-*You write backend PHP, but it runs in your visitor's browser!*
+NHTML v0.5.0 introduces **Industrial Security** by default:
+- **HMAC-SHA256**: All client events are cryptographically signed. The Gateway rejects any non-authentic frames.
+- **Sequence IDs**: Every action is numbered. Replay attacks are natively blocked.
 
 ---
 
-## 4. 🐘 Your First Component
+## 4. 📡 Real-Time Collaboration (v0.6.0+)
+
+You can now synchronize multiple users instantly.
+In your `app.php`, you can request the Gateway to broadcast a patch:
+```php
+// Send the message to ALL other users in the session
+Nhtml::broadcast('others')
+     ->setText('notif', "A new user has joined!")
+     ->send();
+```
+
+---
+
+## 5. 🐘 Your First Component
 
 ### Client Side (`index.nhtml`)
-Identify elements to update with `n-id` and capture clicks with `n-click`.
 ```html
 <h1 n-id="title">Hello</h1>
 <button n-click="btn_hello">Click me</button>
-
-<!-- Magic! ZERO <script> tags. The Gateway automatically injects the Bridge JS in development. -->
 ```
 
 ### Server Side (`app.php`)
-Use the PHP SDK to send instant binary commands.
 ```php
 <?php
 use Nhtml\Nhtml;
@@ -79,14 +85,6 @@ if ($event === 'click' && $nodeId === 'btn_hello') {
 
 ---
 
-## 4. 🛰️ Key Concepts for Success
-
-1.  **The Gateway is a Postman**: It doesn't know your business logic; it simply delivers binary packets (NBPS) between PHP and the browser.
-2.  **NodeIDs**: Use simple (or numeric) IDs. The server drives the DOM remotely via these IDs.
-3.  **Zero Latency (Local Actions)**: For visual effects (hover, scroll), use **Local Actions** (see `SPEC.md`) for immediate execution without a server round-trip.
-
----
-
 ## 📊 Diagnostic Tools
-- **DevTools Dashboard**: Visit `http://127.0.0.1:8081` to see your packets in real-time.
-- **F12 Console**: Your PHP `error_log()` appear directly in the browser console with the `[NHTML SERVER]` prefix.
+- **DevTools Dashboard**: Visit `http://127.0.0.1:8081` to see your signed packets in real-time.
+- **F12 Console**: Your PHP `error_log()` appear directly in the browser console.

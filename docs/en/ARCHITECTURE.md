@@ -1,76 +1,58 @@
-# 🛰️ NHTML Technical Reference (v0.4.0)
+# 🛰️ NHTML Technical Reference (v0.6.0)
 **Technical reference for the industrialized architecture.**
 
 ---
 
-## 1. Project Overview
-NHTML (Native-HTML) is a "Server-Driven" web development framework designed to move all business logic and application state to the server side while offering responsiveness close to native clients.
+## 1. Overview
+NHTML is an ultra-high-performance "Server-Driven" web development framework. It transforms the browser into a binary rendering engine driven by a backend.
 
-- **Objective**: Eliminate frontend JS complexity by turning the browser into a simple binary rendering engine driven by a backend (PHP/Rust).
-- **Gateway**: Rust server (Tokio, Axum) managing transport, persistence, and auto-injection.
-- **Protocol**: NBPS (Native-HTML Binary Protocol) optimized with native Zstd compression.
+- **Gateway**: Rust server (Tokio) managing binary transport, HMAC security, and multiplexing.
+- **Protocol**: NBPS (Native-HTML Binary Protocol) with native Zstd compression.
+- **Backend**: Your PHP applications (CGI or FastCGI/FPM).
 
 ---
 
-## 2. General Architecture
-The architecture relies on an **Orchestrator Gateway** acting as a bidirectional binary bridge.
+## 2. General Architecture (v0.6.0)
+The architecture relies on an **Orchestrator Gateway** acting as a secure bidirectional binary bridge.
 
 ```mermaid
 graph TD
-    Browser[Browser (bridge.js)] <-->|NBPS Binary + Zstd| Gateway[Gateway Rust]
-    Gateway <-->|JSON/HTTP| PHP[PHP App (SDK)]
+    Browser[Browser (bridge.js)] <-->|NBPS Binary + HMAC| Gateway[Gateway Rust]
     
+    subgraph Backend
+        Gateway <-->|FastCGI / TCP| FPM[PHP-FPM Pool]
+        Gateway <-->|CGI / Stdout| PHP[PHP CLI App]
+    end
+    
+    Gateway -->|Broadcast| Others[Other Sessions]
     Gateway -->|Monitoring| DevTools[DevTools Dashboard 8081]
     Gateway <-->|SQLite| DB_Sessions[nhtml_sessions.db]
-    PHP <-->|SQLite| DB_App[app.db]
 ```
 
 ---
 
-## 3. Directory Structure (v0.4.0)
-- **`/src/`**: Core Rust system (Gateway & CLI).
-- **`/static/`**: DevTools Dashboard templates.
-- **`/assets/js/`**: Client bridge and decompression polyfills.
-- **`/sdk/php/`**: Official SDK for the PHP backend.
-- **`/examples/`**: Concrete use cases (Counter, TodoList...).
+## 3. High-Performance Communication
+NHTML v0.6.0 introduces native **FastCGI** support.
+Instead of launching a PHP process for every click, the Gateway maintains open sockets to a PHP-FPM pool, reducing latency to < 5ms.
 
 ---
 
-## 4. NBPS v0.4.0 Protocol
-The protocol is optimized for bandwidth (Zstd) and reliability (Checksums).
-
-- **Universal Header (5 bytes)**: `[Type: u8] [Length: u32]`.
-- **OpCodes v0.4.0**:
-    - `0x01` (HELLO): Initial handshake and session ID.
-    - `0x02` (EVENT): Client -> server interaction (click, input).
-    - `0x03` (PATCH): Atomic DOM mutations (setText, setStyle, focus...).
-    - `0x05` (SYNC): DOM integrity check via checksum.
-    - `0x07` (B-TREE): Compressed snapshot of full state.
-    - `0x09` (PING): Connection maintenance heartbeat.
-    - `0x7F` (ERROR): Structured binary error report.
+## 4. Real-Time Collaboration (Broadcasting)
+The Gateway acts as a binary messaging server.
+1. A session sends an event.
+2. The backend processes it and returns mutations for the sender AND broadcasting instructions.
+3. The Gateway instantly routes packets to other relevant clients.
 
 ---
 
-## 5. Auto-Injection Flow
-NHTML v0.4.0 radically simplifies deployment. The Gateway automatically injects the bridge and polyfills into any served `.nhtml` file.
-
-1. **Request**: The client requests `index.nhtml`.
-2. **Interception**: The Gateway reads the file, injects `<script>` tags for `bridge.js` and `fzstd.js` before the `</head>` tag.
-3. **Activation**: The bridge automatically starts the WebSocket connection to the Gateway.
+## 5. Industrial Security (v0.5.0)
+Every interaction is protected by:
+- **HMAC-SHA256**: Guarantees packet origin and integrity.
+- **Sequence ID**: Prevents any replay attacks.
 
 ---
 
-## 6. Monitoring & Time Travel
-Every mutation is historicalized in `nhtml_sessions.db`.
-The Dashboard (port 8081) allows you to:
-- **Visualize** real-time flows (Network Monitor).
-- **Replay** a session step-by-step (Time Travel).
-- **Compare** the state of two distinct sessions.
-- **Audit** the exact latency of PHP responses.
-
----
-
-## 7. Glossary
+## 6. Glossary
 - **NID**: Textual identifier (string) dynamically mapped to a binary u16 ID.
-- **Patch Glow**: Visual feedback signaling a reactive update.
+- **FPM (FastCGI Process Manager)**: PHP process management system for production.
 - **Zero-JS**: Concept where no business JavaScript code is written by the developer.
