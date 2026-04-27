@@ -594,27 +594,20 @@ async function switchToWasm() {
     const hudMode = document.getElementById('nhtml-hud-mode');
     if (hudMode) hudMode.innerText = "(WASM)";
 
-    // Update Showcase UI if present
     const statusBadge = document.getElementById('nhtml-status-badge');
     if (statusBadge) {
         statusBadge.innerHTML = '<div style="width: 8px; height: 8px; background: #38bdf8; border-radius: 50%; box-shadow: 0 0 10px #38bdf8;"></div> WASM Mode (Local)';
     }
-    
+
     try {
-        // Load PHP WASM if not already there
         if (!window.PhpWeb) {
-            // Note: fzstd is not needed for JSON output but bridge.js uses it for B-TREE
             const module = await import('./php-wasm/PhpWeb.mjs');
             window.PhpWeb = module.PhpWeb;
         }
         
         window.nhtml_wasm_php = new window.PhpWeb({ persist: true });
-        
-        let wasmStdout = "";
-    try {
         const php = await window.nhtml_wasm_php.binary;
         
-        // Load the local app.php and the SDK with Cache Busting
         const basePath = window.location.pathname.replace(/\/[^\/]*$/, '/');
         const cacheBust = "?v=" + Date.now();
         
@@ -623,13 +616,9 @@ async function switchToWasm() {
             let code = await resApp.text();
             code = code.replace(/file_get_contents\s*\(\s*['"]php:\/\/stdin['"]\s*\)/g, "($input ?? file_get_contents('php://stdin'))");
             php.FS.writeFile('/app.php', code);
-            console.log("🛰️ NHTML app.php hydrated fresh.");
         }
 
-        const sdkFiles = [
-            '../../sdk/php/src/Nhtml.php',
-            '../../sdk/php/src/Protocol.php'
-        ];
+        const sdkFiles = ['../../sdk/php/src/Nhtml.php', '../../sdk/php/src/Protocol.php'];
         for (const f of sdkFiles) {
             const res = await fetch(basePath + f + cacheBust);
             if (res.ok) {
