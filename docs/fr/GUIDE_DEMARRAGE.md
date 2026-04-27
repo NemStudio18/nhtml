@@ -22,7 +22,7 @@ NHTML s'adapte à votre infrastructure :
 C'est la méthode la plus performante. Le **Gateway Rust** gère les WebSockets et supervise votre code PHP.
 
 ### Étape 1 : Lancer le Gateway
-Téléchargez le binaire `gateway` et lancez-le à la racine de votre projet :
+Téléchargez le binaire `nhtml` et lancez-le à la racine de votre projet :
 ```bash
 # Mode développement avec auto-rechargement (Ports par défaut : WS=8080, PHP=8000)
 nhtml start --dev

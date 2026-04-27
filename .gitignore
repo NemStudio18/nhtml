@@ -1,11 +1,10 @@
-﻿target/
+target/
 .DS_Store
 node_modules/
 *.db
 *.log
-docs/JOURNAL_DEV.md
-docs/WALKTHROUGH_FINAL.md
 nhtml-gateway/target/
+internal/
 target_ai/
 target_alt/
 target_locked/

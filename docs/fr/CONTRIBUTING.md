@@ -1,29 +1,29 @@
-# Contributing to NHTML
+# Contribuer à NHTML
 
-First off, thank you for considering contributing to NHTML! It's people like you who make NHTML a better tool for everyone.
+Merci de prendre le temps de contribuer à NHTML ! Ce sont vos contributions qui font de NHTML un meilleur outil pour tous.
 
-## 🗺️ How can I contribute?
+## 🗺️ Comment puis-je contribuer ?
 
-### Reporting Bugs
-- Use the GitHub Issue Tracker.
-- Describe the bug and include steps to reproduce it.
-- Mention your Gateway version and browser.
+### Signaler des Bugs
+- Utilisez l'Issue Tracker de GitHub.
+- Décrivez le bug et incluez les étapes pour le reproduire.
+- Précisez la version de votre Gateway et votre navigateur.
 
 ### Documentation
-- Documentation improvements are always welcome!
-- Feel free to fix typos or clarify sections in `SPEC.md`.
+- Les améliorations de la documentation sont toujours les bienvenues !
+- N'hésitez pas à corriger des fautes de frappe ou à clarifier des sections dans `docs/fr/SPEC.md`.
 
-### Code Contributions
-1. Fork the repository.
-2. Create a feature branch.
-3. Submit a Pull Request.
+### Contributions au Code
+1. Forkez le dépôt.
+2. Créez une branche pour votre fonctionnalité.
+3. Soumettez une Pull Request.
 
-## 📜 RFC Process (Protocol Changes)
-NHTML relies on the **NBPS Protocol**. To maintain stability across the ecosystem, any change to the protocol specification requires a formal RFC:
-1. Open a GitHub Issue tagged `[RFC]`.
-2. Describe the proposed OpCode or change.
-3. Discussion will remain open for a **minimum of 30 days**.
-4. A consensus must be reached before merging into `SPEC.md`.
+## 📜 Processus RFC (Changements de Protocole)
+NHTML repose sur le **Protocole NBPS**. Pour maintenir la stabilité de l'écosystème, tout changement de la spécification nécessite une RFC formelle :
+1. Ouvrez une Issue GitHub taguée `[RFC]`.
+2. Décrivez l'OpCode ou le changement proposé.
+3. La discussion restera ouverte pendant **un minimum de 30 jours**.
+4. Un consensus doit être atteint avant la fusion dans `docs/fr/SPEC.md`.
 
-## ⚖️ License
-By contributing to this project, you agree that your contributions will be licensed under the project's respective license (MIT for Core, AGPL for Gateway).
+## ⚖️ Licence
+En contribuant à ce projet, vous acceptez que vos contributions soient sous la licence **AGPL-3.0** du projet.
