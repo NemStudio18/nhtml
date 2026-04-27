@@ -556,12 +556,18 @@ async function switchToWasm() {
     console.log("🛰️ NHTML Switching to ZERO-SERVER (WASM) Mode...");
     const hudMode = document.getElementById('nhtml-hud-mode');
     if (hudMode) hudMode.innerText = "(WASM)";
+
+    // Update Showcase UI if present
+    const statusText = document.evaluate("//div[contains(text(), 'Gateway Online')]", document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue;
+    if (statusText) {
+        statusText.innerHTML = '<div style="width: 8px; height: 8px; background: #38bdf8; border-radius: 50%; box-shadow: 0 0 10px #38bdf8;"></div> WASM Mode (Local)';
+    }
     
     try {
         // Load PHP WASM if not already there
         if (!window.PhpWeb) {
             // Note: fzstd is not needed for JSON output but bridge.js uses it for B-TREE
-            const module = await import('./PhpWeb.mjs');
+            const module = await import('./php-wasm/PhpWeb.mjs');
             window.PhpWeb = module.PhpWeb;
         }
         
