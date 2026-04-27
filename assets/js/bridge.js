@@ -717,13 +717,22 @@ async function wasmRunEvent(id_num, handler, formData) {
         payload: JSON.stringify(formData)
     });
     
-    // Set stdin
-    window.nhtml_wasm_php.inputString(eventPayload);
-    
-    // Ensure the code is wrapped in PHP tags since it's being prepended with '?>' by PhpBase
-    const phpCode = `<?php chdir('/'); include 'app.php'; ?>`;
-    
     try {
+        const php = await window.nhtml_wasm_php.binary;
+        
+        // Use a virtual file instead of stdin to avoid stream exhaustion issues
+        php.FS.writeFile('/tmp/event.json', eventPayload);
+        
+        // Execute app.php while overriding the stdin read with the file content
+        const phpCode = `<?php 
+            $input = file_get_contents('/tmp/event.json');
+            $ctx = json_decode($input, true);
+            $handler = $ctx['handler'] ?? '';
+            $payload = json_decode($ctx['payload'] ?? '{}', true);
+            chdir('/'); 
+            include 'app.php'; 
+        ?>`;
+        
         // Run and capture output
         let stdout = "";
         let stderr = "";
