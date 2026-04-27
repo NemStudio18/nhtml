@@ -30,7 +30,17 @@ async function initNhtml(wsUrl, httpUrl = "") {
     }
     injectStyles();
     injectHud();
-    connect(wsUrl);
+
+    // Aggressive Fallback: If we are on GitHub Pages or similar static host, 
+    // we might want to skip the WS wait entirely or fail very fast.
+    const isStaticHost = window.location.hostname.endsWith('.github.io');
+    if (isStaticHost) {
+        console.log("🛰️ NHTML Static Host detected. Preparing WASM Fallback...");
+        // Still try connect, but with a very short timeout
+        connect(wsUrl, 1500); 
+    } else {
+        connect(wsUrl);
+    }
 }
 
 function injectStyles() {
@@ -491,7 +501,7 @@ function processMessage(msg) {
     }
 }
 
-function connect(wsUrl) {
+function connect(wsUrl, timeoutMs = 5000) {
     if (transportMode === "WASM") return; // Skip if already in WASM mode
     
     try {
@@ -500,7 +510,17 @@ function connect(wsUrl) {
         socket = new WebSocket(url.toString());
         socket.binaryType = "arraybuffer";
         
+        // Timeout for initial connection
+        const connTimeout = setTimeout(() => {
+            if (socket.readyState !== 1) {
+                console.warn("🛰️ NHTML Connection timeout. Falling back...");
+                socket.close();
+                switchToWasm();
+            }
+        }, timeoutMs);
+
         socket.onopen = () => { 
+            clearTimeout(connTimeout);
             transportMode = "WS"; 
             reconnectAttempts = 0; 
             const hudMode = document.getElementById('nhtml-hud-mode');
@@ -511,13 +531,13 @@ function connect(wsUrl) {
         socket.onmessage = (e) => processMessage(e.data);
         
         socket.onerror = (err) => {
+            clearTimeout(connTimeout);
             console.warn("🛰️ NHTML WebSocket Error, checking fallback...");
-            if (reconnectAttempts > 1) {
-                switchToWasm();
-            }
+            switchToWasm();
         };
 
         socket.onclose = () => { 
+            clearTimeout(connTimeout);
             if (transportMode === "WS") {
                 setTimeout(() => connect(wsUrl), Math.min(MAX_BACKOFF, 500 * Math.pow(2, reconnectAttempts++))); 
             } else {
@@ -541,7 +561,7 @@ async function switchToWasm() {
         // Load PHP WASM if not already there
         if (!window.PhpWeb) {
             // Note: fzstd is not needed for JSON output but bridge.js uses it for B-TREE
-            const module = await import('./php-wasm/PhpWeb.mjs');
+            const module = await import('./PhpWeb.mjs');
             window.PhpWeb = module.PhpWeb;
         }
         
