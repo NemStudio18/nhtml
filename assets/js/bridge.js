@@ -726,20 +726,29 @@ async function wasmRunEvent(id_num, handler, formData) {
     // Set stdin
     window.nhtml_wasm_php.inputString(eventPayload);
     
-    // We must run in a way that respects the working directory
-    const phpCode = `<?php chdir(dirname('/app.php')); include '/app.php'; ?>`;
+    // Use a cleaner execution sequence
+    const phpCode = `chdir('/'); include 'app.php';`;
     
     try {
         // Run and capture output
         let stdout = "";
-        const listener = (event) => { 
+        let stderr = "";
+        const outListener = (event) => { 
             stdout += Array.isArray(event.detail) ? event.detail[0] : event.detail; 
         };
-        window.nhtml_wasm_php.addEventListener('output', listener);
+        const errListener = (event) => { 
+            stderr += Array.isArray(event.detail) ? event.detail[0] : event.detail; 
+        };
+        
+        window.nhtml_wasm_php.addEventListener('output', outListener);
+        window.nhtml_wasm_php.addEventListener('error', errListener);
         
         await window.nhtml_wasm_php.run(phpCode);
         
-        window.nhtml_wasm_php.removeEventListener('output', listener);
+        window.nhtml_wasm_php.removeEventListener('output', outListener);
+        window.nhtml_wasm_php.removeEventListener('error', errListener);
+        
+        if (stderr) console.error("🛰️ NHTML PHP Error:", stderr);
         
         // Parse JSON output
         const jsonStart = stdout.indexOf('{');
