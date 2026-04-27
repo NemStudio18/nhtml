@@ -106,6 +106,16 @@ Your .nhtml + app.php
 
 ---
 
+### 🌐 Flexible Deployment
+
+NHTML adapts to any infrastructure without changing a single line of your code:
+
+1.  **Dedicated (Rust Gateway)**: Best for high-performance apps. The binary handles everything (WebSockets, HTTP, PHP).
+2.  **Shared (Standard PHP)**: Perfect for standard hosting (OVH, etc.). Uses HTTP fallback for reactive updates.
+3.  **Zero-Server (PHP-WASM)**: Ideal for static sites (GitHub Pages). The PHP logic runs directly in the user's browser via WebAssembly.
+
+---
+
 ### 🚀 Quick Start
 
 ```bash
@@ -206,6 +216,16 @@ Votre .nhtml + app.php
   bridge.js (~25KB)   EVENT (clic) ────────▶  Logique métier
   Applique les PATCH  PATCH (mutations) ◀────  Renvoie les ops
 ```
+
+---
+
+### 🌐 Déploiement Flexible
+
+NHTML s'adapte à n'importe quelle infrastructure sans changer une seule ligne de votre code :
+
+1.  **Dédié (Gateway Rust)** : Idéal pour la performance. Le binaire gère tout (WebSockets, HTTP, PHP).
+2.  **Mutualisé (PHP Standard)** : Parfait pour les hébergements classiques (OVH, etc.). Utilise un fallback HTTP pour la réactivité.
+3.  **Zéro-Serveur (PHP-WASM)** : Idéal pour les sites statiques (GitHub Pages). La logique PHP tourne directement dans le navigateur via WebAssembly.
 
 ---
 
