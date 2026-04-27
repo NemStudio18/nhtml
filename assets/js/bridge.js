@@ -601,9 +601,10 @@ async function switchToWasm() {
         const resApp = await fetch(appPath);
         if (resApp.ok) {
             let code = await resApp.text();
-            // Patch app.php on the fly to support multiple executions by allowing $input override
-            code = code.replace("file_get_contents('php://stdin')", "($input ?? file_get_contents('php://stdin'))");
+            // Robust regex patch to support different formatting of file_get_contents('php://stdin')
+            code = code.replace(/file_get_contents\s*\(\s*['"]php:\/\/stdin['"]\s*\)/g, "($input ?? file_get_contents('php://stdin'))");
             php.FS.writeFile('/app.php', code);
+            console.log("🛰️ NHTML app.php patched for WASM input.");
         }
 
         // Preload SDK files

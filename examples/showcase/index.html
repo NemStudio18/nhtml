@@ -312,6 +312,15 @@
     </div>
 
     <script src="../../assets/js/fzstd.min.js" defer></script>
-    <script src="../../assets/js/bridge.js?v=0.4.2" charset="UTF-8" defer></script>
+    <script>
+        // Emergency Cache Bust for Bridge
+        (function() {
+            const s = document.createElement('script');
+            s.src = "../../assets/js/bridge.js?t=" + Date.now();
+            s.charset = "UTF-8";
+            s.defer = true;
+            document.head.appendChild(s);
+        })();
+    </script>
 </body>
 </html>
