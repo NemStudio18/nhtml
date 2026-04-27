@@ -111,10 +111,15 @@ fn wrap_packet(pkt_type: u8, payload: Vec<u8>) -> Vec<u8> {
 
 // ─── HELLO ─────────────────────────────────────────────────────────────────
 
-pub fn hello(session_id: &str, keepalive_ms: u16) -> Vec<u8> {
+pub fn hello(session_id: &str, keepalive_ms: u16, secret: &[u8]) -> Vec<u8> {
     let mut payload = Vec::new();
     push_u16(&mut payload, keepalive_ms);
     push_str8(&mut payload, session_id);
+    if secret.len() == 32 {
+        payload.extend_from_slice(secret);
+    } else {
+        payload.extend_from_slice(&[0u8; 32]);
+    }
     wrap_packet(PKT_HELLO, payload)
 }
 

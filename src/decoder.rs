@@ -11,7 +11,11 @@ pub enum DecodedMessage {
         session_id: String,
     },
     Event {
+        seq_id: u32,
+        signature: [u8; 32],
         node_id: u32,
+        handler: String,
+        payload: String,
     },
     Patch {
         op_count: u16,
@@ -25,7 +29,7 @@ pub enum DecodedMessage {
         node_count: u16,
     },
     Sync {
-        version: u32,
+        checksum: u32,
     },
     Ping {
         sequence: u8,
@@ -49,31 +53,46 @@ pub struct DecodedOp {
 }
 
 pub fn decode(data: &[u8]) -> DecodedMessage {
-    if data.is_empty() {
-        return DecodedMessage::Unknown { opcode: 0, len: 0 };
+    if data.len() < 5 {
+        return DecodedMessage::Unknown { opcode: 0, len: data.len() };
     }
 
     let opcode = data[0];
+    let length = u32::from_be_bytes([data[1], data[2], data[3], data[4]]) as usize;
+    
+    if data.len() < 5 + length {
+        return DecodedMessage::Unknown { opcode, len: data.len() };
+    }
+
+    let payload = &data[5..5+length];
+
     match opcode {
         0x01 => { // HELLO
-            if data.len() >= 5 {
-                let payload_len = u32::from_be_bytes([data[1], data[2], data[3], data[4]]) as usize;
-                if data.len() >= 5 + payload_len {
-                    let version = u32::from_be_bytes([data[5], data[6], data[7], data[8]]);
-                    let sid_len = data[9] as usize;
-                    let session_id = String::from_utf8_lossy(&data[10..10+sid_len]).to_string();
-                    DecodedMessage::Hello { version, session_id }
-                } else {
-                    DecodedMessage::Unknown { opcode, len: data.len() }
-                }
+            if payload.len() >= 4 {
+                let version = u32::from_be_bytes([payload[0], payload[1], payload[2], payload[3]]);
+                let sid_len = payload[4] as usize;
+                let session_id = String::from_utf8_lossy(&payload[5..5+sid_len]).to_string();
+                DecodedMessage::Hello { version, session_id }
             } else {
                 DecodedMessage::Unknown { opcode, len: data.len() }
             }
         },
-        0x02 => { // EVENT
-            if data.len() >= 5 {
-                let node_id = u32::from_be_bytes([data[1], data[2], data[3], data[4]]);
-                DecodedMessage::Event { node_id }
+        0x02 => { // EVENT (v0.5.0)
+            if payload.len() >= 4 + 32 + 4 + 1 + 2 {
+                let seq_id = u32::from_be_bytes([payload[0], payload[1], payload[2], payload[3]]);
+                let mut signature = [0u8; 32];
+                signature.copy_from_slice(&payload[4..36]);
+                
+                let node_id = u32::from_be_bytes([payload[36], payload[37], payload[38], payload[39]]);
+                
+                let h_len = payload[40] as usize;
+                let handler = String::from_utf8_lossy(&payload[41..41+h_len]).to_string();
+                
+                let p_start = 41 + h_len;
+                let p_len = u16::from_be_bytes([payload[p_start], payload[p_start+1]]) as usize;
+                let payload_str = String::from_utf8_lossy(&payload[p_start+2..p_start+2+p_len]).to_string();
+
+                DecodedMessage::Event { seq_id, signature, node_id, handler, payload: payload_str }
             } else {
                 DecodedMessage::Unknown { opcode, len: data.len() }
             }

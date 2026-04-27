@@ -189,18 +189,10 @@
                 background: #0d1117;
                 border-right: 1px solid rgba(255,255,255,0.1);
             }
-            .sidebar.open { transform: translateX(280px); }
+            /* --- CSS CHECKBOX HACK --- */
+            .menu-toggle-cb:checked ~ .app-container .sidebar { transform: translateX(280px); }
+            .menu-toggle-cb:checked ~ .menu-overlay { display: block; }
             
-            .menu-overlay { 
-                display: none; 
-                position: fixed; 
-                inset: 0; 
-                background: rgba(0,0,0,0.7); 
-                backdrop-filter: blur(4px);
-                z-index: 2500; 
-            }
-            .menu-overlay.active { display: block; }
-
             .main-content { padding: 20px; }
             .page-header { text-align: left; }
             .grid { grid-template-columns: 1fr; }
@@ -241,12 +233,14 @@
         #nhtml-hud span { color: var(--primary); font-weight: 700; }
     </style>
 </head>
+    <input type="checkbox" id="menu-toggle" class="menu-toggle-cb" hidden>
+    
     <div class="mobile-header">
         <div class="logo">🛰️ NHTML <span>Showcase</span></div>
-        <div class="menu-btn" onclick="toggleMenu()">☰</div>
+        <label for="menu-toggle" class="menu-btn">☰</label>
     </div>
     
-    <div class="menu-overlay" id="menuOverlay" onclick="toggleMenu()"></div>
+    <label for="menu-toggle" class="menu-overlay" id="menuOverlay"></label>
 
     <div class="app-container">
         <aside class="sidebar">
@@ -423,17 +417,10 @@
         })();
     </script>
     <script>
-        function toggleMenu() {
-            const sidebar = document.querySelector('.sidebar');
-            const overlay = document.getElementById('menuOverlay');
-            sidebar.classList.toggle('open');
-            overlay.classList.toggle('active');
-        }
-
-        // Close menu when clicking an item (mobile)
+        // Close menu when clicking an item (mobile) - small JS helper still useful for better UX
         document.querySelectorAll('.nav-item').forEach(item => {
             item.addEventListener('click', () => {
-                if (window.innerWidth <= 992) toggleMenu();
+                document.getElementById('menu-toggle').checked = false;
             });
         });
     </script>

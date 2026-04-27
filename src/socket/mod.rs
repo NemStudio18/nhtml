@@ -21,6 +21,10 @@ use crate::proto;
 use crate::core::SessionState;
 use crate::session::SessionManager;
 
+use hmac::{Hmac, Mac};
+use sha2::Sha256;
+type HmacSha256 = Hmac<Sha256>;
+
 // ─── État de session ────────────────────────────────────────────────────────
 
 pub struct Session {
@@ -28,18 +32,26 @@ pub struct Session {
     pub php_script: String,
     pub handler_table: HandlerTable,
     pub sm: Arc<SessionManager>,
+    pub secret: Vec<u8>,
 }
 
 impl Session {
-    fn new(id: String, result: &CompileResult, php_script: String, sm: Arc<SessionManager>) -> Self {
+    fn new(id: String, result: &CompileResult, php_script: String, sm: Arc<SessionManager>, secret: Vec<u8>) -> Self {
         let handler_table = build_from_tree(&result.root);
         Self { 
             state: SessionState::new(id), 
             php_script, 
             handler_table,
-            sm
+            sm,
+            secret
         }
     }
+}
+
+fn verify_hmac(secret: &[u8], data: &[u8], signature: &[u8; 32]) -> bool {
+    let mut mac = HmacSha256::new_from_slice(secret).expect("HMAC can take key of any size");
+    mac.update(data);
+    mac.verify_slice(signature).is_ok()
 }
 
 // ─── Point d'entrée ─────────────────────────────────────────────────────────
@@ -233,15 +245,21 @@ async fn handle_connection_axum(
     let mut result = NhtmlCompiler::compile(&source);
 
     // ─── Restauration de session (SID) ───────────────────────────────────
-    let session_id = if requested_sid == "AUTO" || requested_sid.is_empty() {
-        uuid::Uuid::new_v4().to_string()
+    let (session_id, session_secret) = if requested_sid == "AUTO" || requested_sid.is_empty() {
+        let sid = uuid::Uuid::new_v4().to_string();
+        let secret = sm.register_session(sid.clone(), requested_path.clone()).await.unwrap_or_else(|_| vec![0u8; 32]);
+        (sid, secret)
     } else {
-        requested_sid
+        // Tentative de récupération d'une session existante
+        if let Ok(Some((secret, _last_seq))) = sm.get_session_security(requested_sid.clone()).await {
+            (requested_sid, secret)
+        } else {
+            // Si session inconnue, on en crée une nouvelle
+            let sid = requested_sid;
+            let secret = sm.register_session(sid.clone(), requested_path.clone()).await.unwrap_or_else(|_| vec![0u8; 32]);
+            (sid, secret)
+        }
     };
-
-    if let Err(e) = sm.register_session(session_id.clone(), requested_path.clone()).await {
-        warn!("[{}] Impossible d'enregistrer la session en DB : {}", session_id, e);
-    }
 
     // Charger les états depuis SQLite si existants
     let mut append_patches = Vec::new();
@@ -274,12 +292,12 @@ async fn handle_connection_axum(
     };
 
     let (mut ws_sender, mut ws_receiver) = socket.split();
-    let mut session = Session::new(session_id.clone(), &result, php_script, sm.clone());
+    let mut session = Session::new(session_id.clone(), &result, php_script, sm.clone(), session_secret.clone());
 
     // ── Séquence d'initialisation ──────────────────────────────────────────
 
-    // 1. HELLO
-    let hello = proto::hello(&session_id, 5000);
+    // 1. HELLO (v0.5.0)
+    let hello = proto::hello(&session_id, 5000, &session_secret);
     ws_sender.send(WsMessage::Binary(hello)).await.ok();
 
     // 2. B-TREE
