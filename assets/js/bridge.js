@@ -766,7 +766,11 @@ async function wasmRunEvent(id_num, handler, formData) {
 }
 
 function processEvent(e, listenFlag, fallbackAttr) {
-    const target = e.target.closest('[n-id]');
+    // Search for either n-id or the specific trigger attribute (e.g. n-click)
+    const target = e.target.closest('[n-id]') || (Array.isArray(fallbackAttr) 
+        ? (e.target.closest(`[${fallbackAttr[0]}]`) || e.target.closest(`[${fallbackAttr[1]}]`))
+        : e.target.closest(`[${fallbackAttr}]`));
+        
     if (!target) return;
     
     const nid = target.getAttribute('n-id');
