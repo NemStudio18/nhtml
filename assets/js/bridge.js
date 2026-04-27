@@ -587,8 +587,11 @@ function connect(wsUrl, timeoutMs = 5000) {
     }
 }
 
+let nhtml_wasm_lock = false;
 async function switchToWasm() {
-    if (window.nhtml_transport_mode === "WASM") return;
+    if (window.nhtml_transport_mode === "WASM" || nhtml_wasm_lock) return;
+    nhtml_wasm_lock = true;
+    
     window.nhtml_transport_mode = "WASM";
     console.log("🛰️ NHTML Switching to ZERO-SERVER (WASM) Mode...");
     const hudMode = document.getElementById('nhtml-hud-mode');
