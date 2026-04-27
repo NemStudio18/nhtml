@@ -15,6 +15,9 @@ window.nhtml_node_map = {};
 window.nhtml_reverse_map = {};
 window.nhtml_el_cache = new Map(); // Cache des éléments pour performance
 window.nhtml_session_id = localStorage.getItem('nhtml_session_id') || "";
+window.nhtml_seq_id = 0;
+window.nhtml_session_secret = null;
+window.nhtml_crypto_key = null;
 
 async function initNhtml(wsUrl, httpUrl = "") {
     if (window.location.search.includes('wasm=1')) {
@@ -291,6 +294,32 @@ function processMessage(msg) {
             if (window.nhtml_hello_timeout) clearTimeout(window.nhtml_hello_timeout);
             window.nhtml_transport_mode = "WS_READY";
             console.log("🛰️ NHTML Gateway Handshake Complete (Binary Mode).");
+            
+            // Extract Secret (v0.5.0 Security)
+            const sidLen = chunk[6];
+            const secretOffset = 7 + sidLen;
+            if (chunk.length >= secretOffset + 32) {
+                window.nhtml_session_secret = chunk.slice(secretOffset, secretOffset + 32);
+                
+                // Extract LastSeq (v0.5.0)
+                const seqOffset = secretOffset + 32;
+                if (chunk.length >= seqOffset + 4) {
+                    const seqView = new DataView(chunk.buffer, chunk.byteOffset, chunk.byteLength);
+                    window.nhtml_seq_id = seqView.getUint32(seqOffset);
+                    console.log(`🛰️ NHTML Sequence synchronized: starting at ${window.nhtml_seq_id}`);
+                }
+
+                console.log("🛰️ NHTML Security Key received. Deriving HMAC...");
+                crypto.subtle.importKey(
+                    "raw", window.nhtml_session_secret,
+                    { name: "HMAC", hash: { name: "SHA-256" } },
+                    false, ["sign"]
+                ).then(key => {
+                    window.nhtml_crypto_key = key;
+                    console.log("🛰️ NHTML HMAC Engine ready.");
+                });
+            }
+
             const hudMode = document.getElementById('nhtml-hud-mode');
             if (hudMode) hudMode.innerText = "(WS)";
             
@@ -678,8 +707,12 @@ function applyJsonPatch(ops) {
 
         switch (op.op) {
             case 'set_text':
-                if (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA') el.value = op.val;
+                if (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.tagName === 'SELECT') el.value = op.val;
                 else el.textContent = op.val;
+                break;
+            case 'set_html':
+            case 'replace_inner': 
+                el.innerHTML = op.val; 
                 break;
             case 'add_class': el.classList.add(op.val); break;
             case 'del_class': 
@@ -703,14 +736,18 @@ function applyJsonPatch(ops) {
 function sendHello() {
     if(!socket || socket.readyState !== 1) return;
     const sidBytes = new TextEncoder().encode(window.nhtml_session_id);
-    const hello = new Uint8Array(8 + sidBytes.length);
-    const dv = new DataView(hello.buffer);
-    hello[0] = 0x01;
-    dv.setUint32(1, 3 + sidBytes.length);
-    dv.setUint16(5, 5000);
-    hello[7] = sidBytes.length;
-    hello.set(sidBytes, 8);
-    socket.send(hello);
+    
+    // NBPS v0.5.0 HELLO (Client->Server): [Type:1][Len:4][SIDLen:1][SID:var]
+    const totalSize = 1 + 4 + 1 + sidBytes.length;
+    const buf = new Uint8Array(totalSize);
+    const view = new DataView(buf.buffer);
+    
+    buf[0] = 0x01; // Type HELLO
+    view.setUint32(1, totalSize - 5); // Length after header
+    buf[5] = sidBytes.length;
+    buf.set(sidBytes, 6);
+    
+    sendBinary(buf);
 }
 
 function sendBinary(data) {
@@ -720,27 +757,49 @@ window.sendBinary = sendBinary;
 
 window.nhtml_debounce_timers = {};
 
-function sendEvent(id_num, handler, formData) {
+async function sendEvent(id_num, handler, formData) {
     const jsonBytes = new TextEncoder().encode(JSON.stringify(formData));
     const hBytes = new TextEncoder().encode(handler);
     
-    // Header (5) + Payload (4 + 1 + hLen + 2 + pLen)
-    const payloadLen = 4 + 1 + hBytes.length + 2 + jsonBytes.length;
-    const buf = new Uint8Array(1 + 4 + payloadLen);
+    // NBPS v0.5.0: [Type:1][Len:4][Seq:4][Sig:32][Payload...]
+    // Payload = [NodeID:4][HLen:1][Handler:str][PLen:2][Payload:json]
+    const payloadSize = 4 + 1 + hBytes.length + 2 + jsonBytes.length;
+    const totalSize = 1 + 4 + 4 + 32 + payloadSize;
+    
+    const buf = new Uint8Array(totalSize);
     const view = new DataView(buf.buffer);
     
+    window.nhtml_seq_id++;
+    const currentSeq = window.nhtml_seq_id;
+    
     buf[0] = 0x02; // Type EVENT
-    view.setUint32(1, payloadLen); // Length (Total Payload)
+    view.setUint32(1, totalSize - 5); // Length after header
+    view.setUint32(5, currentSeq); // Sequence ID
     
-    view.setUint32(5, id_num); // NodeID
-    buf[9] = hBytes.length; // HandlerLen
-    buf.set(hBytes, 10); // Handler
+    // Skip 32 bytes for signature (offset 9 to 41)
+    const payloadOffset = 41;
+    view.setUint32(payloadOffset, id_num);
+    buf[payloadOffset + 4] = hBytes.length;
+    buf.set(hBytes, payloadOffset + 5);
     
-    const pOff = 10 + hBytes.length;
-    view.setUint16(pOff, jsonBytes.length); // PayloadLen
-    buf.set(jsonBytes, pOff + 2); // Payload
-    
-    console.log(`🛰️ NHTML Sending Event: ${handler} (Transport: ${window.nhtml_transport_mode})`);
+    const pLenOff = payloadOffset + 5 + hBytes.length;
+    view.setUint16(pLenOff, jsonBytes.length);
+    buf.set(jsonBytes, pLenOff + 2);
+
+    // Sign the packet (v0.5.0)
+    if (window.nhtml_crypto_key) {
+        // Data to sign: [Type][Len][Seq][Payload] (Signature field is skipped)
+        const signData = new Uint8Array(5 + 4 + payloadSize);
+        signData[0] = 0x02;
+        new DataView(signData.buffer).setUint32(1, totalSize - 5);
+        new DataView(signData.buffer).setUint32(5, currentSeq);
+        signData.set(buf.slice(payloadOffset), 9);
+        
+        const signature = await crypto.subtle.sign("HMAC", window.nhtml_crypto_key, signData);
+        buf.set(new Uint8Array(signature), 9);
+    }
+
+    console.log(`🛰️ NHTML Sending Event: ${handler} (Seq: ${currentSeq}, Transport: ${window.nhtml_transport_mode})`);
     if (window.nhtml_transport_mode === "WASM") {
         wasmRunEvent(id_num, handler, formData);
     } else if (window.nhtml_transport_mode === "WS_READY") {
@@ -834,7 +893,13 @@ function processEvent(e, listenFlag, fallbackAttr) {
     const binding = window.nhtml_bindings && window.nhtml_bindings[id_num];
     
     if (binding) {
-        if (!(binding.listenMask & listenFlag)) return;
+        // Only enforce listenMask if the event target is the EXACT element of the binding
+        // or if the target doesn't have an explicit handler attribute.
+        const hasExplicitAttr = Array.isArray(fallbackAttr) 
+            ? fallbackAttr.some(attr => target.hasAttribute(attr))
+            : target.hasAttribute(fallbackAttr);
+
+        if (!hasExplicitAttr && !(binding.listenMask & listenFlag)) return;
         if (binding.behaviorFlags & 0x02) e.preventDefault(); // FLAG_N_PREVENT
     } else {
         // Fallback for dynamic elements (APPEND_HTML)

@@ -111,15 +111,16 @@ fn wrap_packet(pkt_type: u8, payload: Vec<u8>) -> Vec<u8> {
 
 // ─── HELLO ─────────────────────────────────────────────────────────────────
 
-pub fn hello(session_id: &str, keepalive_ms: u16, secret: &[u8]) -> Vec<u8> {
+pub fn hello(session_id: &str, secret: &[u8], last_seq: u32) -> Vec<u8> {
     let mut payload = Vec::new();
-    push_u16(&mut payload, keepalive_ms);
+    payload.push(0x00); // Status: 0 (OK)
     push_str8(&mut payload, session_id);
     if secret.len() == 32 {
         payload.extend_from_slice(secret);
     } else {
         payload.extend_from_slice(&[0u8; 32]);
     }
+    push_u32(&mut payload, last_seq);
     wrap_packet(PKT_HELLO, payload)
 }
 
@@ -341,9 +342,12 @@ pub fn ping(sequence: u8) -> Vec<u8> {
     wrap_packet(PKT_PING, vec![sequence])
 }
 
-/// Construit un paquet EVENT (0x02)
+/// Construit un paquet EVENT (0x02) - Structure v0.5.0
 pub fn event(node_id: u32, handler: &str, payload: &str) -> Vec<u8> {
     let mut data = Vec::new();
+    push_u32(&mut data, 0); // SeqID Placeholder
+    data.extend_from_slice(&[0u8; 32]); // Signature Placeholder
+    
     push_u32(&mut data, node_id);
     push_str8(&mut data, handler);
     push_str16(&mut data, payload);

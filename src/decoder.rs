@@ -1,4 +1,4 @@
-/// decoder.rs — Décodeur universel du protocole NBPS v0.2.2
+/// decoder.rs — Décodeur universel du protocole NBPS v0.5.0
 /// Permet de transformer un flux binaire opaque en structures lisibles (JSON).
 
 use serde::{Serialize, Deserialize};
@@ -7,12 +7,14 @@ use serde::{Serialize, Deserialize};
 #[serde(tag = "type", content = "data")]
 pub enum DecodedMessage {
     Hello {
-        version: u32,
+        status: u8,
         session_id: String,
+        secret: Vec<u8>,
+        last_seq: u32,
     },
     Event {
         seq_id: u32,
-        signature: [u8; 32],
+        signature: Vec<u8>,
         node_id: u32,
         handler: String,
         payload: String,
@@ -29,7 +31,7 @@ pub enum DecodedMessage {
         node_count: u16,
     },
     Sync {
-        checksum: u32,
+        version: u32,
     },
     Ping {
         sequence: u8,
@@ -53,46 +55,75 @@ pub struct DecodedOp {
 }
 
 pub fn decode(data: &[u8]) -> DecodedMessage {
-    if data.len() < 5 {
-        return DecodedMessage::Unknown { opcode: 0, len: data.len() };
+    if data.is_empty() {
+        return DecodedMessage::Unknown { opcode: 0, len: 0 };
     }
 
     let opcode = data[0];
-    let length = u32::from_be_bytes([data[1], data[2], data[3], data[4]]) as usize;
-    
-    if data.len() < 5 + length {
-        return DecodedMessage::Unknown { opcode, len: data.len() };
-    }
-
-    let payload = &data[5..5+length];
-
     match opcode {
-        0x01 => { // HELLO
-            if payload.len() >= 4 {
-                let version = u32::from_be_bytes([payload[0], payload[1], payload[2], payload[3]]);
-                let sid_len = payload[4] as usize;
-                let session_id = String::from_utf8_lossy(&payload[5..5+sid_len]).to_string();
-                DecodedMessage::Hello { version, session_id }
+        0x01 => { // HELLO (Server -> Client)
+            if data.len() >= 5 {
+                let _payload_len = u32::from_be_bytes([data[1], data[2], data[3], data[4]]) as usize;
+                if data.len() >= 7 {
+                    let status = data[5];
+                    let sid_len = data[6] as usize;
+                    if data.len() >= 7 + sid_len {
+                        let session_id = String::from_utf8_lossy(&data[7..7+sid_len]).to_string();
+                        let mut secret = Vec::new();
+                        let mut last_seq = 0;
+                        let mut cursor = 7 + sid_len;
+                        if data.len() >= cursor + 32 {
+                            secret = data[cursor..cursor+32].to_vec();
+                            cursor += 32;
+                        }
+                        if data.len() >= cursor + 4 {
+                            last_seq = u32::from_be_bytes([data[cursor], data[cursor+1], data[cursor+2], data[cursor+3]]);
+                        }
+                        DecodedMessage::Hello { status, session_id, secret, last_seq }
+                    } else {
+                        DecodedMessage::Unknown { opcode, len: data.len() }
+                    }
+                } else {
+                    DecodedMessage::Unknown { opcode, len: data.len() }
+                }
             } else {
                 DecodedMessage::Unknown { opcode, len: data.len() }
             }
         },
-        0x02 => { // EVENT (v0.5.0)
-            if payload.len() >= 4 + 32 + 4 + 1 + 2 {
-                let seq_id = u32::from_be_bytes([payload[0], payload[1], payload[2], payload[3]]);
-                let mut signature = [0u8; 32];
-                signature.copy_from_slice(&payload[4..36]);
+        0x02 => { // EVENT (v0.5.0 Security)
+            // [Type:1][Len:4][Seq:4][Sig:32][Payload...]
+            // Payload = [NodeID:4][HLen:1][Handler:str][PLen:2][Payload:json]
+            if data.len() >= 41 {
+                let seq_id = u32::from_be_bytes([data[5], data[6], data[7], data[8]]);
+                let signature = data[9..41].to_vec();
+                let mut cursor = 41;
                 
-                let node_id = u32::from_be_bytes([payload[36], payload[37], payload[38], payload[39]]);
-                
-                let h_len = payload[40] as usize;
-                let handler = String::from_utf8_lossy(&payload[41..41+h_len]).to_string();
-                
-                let p_start = 41 + h_len;
-                let p_len = u16::from_be_bytes([payload[p_start], payload[p_start+1]]) as usize;
-                let payload_str = String::from_utf8_lossy(&payload[p_start+2..p_start+2+p_len]).to_string();
-
-                DecodedMessage::Event { seq_id, signature, node_id, handler, payload: payload_str }
+                if data.len() >= cursor + 4 {
+                    let node_id = u32::from_be_bytes([data[cursor], data[cursor+1], data[cursor+2], data[cursor+3]]);
+                    cursor += 4;
+                    
+                    if data.len() > cursor {
+                        let h_len = data[cursor] as usize;
+                        cursor += 1;
+                        
+                        if data.len() >= cursor + h_len + 2 {
+                            let handler = String::from_utf8_lossy(&data[cursor..cursor+h_len]).to_string();
+                            cursor += h_len;
+                            
+                            let p_len = u16::from_be_bytes([data[cursor], data[cursor+1]]) as usize;
+                            cursor += 2;
+                            
+                            let payload = if data.len() >= cursor + p_len {
+                                String::from_utf8_lossy(&data[cursor..cursor+p_len]).to_string()
+                            } else {
+                                "".to_string()
+                            };
+                            
+                            return DecodedMessage::Event { seq_id, signature, node_id, handler, payload };
+                        }
+                    }
+                }
+                DecodedMessage::Unknown { opcode, len: data.len() }
             } else {
                 DecodedMessage::Unknown { opcode, len: data.len() }
             }
@@ -111,21 +142,30 @@ pub fn decode(data: &[u8]) -> DecodedMessage {
                     let version = u32::from_be_bytes([data[cursor+3], data[cursor+4], data[cursor+5], data[cursor+6]]);
                     cursor += 7;
 
-                    let mut value = String::new();
-                    let mut op_name = format!("Op:{}", op_type_code);
+                    if cursor + 2 > data.len() { break; }
+                    let d_len = u16::from_be_bytes([data[cursor], data[cursor+1]]) as usize;
+                    cursor += 2;
 
-                    if op_type_code == 0x01 || op_type_code == 0x0A { // SetText or ReplaceInner
-                        op_name = if op_type_code == 0x01 { "SetText" } else { "ReplaceInner" }.to_string();
-                        if cursor + 2 <= data.len() {
-                            let len = u16::from_be_bytes([data[cursor], data[cursor+1]]) as usize;
-                            cursor += 2;
-                            if cursor + len <= data.len() {
-                                value = String::from_utf8_lossy(&data[cursor..cursor+len]).to_string();
-                                cursor += len;
-                            }
-                        }
+                    let mut value = String::new();
+                    let op_name = match op_type_code {
+                        0x01 => "SetText",
+                        0x02 => "SetAttr",
+                        0x03 => "DelAttr",
+                        0x04 => "AddClass",
+                        0x05 => "RemClass",
+                        0x08 => "Remove",
+                        0x09 => "SetStyle",
+                        0x0A => "ReplaceInner",
+                        0x0B => "AppendHtml",
+                        0x0C => "ScrollTo",
+                        0x0D => "Focus",
+                        _ => "Unknown"
+                    }.to_string();
+
+                    if d_len > 0 && cursor + d_len <= data.len() {
+                        value = String::from_utf8_lossy(&data[cursor..cursor+d_len]).to_string();
+                        cursor += d_len;
                     }
-                    // TODO: Ajouter les autres types d'Op (0x02 SetAttr, etc.)
 
                     ops.push(DecodedOp {
                         target_id,
@@ -152,8 +192,8 @@ pub fn decode(data: &[u8]) -> DecodedMessage {
                 DecodedMessage::Unknown { opcode, len: data.len() }
             }
         },
-        0x09 => { // PING (was 0x06)
-            if data.len() >= 5 {
+        0x09 => { // PING
+            if data.len() >= 6 {
                 DecodedMessage::Ping { sequence: data[5] }
             } else {
                 DecodedMessage::Unknown { opcode, len: data.len() }
@@ -177,3 +217,4 @@ pub fn decode(data: &[u8]) -> DecodedMessage {
         _ => DecodedMessage::Unknown { opcode, len: data.len() }
     }
 }
+
