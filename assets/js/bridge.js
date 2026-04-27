@@ -2,7 +2,7 @@ if (window.nhtml_initialized) {
     console.warn("🛰️ NHTML Bridge already initialized.");
 } else {
 window.nhtml_initialized = true;
-console.log("🛰️ NHTML v0.4.6 Bridge Loading...");
+console.log("🛰️ NHTML v0.4.7 Bridge Loading...");
 
 let socket = null;
 window.nhtml_transport_mode = "INIT";
@@ -893,7 +893,7 @@ document.addEventListener('click', (e) => processEvent(e, 0x01, 'n-click'));
 document.addEventListener('input', (e) => processEvent(e, 0x02, ['n-input', 'n-change']));
 document.addEventListener('keydown', (e) => processEvent(e, 0x08, 'n-keydown'));
 
-window.addEventListener('DOMContentLoaded', () => {
+function nhtml_startup() {
     // Scan existing IDs for hybrid mode (DevTools)
     document.querySelectorAll('[n-id]').forEach(el => {
         const nid = el.getAttribute('n-id');
@@ -908,5 +908,11 @@ window.addEventListener('DOMContentLoaded', () => {
     const port = window.location.port || 8080;
     const path = window.location.pathname.substring(1);
     initNhtml(`ws://${host}:${port}/ws?sid=AUTO&path=${path}`);
-});
+}
+
+if (document.readyState === 'loading') {
+    window.addEventListener('DOMContentLoaded', nhtml_startup);
+} else {
+    nhtml_startup();
+}
 }
