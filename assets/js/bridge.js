@@ -578,11 +578,8 @@ async function switchToWasm() {
             wasmStdout += Array.isArray(event.detail) ? event.detail[0] : event.detail;
         });
 
-        window.nhtml_wasm_php.addEventListener('ready', async () => {
+        window.nhtml_wasm_php.addEventListener('ready', () => {
             console.log("🛰️ NHTML WASM VM Ready.");
-            
-            // Trigger initial state hydration
-            wasmRunEvent(0, 'init', {});
         });
         
         // Initialize Virtual Filesystem
@@ -623,6 +620,10 @@ async function switchToWasm() {
                 console.warn("🛰️ NHTML Preload fail:", f);
             }
         }
+
+        // Trigger initial state hydration AFTER all files are ready
+        console.log("🛰️ NHTML WASM Filesystem Ready. Hydrating...");
+        wasmRunEvent(0, 'init', {});
 
     } catch (e) {
         console.error("🛰️ NHTML WASM initialization failed:", e);

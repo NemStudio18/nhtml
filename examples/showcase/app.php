@@ -22,7 +22,7 @@ $db->exec("CREATE TABLE IF NOT EXISTS inventory (item TEXT PRIMARY KEY, stock IN
 // Seed initial
 $initCheck = $db->query("SELECT COUNT(*) FROM state")->fetchColumn();
 if ($initCheck == 0) {
-    $db->exec("INSERT INTO state (key, val) VALUES ('counter', '0'), ('username', 'NemStudio'), ('email', 'contact@nhtml.io'), ('theme', 'dark')");
+    $db->exec("INSERT INTO state (key, val) VALUES ('counter', '0'), ('username', 'NemStudio'), ('email', 'contact@nhtml.io'), ('theme', 'dark'), ('lang', 'fr')");
     $db->exec("INSERT INTO inventory (item, stock) VALUES ('gateway', 12), ('sdk', 8)");
 }
 
@@ -87,14 +87,44 @@ function switch_view($view) {
 }
 
 // 3. Logique Applicative
+$lang = get_db_val('lang', 'fr');
+
+function refresh_ui($l) {
+    $trans = [
+        'fr' => [
+            'title' => '📊 Dashboard de Démo',
+            'desc' => 'Bienvenue dans l\'écosystème NHTML. Explorez la réactivité binaire ultra-rapide.',
+            'stock_title' => '📦 Gestion des Stocks',
+            'messenger_title' => '💬 NHTML Messenger'
+        ],
+        'en' => [
+            'title' => '📊 Demo Dashboard',
+            'desc' => 'Welcome to the NHTML ecosystem. Explore ultra-fast binary reactivity.',
+            'stock_title' => '📦 Inventory Management',
+            'messenger_title' => '💬 NHTML Messenger'
+        ]
+    ];
+    $t = $trans[$l] ?? $trans['fr'];
+    patch('page_title', 'set_text', $t['title']);
+    patch('page_desc', 'set_text', $t['desc']);
+}
+
 if ($handler === 'init') {
     switch_view('dashboard');
+    refresh_ui($lang);
     patch('counter_val', 'set_text', get_db_val('counter', '0'));
     patch('stock_gateway', 'set_text', (string)get_stock('gateway'));
     patch('stock_sdk', 'set_text', (string)get_stock('sdk'));
     patch('set_user', 'set_attr', '', ['key' => 'value', 'val' => get_db_val('username')]);
     patch('set_email', 'set_attr', '', ['key' => 'value', 'val' => get_db_val('email')]);
 } else {
+    // --- LANG ---
+    if (strpos($handler, 'set_lang:') === 0) {
+        $l = str_replace('set_lang:', '', $handler);
+        set_db_val('lang', $l);
+        refresh_ui($l);
+        log_activity("Language set to <b>$l</b>");
+    }
 
     // --- NAVIGATION ---
     if (strpos($handler, 'goto_') === 0) {

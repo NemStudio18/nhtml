@@ -173,9 +173,15 @@
     </aside>
 
     <main>
-        <div class="page-header">
-            <h1 n-id="page_title">📊 Dashboard de Démo</h1>
-            <p n-id="page_desc">Bienvenue dans l'écosystème NHTML. Explorez la réactivité binaire ultra-rapide.</p>
+        <div class="page-header" style="display: flex; justify-content: space-between; align-items: flex-start;">
+            <div>
+                <h1 n-id="page_title">📊 Dashboard de Démo</h1>
+                <p n-id="page_desc">Bienvenue dans l'écosystème NHTML. Explorez la réactivité binaire ultra-rapide.</p>
+            </div>
+            <div class="btn-group" style="margin-top: 0;">
+                <button style="padding: 8px 12px; font-size: 0.8rem;" n-click="set_lang:fr">FR 🇫🇷</button>
+                <button style="padding: 8px 12px; font-size: 0.8rem;" n-click="set_lang:en">EN 🇺🇸</button>
+            </div>
         </div>
 
         <!-- SECTION: DASHBOARD -->
