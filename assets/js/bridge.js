@@ -720,8 +720,8 @@ async function wasmRunEvent(id_num, handler, formData) {
     // Set stdin
     window.nhtml_wasm_php.inputString(eventPayload);
     
-    // Use a cleaner execution sequence
-    const phpCode = `chdir('/'); include 'app.php';`;
+    // Ensure the code is wrapped in PHP tags since it's being prepended with '?>' by PhpBase
+    const phpCode = `<?php chdir('/'); include 'app.php'; ?>`;
     
     try {
         // Run and capture output
