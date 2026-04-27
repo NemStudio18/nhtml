@@ -10,6 +10,7 @@ pub enum DecodedMessage {
         status: u8,
         session_id: String,
         secret: Vec<u8>,
+        last_seq: u32,
     },
     Event {
         seq_id: u32,
@@ -69,10 +70,16 @@ pub fn decode(data: &[u8]) -> DecodedMessage {
                     if data.len() >= 7 + sid_len {
                         let session_id = String::from_utf8_lossy(&data[7..7+sid_len]).to_string();
                         let mut secret = Vec::new();
-                        if data.len() >= 7 + sid_len + 32 {
-                            secret = data[7+sid_len .. 7+sid_len+32].to_vec();
+                        let mut last_seq = 0;
+                        let mut cursor = 7 + sid_len;
+                        if data.len() >= cursor + 32 {
+                            secret = data[cursor..cursor+32].to_vec();
+                            cursor += 32;
                         }
-                        DecodedMessage::Hello { status, session_id, secret }
+                        if data.len() >= cursor + 4 {
+                            last_seq = u32::from_be_bytes([data[cursor], data[cursor+1], data[cursor+2], data[cursor+3]]);
+                        }
+                        DecodedMessage::Hello { status, session_id, secret, last_seq }
                     } else {
                         DecodedMessage::Unknown { opcode, len: data.len() }
                     }

@@ -259,6 +259,10 @@ async fn handle_connection_axum(
 
     // Charger les états depuis SQLite si existants
     let mut append_patches = Vec::new();
+    let mut last_seq = 0;
+    if let Ok(Some((_, seq))) = sm.get_session_security(session_id.clone()).await {
+        last_seq = seq;
+    }
     if let Ok(db_nodes) = sm.get_all_nodes(session_id.clone()).await {
         if !db_nodes.is_empty() {
             info!("[{}] Restauration de {} nœuds depuis SQLite", session_id, db_nodes.len());
@@ -293,7 +297,7 @@ async fn handle_connection_axum(
     // ── Séquence d'initialisation ──────────────────────────────────────────
 
     // 1. HELLO
-    let hello = proto::hello(&session_id, &secret);
+    let hello = proto::hello(&session_id, &secret, last_seq);
     ws_sender.send(WsMessage::Binary(hello)).await.ok();
 
     // 2. B-TREE
@@ -800,7 +804,7 @@ fn parse_php_response(
                 let val  = op["val"].as_str().unwrap_or("");
                 proto::PatchOp::set_style(node_id, 0, prop, val)
             }
-            "replace_inner" => {
+            "set_html" | "replace_inner" => {
                 let val = op["val"].as_str().unwrap_or("");
                 proto::PatchOp::replace_inner(node_id, 0, val)
             }
