@@ -2,10 +2,10 @@ if (window.nhtml_initialized) {
     console.warn("🛰️ NHTML Bridge already initialized.");
 } else {
 window.nhtml_initialized = true;
-console.log("🛰️ NHTML v0.4.4 Bridge Loading...");
+console.log("🛰️ NHTML v0.4.5 Bridge Loading...");
 
 let socket = null;
-let transportMode = "WS";
+window.nhtml_transport_mode = "INIT";
 let httpFallbackUrl = "";
 let reconnectAttempts = 0;
 const MAX_BACKOFF = 30000;
@@ -510,7 +510,8 @@ function processMessage(msg) {
 }
 
 function connect(wsUrl, timeoutMs = 5000) {
-    if (transportMode === "WASM") return; // Skip if already in WASM mode
+    if (window.nhtml_transport_mode === "WASM") return; 
+    window.nhtml_transport_mode = "WS_CONNECTING";
     
     try {
         const url = new URL(wsUrl);
@@ -529,12 +530,12 @@ function connect(wsUrl, timeoutMs = 5000) {
 
         socket.onopen = () => { 
             clearTimeout(connTimeout);
-            if (transportMode === "WASM") {
+            if (window.nhtml_transport_mode === "WASM") {
                 console.log("🛰️ NHTML Socket opened too late, staying in WASM mode.");
                 socket.close();
                 return;
             }
-            transportMode = "WS"; 
+            window.nhtml_transport_mode = "WS"; 
             reconnectAttempts = 0; 
             const hudMode = document.getElementById('nhtml-hud-mode');
             if (hudMode) hudMode.innerText = "(WS)";
@@ -551,7 +552,7 @@ function connect(wsUrl, timeoutMs = 5000) {
 
         socket.onclose = () => { 
             clearTimeout(connTimeout);
-            if (transportMode === "WS") {
+            if (window.nhtml_transport_mode === "WS" || window.nhtml_transport_mode === "WS_CONNECTING") {
                 setTimeout(() => connect(wsUrl), Math.min(MAX_BACKOFF, 500 * Math.pow(2, reconnectAttempts++))); 
             } else {
                 switchToWasm();
@@ -564,8 +565,8 @@ function connect(wsUrl, timeoutMs = 5000) {
 }
 
 async function switchToWasm() {
-    if (transportMode === "WASM") return;
-    transportMode = "WASM";
+    if (window.nhtml_transport_mode === "WASM") return;
+    window.nhtml_transport_mode = "WASM";
     console.log("🛰️ NHTML Switching to ZERO-SERVER (WASM) Mode...");
     const hudMode = document.getElementById('nhtml-hud-mode');
     if (hudMode) hudMode.innerText = "(WASM)";
@@ -724,11 +725,13 @@ function sendEvent(id_num, handler, formData) {
     view.setUint16(pOff, jsonBytes.length); // PayloadLen
     buf.set(jsonBytes, pOff + 2); // Payload
     
-    console.log(`🛰️ NHTML Sending Event: ${handler} (Transport: ${transportMode})`);
-    if (transportMode === "WASM") {
+    console.log(`🛰️ NHTML Sending Event: ${handler} (Transport: ${window.nhtml_transport_mode})`);
+    if (window.nhtml_transport_mode === "WASM") {
         wasmRunEvent(id_num, handler, formData);
-    } else {
+    } else if (window.nhtml_transport_mode === "WS") {
         sendBinary(buf);
+    } else {
+        console.warn("🛰️ NHTML Event dropped: Transport not ready.");
     }
 }
 
