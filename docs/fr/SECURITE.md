@@ -1,38 +1,40 @@
 # 🛡️ Sécurité & Limitations Techniques (NHTML)
 
-Ce document détaille les points critiques de sécurité et les limites architecturales actuelles du système NHTML. Ces points constituent la priorité de développement pour la version **v0.5.0**.
+Ce document détaille les points critiques de sécurité et les limites architecturales du système NHTML. 
 
 ---
 
-## 1. Gestion des Sessions & Race Conditions
-### Le Problème
-En mode **Dédié (Rust)**, le Gateway est asynchrone. Si un utilisateur déclenche plusieurs événements simultanément (ex: clics multiples), le Gateway peut lancer plusieurs processus PHP en parallèle.
-PHP utilise un verrouillage de fichier (`session_lock`) qui force les requêtes à s'exécuter de manière séquentielle, mais si le code PHP manipule un état persistant (Base de données, Fichiers) sans transactions, des incohérences peuvent apparaître.
-
-### Solution prévue (v0.5.0)
-- **Atomic Sequence ID** : Chaque mutation sera associée à un numéro de version d'état. Si le Gateway reçoit une réponse basée sur une version obsolète, elle sera rejetée pour éviter l'écrasement de données.
+## 1. Authentification & Intégrité (v0.5.0 ✅)
+### Solution implémentée
+NHTML v0.5.0 a introduit une couche de sécurité cryptographique obligatoire :
+- **Signatures HMAC-SHA256** : Chaque événement envoyé par le client (`EVENT`) est signé avec une clé secrète de 32 octets négociée lors du handshake. Le Gateway rejette immédiatement toute trame falsifiée.
+- **Sequence ID (Anti-Replay)** : Un compteur incrémental est maintenu par session. Le Gateway n'accepte que des paquets avec un `SeqID` supérieur au précédent, rendant les attaques par rejeu impossibles.
 
 ---
 
-## 2. Intégrité du Protocole (NBPS)
-### Risque d'Injection
-Le protocole binaire NBPS ne possède actuellement pas de mécanisme d'authentification par paquet. Un attaquant capable de se connecter au WebSocket pourrait injecter ses propres trames binaires pour manipuler le DOM de la victime (XSS Binaire).
-
-### Solution prévue (v0.5.0)
-- **Signature HMAC** : Chaque paquet envoyé par le Gateway sera signé avec une clé secrète partagée. Le `bridge.js` vérifiera la signature avant d'appliquer toute mutation.
+## 2. Haute Performance & FastCGI (v0.6.0 🚧)
+### Le Risque
+En mode CGI classique, le Gateway lance un processus PHP pour chaque événement. Bien que simple, cela peut être exploité pour saturer le CPU (DoS).
+### Solution (v0.6.0)
+- **FastCGI (PHP-FPM)** : Le Gateway maintient des connexions persistantes vers un pool de travailleurs PHP. Cela réduit drastiquement l'overhead de création de processus et permet de limiter les ressources au niveau du serveur FPM.
 
 ---
 
 ## 3. Limitations du Mode WASM (Zéro-Serveur)
-Le mode WASM est révolutionnaire mais comporte des limites intrinsèques à la sécurité des navigateurs :
+Le mode WASM comporte des limites intrinsèques à la sécurité des navigateurs :
 - **Isolation Totale** : Chaque client WASM est une "île". Il n'y a **aucune synchronisation possible** entre deux utilisateurs sur une page statique (GitHub Pages), car il n'y a pas de serveur central pour arbitrer l'état.
-- **Bac à Sable (Sandbox)** : PHP-WASM ne peut pas ouvrir de sockets réseau (TCP/UDP) vers l'extérieur. Les connexions aux bases de données distantes (MySQL, PostgreSQL) sont impossibles. Seul **SQLite local** (en RAM ou IndexedDB) est supporté.
-- **Usage** : Ce mode est réservé aux outils "Offline-First", aux calculatrices ou aux démonstrations.
+- **Bac à Sable (Sandbox)** : PHP-WASM ne peut pas ouvrir de sockets réseau vers l'extérieur. Seul **SQLite local** (via IDBFS) est supporté.
+- **Usage** : Ce mode est réservé aux outils "Offline-First" ou aux démonstrations statiques.
 
 ---
 
 ## 4. Exposition des DevTools
-Les DevTools NHTML (`port 8081`) sont un outil de diagnostic puissant mais dangereux :
-- **Visibilité totale** : Ils exposent l'intégralité des flux métier et des structures de données.
+Les DevTools NHTML (`port 8081`) exposent l'intégralité des flux métier :
 - **Risque** : Ne **jamais** exposer le port 8081 sur l'Internet public en production.
-- **Recommandation** : Utilisez exclusivement un tunnel SSH pour y accéder à distance.
+- **Recommandation** : Utilisez exclusivement un tunnel SSH ou un VPN pour y accéder à distance.
+
+---
+
+## 5. Roadmap Sécurité Future
+- **Rate Limiting** : Limitation du nombre d'événements par seconde par IP au niveau du Gateway.
+- **TLS Natif** : Support du WSS (WebSocket Secure) directement dans le Gateway sans nécessiter de reverse-proxy.

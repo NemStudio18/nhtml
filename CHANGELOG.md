@@ -1,5 +1,26 @@
 # 📜 Changelog NHTML
 
+## v0.6.0 (Mai 2026) — "Global Connect" (EN DÉVELOPPEMENT)
+### Added
+- **FastCGI/PHP-FPM Bridge**: Support pour la communication directe avec les pools FPM (ultra-basse latence).
+- **Scoped Broadcasting**: Possibilité de diffuser des patches à tous ou aux autres clients d'une session.
+- **Industrial Error Handling**: Refonte totale des erreurs via `GatewayError` (zéro panique).
+
+---
+
+## v0.5.0 (Avril 2026) — "Industrial Security"
+### Added
+- **HMAC-SHA256 Signatures**: Authentification binaire forcée pour chaque événement client.
+- **Sequence ID Synchronization**: Protection native contre les attaques par rejeu.
+- **Persistence WASM (IDBFS)** : Les données Messenger/Settings persistent désormais localement en mode WASM.
+- **Responsive Showcase**: Layout adaptatif (Flex Desktop / Sidebar Mobile) pour la démo phare.
+
+### Improved
+- **Bridge Reliability**: Les événements sur les éléments imbriqués ne sont plus bloqués par les masques parents.
+- **Documentation**: Mise à jour complète de l'architecture et de la sécurité.
+
+---
+
 ## v0.4.0 (April 2026) — "Industrial Launch"
 ### Added
 - **Multi-Platform Releases**: Automated builds for Windows, Linux, and macOS.

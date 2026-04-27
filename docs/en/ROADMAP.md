@@ -1,29 +1,21 @@
-# 🗺️ NHTML Roadmap (v0.4.0)
+# 🗺️ NHTML Roadmap (v0.6.0)
 
-## ✅ Phase 1 — Foundations & Glow (Completed)
-- [x] NHTML Glow, Packet HUD
+## ✅ Phase 5 — Security & Stability (Completed)
+- [x] **HMAC-SHA256 Signatures**: Binary authentication for client packets.
+- [x] **Sequence ID Synchronization**: Integrated anti-replay protocol.
+- [x] **WASM Persistence**: IDBFS support for Messenger/Settings.
+- [x] **Responsive Showcase**: Adaptive Desktop/Mobile interface.
 
-## ✅ Phase 2 — Industrial Transport (Completed)
-- [x] SQLite Sessions, PHP Log Bridge, Protocol v0.3.1, Auto-PHP Supervisor
-
-## ✅ Phase 3 — DevTools Pro (Completed)
-- [x] Network Monitor, Node Inspector, State Diff Viewer, Handler Tracer, Session Comparator
-
-## ✅ Phase 4 — Optimization & Performance (Completed)
-- [x] **Zstd Compression**: Compressed B-TREE + client decompression (local fzstd, zero CDN)
-- [x] **Benchmark CLI**: `nhtml bench <file>`
-- [x] **Auto-Injection Bridge**: `bridge.js` + `fzstd.js` automatically injected into `.nhtml`
-- [x] **Configurable Ports**: `--ws-port`, `--php-port`, `--port` (devtools)
-- [x] **Example Pyramid**: counter → todo → live-form → style-lab
-- [x] **Multi-Platform Packaging**: Win/Linux/Mac binaries via GitHub Actions.
-
-## 🔵 Phase 5 — Public Release & Ecosystem (Active)
-- [x] **Unified Monorepo**: Single repository containing Rust, PHP SDK, and JS Bridge.
-- [x] **PHP-WASM Fallback**: "Zero-Server" mode integrated into the JS Bridge (Local & CDN-free).
-- [x] **`nhtml.config.toml`**: Declarative configuration for ports and paths.
-- [x] **Reverse Proxy Docs**: Nginx/Apache configs ready for copy-paste.
-- [ ] **Public Landing Page**: Interactive documentation site on GitHub Pages.
+## 🔵 Phase 6 — Performance & Collaboration (Active)
+- [x] **FastCGI Client (Rust)** : Direct bridge to PHP-FPM pool (zero fork overhead).
+- [x] **Scoped Broadcasting** : Real-time multi-user synchronization (`all`, `others`).
+- [x] **Professional Error Handling** : `GatewayError` system for 100% server stability.
+- [ ] **Connection Pooling** : Reuse FPM sockets (Keep-alive).
+- [ ] **Auto-Tunneling** : Optional Cloudflare Tunnel / Ngrok integration for Cloud Home.
 - [ ] **Community SDKs**: Python and Go ports of the NHTML protocol.
+
+---
+> **Target Architecture (Production)**: `Internet → Nginx → [Gateway:8080 | PHP:8000]` — DevTools never exposed.
 
 ---
 > **Target Architecture (Production)**: `Internet → Nginx → [Gateway:8080 | PHP:8000]` — DevTools never exposed.
