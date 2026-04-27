@@ -17,6 +17,14 @@ window.nhtml_el_cache = new Map(); // Cache des éléments pour performance
 window.nhtml_session_id = localStorage.getItem('nhtml_session_id') || "";
 
 async function initNhtml(wsUrl, httpUrl = "") {
+    if (window.location.search.includes('wasm=1')) {
+        console.log("🛰️ NHTML Force WASM mode detected.");
+        injectStyles();
+        injectHud();
+        switchToWasm();
+        return;
+    }
+
     // Protocol fix: if we are on HTTPS, we MUST use WSS for the primary attempt
     if (window.location.protocol === "https:" && wsUrl.startsWith("ws:")) {
         wsUrl = wsUrl.replace("ws:", "wss:");
