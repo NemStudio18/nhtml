@@ -787,17 +787,23 @@ async function wasmRunEvent(id_num, handler, formData) {
 function processEvent(e, listenFlag, fallbackAttr) {
     console.log(`🛰️ NHTML Event: ${e.type} on`, e.target, "Fallback:", fallbackAttr);
     
-    // Search for either n-id or the specific trigger attribute (e.g. n-click)
-    const target = e.target.closest('[n-id]') || (Array.isArray(fallbackAttr) 
-        ? (e.target.closest(`[${fallbackAttr[0]}]`) || e.target.closest(`[${fallbackAttr[1]}]`))
-        : e.target.closest(`[${fallbackAttr}]`));
-        
+    // 1. Find the element that actually has the trigger attribute (n-click, n-input, etc.)
+    const triggerAttr = Array.isArray(fallbackAttr) 
+        ? (fallbackAttr.find(attr => e.target.closest(`[${attr}]`)))
+        : fallbackAttr;
+    
+    const triggerEl = triggerAttr ? e.target.closest(`[${triggerAttr}]`) : null;
+    
+    // 2. Find the associated n-id (on the trigger element itself or a parent)
+    const target = triggerEl || e.target.closest('[n-id]');
+    
     if (!target) {
         console.log("  -> No NHTML target found.");
         return;
     }
     
-    const nid = target.getAttribute('n-id');
+    const nidEl = target.closest('[n-id]');
+    const nid = nidEl ? nidEl.getAttribute('n-id') : null;
     console.log(`  -> Target Found: ${nid || 'no-id'}`, target);
     const id_num = window.nhtml_reverse_map[nid] || 0;
     const binding = window.nhtml_bindings && window.nhtml_bindings[id_num];
