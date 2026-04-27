@@ -3,251 +3,298 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Nhtml - Build interactive UI with HTML only</title>
+    <title>NHTML — Native-HTML Binary Framework</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
     <style>
-        body { font-family: 'Inter', system-ui, -apple-system, sans-serif; background: #0f172a; color: #f1f5f9; padding: 1rem; line-height: 1.5; }
-        .container { max-width: 1200px; margin: 0 auto; }
-        .card { background: #1e293b; padding: 1.5rem; border-radius: 12px; box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1); margin-bottom: 2rem; border: 1px solid #334155; }
-        .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 2rem; }
-        textarea { width: 100%; height: 350px; background: #020617; color: #38bdf8; border: 1px solid #334155; padding: 1rem; border-radius: 8px; font-family: 'Fira Code', monospace; font-size: 0.9rem; resize: vertical; }
-        #root { border: 2px dashed #475569; padding: 1.5rem; min-height: 350px; border-radius: 8px; background: #0f172a; }
-        button { background: #3b82f6; color: white; border: none; padding: 0.7rem 1.2rem; border-radius: 6px; cursor: pointer; font-weight: 600; transition: all 0.2s; }
-        button:hover { background: #2563eb; transform: translateY(-1px); }
-        h1, h2, h3 { color: #fff; }
-        pre { margin: 0; }
-        .badge { display: inline-block; padding: 0.25rem 0.75rem; border-radius: 9999px; font-size: 0.875rem; font-weight: 700; text-transform: uppercase; }
+        :root {
+            --bg-dark: #0f172a;
+            --primary: #38bdf8;
+            --accent: #818cf8;
+            --card-bg: rgba(30, 41, 59, 0.7);
+            --text: #f8fafc;
+            --text-dim: #94a3b8;
+            --border: rgba(255, 255, 255, 0.08);
+        }
 
-        @media (max-width: 900px) {
-            .grid { grid-template-columns: 1fr; }
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Outfit', sans-serif;
+            background-color: var(--bg-dark);
+            background-image: radial-gradient(circle at 50% 50%, #1e293b 0%, #0f172a 100%);
+            color: var(--text);
+            line-height: 1.6;
+            overflow-x: hidden;
+        }
+
+        .container {
+            max-width: 1100px;
+            margin: 0 auto;
+            padding: 0 2rem;
+        }
+
+        /* --- Header --- */
+        nav {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 2.5rem 0;
+        }
+
+        .logo {
+            font-weight: 900;
+            font-size: 2rem;
+            letter-spacing: -1px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            background: linear-gradient(to right, var(--primary), var(--accent));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .nav-links {
+            display: flex;
+            gap: 2.5rem;
+        }
+
+        .nav-links a {
+            color: var(--text-dim);
+            text-decoration: none;
+            font-weight: 500;
+            font-size: 0.95rem;
+            transition: color 0.3s;
+        }
+
+        .nav-links a:hover {
+            color: var(--primary);
+        }
+
+        /* --- Hero --- */
+        .hero {
+            padding: 8rem 0 6rem;
+            text-align: center;
+        }
+
+        .hero h1 {
+            font-size: 5.5rem;
+            font-weight: 800;
+            line-height: 1.1;
+            margin-bottom: 1.5rem;
+            letter-spacing: -3px;
+        }
+
+        .hero h1 span {
+            display: block;
+            background: linear-gradient(135deg, #fff 0%, var(--primary) 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .hero p {
+            font-size: 1.4rem;
+            color: var(--text-dim);
+            max-width: 650px;
+            margin: 0 auto 3.5rem;
+            font-weight: 300;
+        }
+
+        .btn-group {
+            display: flex;
+            gap: 1.5rem;
+            justify-content: center;
+        }
+
+        .btn {
+            padding: 1rem 2.5rem;
+            border-radius: 12px;
+            font-weight: 700;
+            text-decoration: none;
+            font-size: 1.1rem;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            cursor: pointer;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, var(--primary), var(--accent));
+            color: white;
+            box-shadow: 0 10px 30px rgba(56, 189, 248, 0.25);
+            border: 1px solid rgba(255,255,255,0.1);
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-3px) scale(1.02);
+            box-shadow: 0 15px 40px rgba(56, 189, 248, 0.4);
+        }
+
+        .btn-secondary {
+            background-color: rgba(255, 255, 255, 0.05);
+            color: white;
+            border: 1px solid var(--border);
+            backdrop-filter: blur(10px);
+        }
+
+        .btn-secondary:hover {
+            background-color: rgba(255, 255, 255, 0.1);
+            transform: translateY(-3px);
+        }
+
+        /* --- Features --- */
+        .features {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 2.5rem;
+            margin: 4rem 0;
+        }
+
+        .feature-card {
+            background: var(--card-bg);
+            border: 1px solid var(--border);
+            padding: 3rem;
+            border-radius: 24px;
+            text-align: left;
+            backdrop-filter: blur(12px);
+            transition: transform 0.3s, border-color 0.3s;
+        }
+
+        .feature-card:hover {
+            border-color: var(--primary);
+            transform: translateY(-5px);
+        }
+
+        .feature-card h3 {
+            font-size: 1.5rem;
+            margin-bottom: 1.25rem;
+            color: white;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .feature-card h3 span { color: var(--primary); }
+
+        .feature-card p {
+            color: var(--text-dim);
+            font-size: 1rem;
+            line-height: 1.7;
+        }
+
+        /* --- Code Snippet --- */
+        .preview-container {
+            margin-top: 8rem;
+            background: #020617;
+            border-radius: 24px;
+            padding: 2.5rem;
+            border: 1px solid var(--border);
+            box-shadow: 0 50px 100px rgba(0,0,0,0.6);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .preview-header {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 2rem;
+        }
+
+        .dot { width: 12px; height: 12px; border-radius: 50%; }
+        .dot-r { background: #ef4444; }
+        .dot-y { background: #f59e0b; }
+        .dot-g { background: #10b981; }
+
+        pre {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 1.1rem;
+            color: #94a3b8;
+            text-align: left;
+            overflow-x: auto;
+        }
+
+        .code-accent { color: var(--primary); }
+        .code-comment { color: #475569; }
+        .code-string { color: var(--accent); }
+
+        footer {
+            margin-top: 10rem;
+            padding: 4rem 0;
+            border-top: 1px solid var(--border);
+            text-align: center;
+            color: var(--text-dim);
+            font-size: 0.9rem;
+        }
+
+        @media (max-width: 768px) {
+            .hero h1 { font-size: 3.5rem; }
+            .features { grid-template-columns: 1fr; }
+            .nav-links { display: none; }
         }
     </style>
 </head>
 <body>
+
     <div class="container">
-        <header class="card" style="text-align: center; border-bottom: 4px solid #3b82f6; padding: 3rem 1rem;">
-            <p align="center">
-                <img src="assets/logo.png" width="180" alt="Nhtml Logo" style="margin-bottom: 1rem;">
-            </p>
-            <h1 style="font-size: 2.8rem; margin: 0; letter-spacing: -0.025em;">⚛️ Build interactive UI with HTML only</h1>
-            <p style="font-size: 1.4rem; color: #94a3b8; margin-top: 0.5rem; font-weight: 400;">No framework. No build step. No JavaScript.</p>
-            <div style="margin-top: 1.5rem;">
-                <span class="badge" style="background: #0ea5e9; color: #fff;">⚡ Runtime: &lt; 2KB JS</span>
-                <span class="badge" style="background: #10b981; color: #fff; margin-left: 0.5rem;">🚀 Rust Powered</span>
+        <nav>
+            <div class="logo">🛰️ NHTML</div>
+            <div class="nav-links">
+                <a href="./docs/fr/GUIDE_DEMARRAGE.md">Documentation</a>
+                <a href="https://github.com/NemStudio18/nhtml">GitHub</a>
+                <a href="./INSTALL.md">Installation</a>
             </div>
-            
-            <div style="margin-top: 2.5rem;">
-                <button onclick="loadExample()" style="background: #10b981; font-size: 1.1rem; padding: 1rem 2rem; box-shadow: 0 4px 14px 0 rgba(16, 185, 129, 0.39);">⚡ Load Interactive Demo</button>
-                <a href="https://github.com/NemStudio18/nhtml" style="color: #94a3b8; margin-left: 1.5rem; text-decoration: none; font-weight: 500;">View on GitHub →</a>
-            </div>
-        </header>
+        </nav>
 
-        <section class="grid">
-            <div class="card">
-                <h3 style="margin-top: 0; display: flex; align-items: center; justify-content: space-between;">
-                    Source Nhtml
-                    <span style="font-size: 0.8rem; color: #64748b; font-weight: 400;">Editable</span>
-                </h3>
-                <textarea id="editor" spellcheck="false">
-<var counter=0>
-<var user='{"name": "Developer", "role": "Explorer"}'>
-
-<div class="demo">
-    <h2>Welcome, {user.name}!</h2>
-    
-    <p>You are an <u>{user.role}</u></p>
-
-    <div style="margin-top: 1.5rem; display: flex; gap: 10px;">
-        <button on:click="counter++">Incrémenter ({counter})</button>
-        <button on:click="counter = 0" style="background: #475569;">Reset</button>
-    </div>
-
-    <if condition="counter > 10">
-        <p style="color: #10b981; font-weight: bold; margin-top: 1rem;">🎯 Keep going! You've reached {counter}!</p>
-    </if>
-</div>
-                </textarea>
-                <button id="btn-compile" style="margin-top: 1rem; width: 100%; font-size: 1.1rem;">Compile & Mount 🔥</button>
-            </div>
-
-            <div class="card">
-                <h3 style="margin-top: 0;">Live Preview</h3>
-                <div id="root"></div>
-
-                <div style="margin-top: 2.5rem; background: #020617; padding: 1.5rem; border-radius: 8px; border: 1px solid #334155;">
-                    <h3 style="color: #64748b; font-size: 0.85rem; margin-top: 0; text-transform: uppercase; letter-spacing: 0.05em;">⚔️ Equivalent React code</h3>
-                    <pre style="color: #38bdf8; font-size: 0.85rem; overflow-x: auto; padding: 0.5rem 0;">
-function Counter() {
-  const [count, setCount] = useState(0);
-  return (
-    &lt;div&gt;
-      &lt;h2&gt;{count}&lt;/h2&gt;
-      &lt;button onClick={() =&gt; setCount(count + 1)}&gt;+&lt;/button&gt;
-      &lt;button onClick={() =&gt; setCount(0)}&gt;Reset&lt;/button&gt;
-    &lt;/div&gt;
-  );
-}
-                    </pre>
-                    <p style="font-size: 0.75rem; color: #475569; margin: 0.5rem 0 0 0; border-top: 1px solid #1e293b; padding-top: 0.5rem;">
-                        Requires: Node.js, Webpack, Babel, 40KB+ bundle.
-                    </p>
-                </div>
+        <section class="hero">
+            <h1>Server-Driven <span>Binary Interfaces</span></h1>
+            <p>NHTML transforms your browser into a high-performance binary engine. Build complex reactive apps with zero business logic on the frontend.</p>
+            <div class="btn-group">
+                <a href="./examples/showcase/index.nhtml" class="btn btn-primary">Launch Showcase Demo</a>
+                <a href="https://github.com/NemStudio18/nhtml" class="btn btn-secondary">Explore on GitHub</a>
             </div>
         </section>
 
-        <footer style="text-align: center; color: #64748b; padding: 2rem 0;">
-            <p>© 2026 NemStudio — Built for simplicity. <a href="./docs/INSTALL-WASM.md" style="color: #3b82f6;">Documentation</a></p>
+        <section class="features">
+            <div class="feature-card">
+                <h3><span>📦</span> Native NBPS</h3>
+                <p>A binary protocol optimized for atomic DOM mutations. Extremely low bandwidth using native Zstd compression.</p>
+            </div>
+            <div class="feature-card">
+                <h3><span>🐘</span> Zero-JS Logic</h3>
+                <p>Write your business logic in PHP or Rust. The Gateway orchestrates the state, the client strictly follows orders.</p>
+            </div>
+            <div class="feature-card">
+                <h3><span>⚡</span> WASM Fallback</h3>
+                <p>No server? No problem. NHTML boots a PHP virtual machine in the browser via WebAssembly for static hosting.</p>
+            </div>
+        </section>
+
+        <div class="preview-container">
+            <div class="preview-header">
+                <div class="dot dot-r"></div>
+                <div class="dot dot-y"></div>
+                <div class="dot dot-g"></div>
+            </div>
+            <pre>
+<span class="code-comment">// Your Server Side Logic (app.php)</span>
+<span class="code-accent">use</span> Nhtml\Nhtml;
+
+<span class="code-accent">if</span> ($event === <span class="code-string">'click'</span> && $nodeId === <span class="code-string">'btn-buy'</span>) {
+    Nhtml::patch()
+         ->setText(<span class="code-string">'status'</span>, <span class="code-string">'Item Added!'</span>)
+         ->addClass(<span class="code-string">'cart'</span>, <span class="code-string">'bump-animation'</span>)
+         ->send();
+}
+            </pre>
+        </div>
+
+        <footer>
+            <p>© 2027 NemStudio — Licensed under AGPL-3.0</p>
         </footer>
     </div>
 
-    <script type="module">
-        import init, { compile_wasm } from './pkg/nhtml_core.js';
-
-        function hydrateDOM(html, manifest) {
-            const root = document.getElementById('root');
-            root.innerHTML = html; 
-
-            window._nhtmlState = {};
-            window._nhtmlAST = manifest;
-
-            for (const [key, config] of Object.entries(manifest.state_vars || {})) {
-                window._nhtmlState[key] = config.initial_value;
-            }
-
-            window._nhtmlEval = function(expr, localContext = {}) {
-                try {
-                    const scope = { ...window._nhtmlState, ...localContext };
-                    const fn = new Function(...Object.keys(scope), `return ${expr}`);
-                    return fn(...Object.values(scope));
-                } catch(e) { return ""; }
-            };
-
-            window._nhtmlHydrate = function() {
-                for (const [id, node] of Object.entries(manifest.nodes || {})) {
-                    const el = document.getElementById(id);
-                    if (!el) continue;
-
-                    if (node.type === "text") el.textContent = window._nhtmlEval(node.expr);
-                    else if (node.type === "html") el.innerHTML = window._nhtmlEval(node.expr);
-                    else if (node.type === "if") el.style.display = window._nhtmlEval(node.condition) ? '' : 'none';
-                    else if (node.type === "each") {
-                        const list = window._nhtmlEval(node.source);
-                        if (Array.isArray(list)) {
-                            el.innerHTML = list.map((item, idx) => {
-                                let t = node.template;
-                                const local = { [node.item]: item };
-                                if (node.index) local[node.index] = idx;
-                                
-                                // Remplissage des expressions {item} dans le template
-                                return t.replace(/<span id="(n_.*?)"><\/span>/g, (_, childId) => {
-                                    const childNode = manifest.nodes[childId];
-                                    if (childNode && childNode.type === "text") {
-                                        return window._nhtmlEval(childNode.expr, local);
-                                    }
-                                    return "";
-                                }).replace(/id="(n_.*?)"/g, `id="$1_${idx}"`);
-                            }).join('');
-                        }
-                    }
-                    else if (node.type === "attrs" && node.bindings) {
-                        for (const [attr, val] of Object.entries(node.bindings)) {
-                            let fVal = val.replace(/\{(.*?)\}/g, (_, e) => window._nhtmlEval(e));
-                            if (attr === 'value') el.value = fVal;
-                            else el.setAttribute(attr, fVal);
-                        }
-                    }
-                }
-            };
-
-            window.nhtml = new Proxy(window._nhtmlState, {
-                set(t, p, v) { 
-                    // Sécurité : conversion numérique automatique
-                    if (!isNaN(v) && typeof v === "string" && v.trim() !== "" && !v.includes('-')) v = Number(v);
-                    t[p] = v; 
-                    window._nhtmlHydrate(); 
-                    return true; 
-                },
-                get(t, p) { return t[p]; }
-            });
-
-            for (const [id, node] of Object.entries(manifest.nodes || {})) {
-                const el = document.getElementById(id);
-                if (!el || !node.events) continue;
-                for (const [eventName, ops] of Object.entries(node.events)) {
-                    el.addEventListener(eventName, (e) => {
-                        for (const op of ops) {
-                            if (op.op === 'increment') window.nhtml[op.target] += Number(op.value);
-                            else if (op.op === 'set') {
-                                let v = op.value;
-                                if (v === "this.value") v = e.target.value;
-                                else if (typeof v === "string" && isNaN(v)) v = window._nhtmlEval(v);
-                                
-                                if (op.target.includes('.')) {
-                                    const parts = op.target.split('.');
-                                    let current = window.nhtml;
-                                    for (let i = 0; i < parts.length - 1; i++) current = current[parts[i]];
-                                    current[parts[parts.length - 1]] = v;
-                                } else window.nhtml[op.target] = v;
-                            }
-                            else if (op.op === 'eval') window._nhtmlEval(op.expr, { $event: e });
-                        }
-                    });
-                }
-            }
-            window._nhtmlHydrate();
-        // Hydration logic continues...
-        }
-
-        async function run() {
-            try {
-                await init(); 
-                document.getElementById('btn-compile').addEventListener('click', () => {
-                    const source = document.getElementById('editor').value;
-                    const result_json = compile_wasm(source);
-                    const result = JSON.parse(result_json);
-                    hydrateDOM(result.html, result.manifest);
-                });
-                document.getElementById('btn-compile').click();
-            } catch (e) {
-                console.error("Nhtml Runtime Error:", e);
-                const root = document.getElementById('root');
-                if (root) root.innerHTML = `<div style="color: #ef4444; background: #450a0a; padding: 1rem; border-radius: 8px; border: 1px solid #ef4444;">
-                    <strong>⚠️ Error loading Nhtml:</strong><br>
-                    ${e.message}<br><br>
-                    Check if <code>pkg/nhtml_core_bg.wasm</code> is accessible.
-                </div>`;
-            }
-        }
-        run();
-    </script>
-
-    <script>
-        function loadExample() {
-            const example = `<var items='["Apples", "Bananas", "Oranges"]'>
-<var cart_count=0>
-
-<div class="shop">
-    <h3>Nhtml Shop 🛒</h3>
-    <p>Available items: {items.length}</p>
-    
-    <each in="{items}" as="item">
-        <div style="background: #020617; padding: 12px; margin: 8px 0; border-radius: 6px; display:flex; justify-content:space-between; align-items:center;">
-            <span>{item}</span>
-            <button on:click="cart_count++" style="padding: 0.3rem 0.8rem; background:#10b981;">Add</button>
-        </div>
-    </each>
-
-    <div style="margin-top: 20px; border-top: 1px solid #334155; padding-top: 15px; display:flex; justify-content:space-between; align-items:center;">
-        <strong>Cart: {cart_count} items</strong>
-        <button on:click="cart_count = 0" style="background:#ef4444; font-size:0.8rem;">Clear</button>
-    </div>
-</div>`;
-            const editor = document.getElementById('editor');
-            if (editor) {
-                editor.value = example;
-                const btn = document.getElementById('btn-compile');
-                if (btn) btn.click();
-            }
-        };
-    </script>
 </body>
 </html>
