@@ -1,4 +1,4 @@
-/// proto.rs — Binary serialization for Nhtml v0.6.0
+/// proto.rs — Binary serialization for Nhtml v0.7.0
 /// Rust source of truth for NBPS (Nhtml Binary Packet Specification).
 /// Must remain in sync with SPEC.md and bridge.js.
 

@@ -55,7 +55,7 @@ impl FpmPool {
 
     pub async fn acquire(&self) -> crate::core::Result<FpmClient> {
         let mut clients = self.clients.lock().await;
-        while let Some(mut client) = clients.pop() {
+        while let Some(client) = clients.pop() {
             // Tentative de vérification rapide (Optionnel: on pourrait faire un ping FastCGI réel ici)
             // Pour l'instant on fait confiance ou on gère l'erreur au call.
             // Mais on peut au moins vérifier si le transport tokio est toujours là
@@ -97,7 +97,7 @@ impl FpmPool {
     }
 }
 
-fn verify_hmac(secret: &[u8], data: &[u8], signature: &[u8]) -> bool {
+pub fn verify_hmac(secret: &[u8], data: &[u8], signature: &[u8]) -> bool {
     if let Ok(mut mac) = HmacSha256::new_from_slice(secret) {
         mac.update(data);
         mac.verify_slice(signature).is_ok()
@@ -255,8 +255,8 @@ struct GatewayState {
 
 /// Simple Rate Limiter Token Bucket
 pub struct RateLimiter {
-    limit: u32,
-    ips: Mutex<HashMap<String, (Instant, u32)>>,
+    pub limit: u32,
+    pub ips: Mutex<HashMap<String, (Instant, u32)>>,
 }
 
 impl RateLimiter {
@@ -428,10 +428,10 @@ async fn handle_connection_axum(
     if nhtml_rel_path.ends_with('/') {
         nhtml_rel_path.push_str("index.nhtml");
     }
-    // Résolution intelligente du chemin .nhtml
-    let mut nhtml_abs_path = format!("./{}", nhtml_rel_path);
+    // Résolution intelligente du chemin .nhtml (Priorité au dossier projet --path)
+    let mut nhtml_abs_path = format!("{}/{}", root, nhtml_rel_path);
     if !std::path::Path::new(&nhtml_abs_path).exists() {
-        nhtml_abs_path = format!("{}/{}", root, nhtml_rel_path);
+        nhtml_abs_path = format!("./{}", nhtml_rel_path);
     }
     
     // Si c'est un dossier, on cherche index.nhtml
@@ -497,9 +497,11 @@ async fn handle_connection_axum(
     
     // Résolution du script PHP (app.php dans le même dossier que le .nhtml)
     let php_script = if let Some(parent) = std::path::Path::new(&nhtml_abs_path).parent() {
-        parent.join("app.php").to_string_lossy().to_string()
+        let p = parent.join("app.php");
+        std::fs::canonicalize(&p).unwrap_or(p).to_string_lossy().to_string()
     } else {
-        format!("{}/app.php", root)
+        let p = std::path::Path::new(root).join("app.php");
+        std::fs::canonicalize(&p).unwrap_or(p).to_string_lossy().to_string()
     };
 
     let (mut ws_sender, mut ws_receiver) = socket.split();
@@ -950,7 +952,7 @@ async fn handle_event(
         }
     }
 
-    // 5. Traitement du Broadcast v0.6.0 (SDK-driven)
+    // 5. Traitement du Broadcast v0.7.0 (SDK-driven)
     if let Some(bc) = broadcast_instr {
         info!("[{}] BROADCAST via PHP (scope: {})", session.state.session_id, bc.scope);
         let bc_pkt = proto::patch(&bc.patches);
@@ -1077,9 +1079,23 @@ async fn call_php_process(
 
     let input = context.to_string();
     
+    let script_path = std::path::Path::new(php_script);
+    let abs_script_path = std::fs::canonicalize(script_path).unwrap_or_else(|_| script_path.to_path_buf());
+    let abs_str = abs_script_path.to_string_lossy().to_string();
+    let clean_abs_str = if abs_str.starts_with(r"\\?\") {
+        abs_str[4..].to_string()
+    } else {
+        abs_str
+    };
+    
+    let clean_path = std::path::Path::new(&clean_abs_str);
+    let script_dir = clean_path.parent().unwrap_or(std::path::Path::new("."));
+    let script_dir_str = script_dir.to_string_lossy().to_string();
+
     let mut child = Command::new("php")
         .arg("-f")
-        .arg(php_script)
+        .arg(&clean_abs_str)
+        .current_dir(script_dir_str)
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())

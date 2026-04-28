@@ -1,4 +1,4 @@
-# 🛰️ NHTML Protocol Specification (NBPS) v0.6.0
+# 🛰️ NHTML Protocol Specification (NBPS) v0.7.0
 **Édition Performance & Collaboration**
 
 ## 1. Structure Universelle des Paquets

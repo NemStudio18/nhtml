@@ -123,7 +123,7 @@
 <body>
     <header>
         <div style="display:flex; align-items:center; gap:15px;">
-            <div class="logo">🛰️ NHTML DevTools</div>
+            <div class="title">NHTML DEVTOOLS v0.7.0</div>
             <div style="background: rgba(0,255,127,0.1); color: var(--green); padding: 2px 8px; border-radius: 4px; font-size: 0.6rem; font-weight: bold; border: 1px solid rgba(0,255,127,0.2);">PEDAGOGICAL MODE</div>
         </div>
         <div class="tabs">

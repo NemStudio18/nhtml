@@ -1,6 +1,6 @@
 use std::sync::Arc;
 use tokio::sync::broadcast;
-use tracing::{info, error, warn};
+use tracing::{info, error};
 use redis::AsyncCommands;
 use futures_util::StreamExt;
 

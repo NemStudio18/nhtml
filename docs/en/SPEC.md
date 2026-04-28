@@ -1,4 +1,4 @@
-# 🛰️ NHTML Protocol Specification (NBPS) v0.6.0
+# 🛰️ NHTML/// proto.rs — Binary serialization for Nhtml v0.7.0
 **Performance & Collaboration Edition**
 
 ## 1. Universal Packet Structure
@@ -21,7 +21,7 @@ Each binary packet starts with a **5-byte Header**:
 
 ---
 
-## 4. Gateway ↔ Backend Interface (v0.6.0)
+##[command(about = "NHTML Gateway - NBPS v0.7.0", long_about = None)]
 
 The Gateway communicates with PHP via **CGI (Standard)** or **FastCGI (Performance)**.
 

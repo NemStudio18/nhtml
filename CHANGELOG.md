@@ -1,6 +1,6 @@
 # 📜 Changelog NHTML
 
-## v0.7.0 (Juin 2026) — "Industrial Scale" (DEVELOPMENT)
+## v0.7.0 (Avril 2026) — "Industrial Scale" (FINALISÉ)
 ### Added
 - **Redis Gateway Clustering**: Support natif pour le déploiement multi-nœuds avec synchronisation des sessions via Redis.
 - **Filtering Multi-Gateway**: Prévention des boucles de broadcast via filtrage par `gateway_id` unique.
@@ -10,11 +10,11 @@
 - **Triple-License Model**: MIT (SDKs), AGPLv3 (Gateway Core), et Licence Commerciale.
 
 ### Fixed
-- **Security Hardening**: Correction d'une faille de Path Traversal dans le serveur HTTP.
+- **Security Hardening**: Correction des failles Path Traversal dans le serveur HTTP.
 - **HMAC Reliability**: Correction de l'offset de signature et couverture totale du payload.
-- **Memory Safety**: Prévention des fuites mémoire dans le Rate Limiter et protection contre les overflows.
-- **Port Handling**: Suppression d'un panic possible sur les ports invalides.
-- **Unix Compatibility**: Correction d'une erreur de compilation sur les sockets Unix.
+- **Performance**: Gestion robuste du Rate Limiting et nettoyage heuristique des IPs (Zéro-Leaking).
+- **Stabilité**: Politique "Zero-Panic" et superviseur PHP auto-réparateur.
+- **DevTools**: Refonte totale de l'interface en v0.7.0 avec Pedagogical Flow Analysis.
 
 ---
 

@@ -1,8 +1,8 @@
 #[cfg(test)]
 mod tests {
     use super::*;
-    use nhtml_lib::proto;
-    use nhtml_lib::compiler::NhtmlCompiler;
+    use nhtml_gateway::proto;
+    use nhtml_gateway::compiler::NhtmlCompiler;
 
     #[test]
     fn test_proto_hello() {
@@ -13,10 +13,10 @@ mod tests {
 
     #[test]
     fn test_compiler_basic() {
-        let source = "<div>Hello {{ name }}</div>";
+        let source = "<div n-id='test'>Hello {{ name }}</div>";
         let result = NhtmlCompiler::compile(source);
         assert!(result.html.contains("Hello"));
-        assert!(!result.nodes.is_empty());
+        assert!(!result.states.is_empty());
     }
 
     #[test]

@@ -9,6 +9,7 @@ use crate::MonitoringEvent;
 
 pub async fn start_php_server(
     port: u16, 
+    path: String,
     tx_monitor: broadcast::Sender<crate::MonitoringEvent>,
     tx_app_broadcast: broadcast::Sender<std::sync::Arc<Vec<u8>>>
 ) -> std::io::Result<()> {
@@ -24,10 +25,19 @@ pub async fn start_php_server(
 
     println!("⚙️ Supervisor: Tentative de lancement avec : {}", php_bin);
 
+    let abs_path_raw = std::fs::canonicalize(&path).unwrap_or_else(|_| std::path::PathBuf::from(&path));
+    let abs_str = abs_path_raw.to_string_lossy().to_string();
+    let clean_abs_path = if abs_str.starts_with(r"\\?\") {
+        abs_str[4..].to_string()
+    } else {
+        abs_str
+    };
+
     let mut child = match Command::new(&php_bin)
         .arg("-S")
         .arg(format!("127.0.0.1:{}", port))
         .arg("router.php")
+        .current_dir(clean_abs_path)
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .spawn() {

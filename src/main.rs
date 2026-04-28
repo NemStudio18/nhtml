@@ -5,7 +5,7 @@ use nhtml_gateway::{MonitoringEvent, cli, supervisor, socket, session, watcher, 
 
 #[derive(Parser)]
 #[command(name = "nhtml-gateway")]
-#[command(about = "NHTML Gateway - NBPS v0.6.0", long_about = None)]
+#[command(about = "NHTML Gateway - NBPS v0.7.0", long_about = None)]
 struct Cli {
     #[command(subcommand)]
     command: Commands,
@@ -153,11 +153,13 @@ async fn main() {
             let php_port = config.ports.as_ref().and_then(|p| p.php).unwrap_or(8000);
             let tx_m = tx_monitor.clone();
             let tx_a = tx_app_broadcast.clone();
+            let php_path = path.clone();
             tokio::spawn(async move {
                 loop {
                     info!("⚙️ Supervisor: Démarrage du serveur PHP sur le port {}...", php_port);
                     let res = supervisor::start_php_server(
                         php_port, 
+                        php_path.clone(),
                         tx_m.clone(), 
                         tx_a.clone()
                     ).await;

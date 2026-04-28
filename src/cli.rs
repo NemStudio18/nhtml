@@ -407,6 +407,12 @@ async fn handle_devtools_ws(socket: WebSocket, tx_monitor: broadcast::Sender<cra
             if data.is_empty() { continue; }
             match data[0] {
                 0x01 => { // HELLO
+                    // 1. Envoyer une réponse HELLO (status=1) pour confirmer la connexion
+                    let hello_pkt = crate::proto::hello("devtools-session", &[0u8; 32], 0);
+                    let mut s = ws_sender.lock().await;
+                    let _ = s.send(WsMessage::Binary(hello_pkt)).await;
+
+                    // 2. Envoyer le premier patch de l'UI
                     let mut ops = Vec::new();
                     let mut html = String::new();
                     if sessions.is_empty() {
@@ -424,7 +430,6 @@ async fn handle_devtools_ws(socket: WebSocket, tx_monitor: broadcast::Sender<cra
                     ops.push(crate::proto::PatchOp::replace_inner(501, 1, &html)); 
                     
                     let pkt = crate::proto::patch(&ops);
-                    let mut s = ws_sender.lock().await;
                     let _ = s.send(WsMessage::Binary(pkt)).await;
                 },
                 0x02 => { // EVENT
@@ -687,7 +692,7 @@ async fn handle_devtools_ws(socket: WebSocket, tx_monitor: broadcast::Sender<cra
 
 
 pub fn run_benchmark(path: &str) {
-    println!("🧪 NHTML Industrial Benchmark Tool v0.6.0");
+    println!("🧪 NHTML Industrial Benchmark Tool v0.7.0");
     println!("--------------------------------------------------");
     
     let (html_content, label) = if let Ok(content) = std::fs::read_to_string(path) {
@@ -729,7 +734,7 @@ pub fn run_benchmark(path: &str) {
     println!("🧠 Charge CPU Sérialesation      : {:.2} CPU-ops/pkt", cpu_load);
     
     println!("--------------------------------------------------");
-    println!("✅ Benchmark terminé. NHTML v0.6.0 est prêt pour la production.");
+    println!("✅ Benchmark terminé. NHTML v0.7.0 est prêt pour la production.");
 }
 
 pub fn run_share(port: u16) {
