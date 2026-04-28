@@ -1,22 +1,11 @@
-mod core;
-mod cli;
-mod supervisor;
-mod watcher;
-mod session;
-mod proto;
-mod decoder;
-mod config;
-mod compiler;
-mod socket;
-
 use tracing::{info, error};
 use clap::{Parser, Subcommand};
 use tokio::sync::broadcast;
-use serde::{Serialize, Deserialize};
+use nhtml_gateway::{MonitoringEvent, cli, supervisor, socket, session, watcher, config};
 
 #[derive(Parser)]
 #[command(name = "nhtml-gateway")]
-#[command(about = "NHTML Gateway - NBPS v0.4.0", long_about = None)]
+#[command(about = "NHTML Gateway - NBPS v0.6.0", long_about = None)]
 struct Cli {
     #[command(subcommand)]
     command: Commands,
@@ -51,6 +40,10 @@ enum Commands {
         /// Adresse PHP-FPM (ex: 127.0.0.1:9000 ou unix:/var/run/php-fpm.sock)
         #[arg(long)]
         fpm: Option<String>,
+        
+        /// URI de la base de données (ex: mysql://user:pass@host/db)
+        #[arg(long)]
+        db_uri: Option<String>,
     },
     /// Inspecte un paquet binaire NBPS (hex)
     Inspect { hex: String },
@@ -62,19 +55,22 @@ enum Commands {
     Bench { path: String },
     /// Lance les DevTools
     Devtools,
-}
+    /// Partage le projet via un tunnel sécurisé
+    Share {
+        /// Port local à exposer (default: 8080)
+        #[arg(short, long, default_value_t = 8080)]
+        port: u16,
+    },
+    /// Compile le projet pour la production
+    Build {
+        /// Active l'optimisation maximale
+        #[arg(long)]
+        production: bool,
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct MonitoringEvent {
-    pub direction: String,
-    pub pkt_type: u8,
-    pub size: usize,
-    pub session_id: String,
-    pub timestamp: String,
-    pub latency_ms: Option<u64>,
-    pub compression_ratio: Option<f32>,
-    pub handler: Option<String>,
-    pub details: Option<String>,
+        /// Chemin de sortie (default: dist)
+        #[arg(short, long, default_value = "dist")]
+        output: String,
+    },
 }
 
 #[tokio::main]
@@ -96,18 +92,32 @@ async fn main() {
     // Channels globaux
     let (tx_monitor, _) = broadcast::channel::<MonitoringEvent>(100);
     let (tx_app_broadcast, _) = broadcast::channel::<std::sync::Arc<Vec<u8>>>(1024);
+    let (tx_reload, _) = broadcast::channel::<()>(10);
 
     match cli.command {
         Commands::New { name } => {
             cli::create_new_project(&name);
         }
-        Commands::Start { dev: _, port, path, entry, php, fpm } => {
-            println!("🛰️ NHTML Gateway v0.4.0");
+        Commands::Start { dev, port, path, entry, php, fpm, db_uri } => {
+            println!("🛰️ NHTML Gateway v0.6.0");
             println!("📂 Projet : {}", path);
             println!("🌐 Port   : {}", port);
+            
+            let final_db_uri = db_uri.or(config.database.as_ref().and_then(|d| d.uri.clone()));
+            if let Some(ref uri) = final_db_uri {
+                println!("🗄️ Database : {} (Driver détecté)", uri);
+            } else {
+                println!("🗄️ Database : SQLite (Embarqué)");
+            }
 
             // Priorité : Argument CLI > Fichier Config
-            let fpm_addr = fpm.or(config.fastcgi.as_ref().and_then(|f| f.address.clone()));
+            let fpm_addr = fpm.or(config.fastcgi.as_ref().and_then(|f| {
+                if f.address.as_ref().map(|s| s.is_empty()).unwrap_or(true) {
+                    None
+                } else {
+                    f.address.clone()
+                }
+            }));
             let fpm_timeout = config.fastcgi.as_ref().and_then(|f| f.timeout_ms).unwrap_or(5000);
             
             if let Some(ref addr) = fpm_addr {
@@ -141,6 +151,13 @@ async fn main() {
                 cli::run_devtools(devtools_tx, "127.0.0.1".to_string(), devtools_port, None).await;
             });
 
+            // Watcher si mode DEV
+            let is_dev = dev || config.dev.as_ref().and_then(|d| d.auto_reload).unwrap_or(false);
+            if is_dev {
+                let tx_r = tx_reload.clone();
+                watcher::start_watcher(tx_r);
+            }
+
             info!("🚀 NHTML Gateway starting...");
             let sm = match crate::session::SessionManager::new().await {
                 Ok(s) => s,
@@ -149,7 +166,7 @@ async fn main() {
                     return;
                 }
             };
-            socket::serve(port, path, entry, php, fpm_addr, fpm_timeout, std::sync::Arc::new(sm), tx_monitor, tx_app_broadcast).await;
+            socket::serve(port, path, entry, php, fpm_addr, fpm_timeout, std::sync::Arc::new(sm), tx_monitor, tx_app_broadcast, tx_reload, config.security.clone()).await;
         }
         Commands::Devtools => {
             let devtools_port = config.ports.as_ref().and_then(|p| p.devtools).unwrap_or(8081);
@@ -166,6 +183,12 @@ async fn main() {
         }
         Commands::Bench { path } => {
             cli::run_benchmark(&path);
+        }
+        Commands::Share { port } => {
+            cli::run_share(port);
+        }
+        Commands::Build { production, output } => {
+            cli::run_build(production, &output);
         }
     }
 }

@@ -88,7 +88,7 @@ impl SessionManager {
 
 
     pub async fn register_session(&self, session_id: String, app_path: String) -> tokio_rusqlite::Result<Vec<u8>> {
-        let sid_clone = session_id.clone();
+        let _sid_clone = session_id.clone();
         self.conn.call(move |conn| {
             conn.execute(
                 "INSERT OR REPLACE INTO sessions (session_id, app_path) VALUES (?1, ?2)",

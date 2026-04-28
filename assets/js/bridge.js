@@ -2,7 +2,7 @@ if (window.nhtml_initialized) {
     console.warn("🛰️ NHTML Bridge already initialized.");
 } else {
 window.nhtml_initialized = true;
-console.log("🛰️ NHTML v0.4.8 Bridge Loading...");
+console.log("🛰️ NHTML v0.6.0 Bridge Loading...");
 
 let socket = null;
 window.nhtml_transport_mode = "INIT";
@@ -18,6 +18,7 @@ window.nhtml_session_id = localStorage.getItem('nhtml_session_id') || "";
 window.nhtml_seq_id = 0;
 window.nhtml_session_secret = null;
 window.nhtml_crypto_key = null;
+window.nhtml_last_ping = 0;
 
 async function initNhtml(wsUrl, httpUrl = "") {
     if (window.location.search.includes('wasm=1')) {
@@ -59,20 +60,38 @@ function injectStyles() {
     const style = document.createElement('style');
     style.id = 'nhtml-styles';
     style.innerHTML = `
-        @keyframes nhtml-glow {
-            0% { background-color: rgba(0, 255, 0, 0.2); outline: 2px solid rgba(0, 255, 0, 0.5); }
-            100% { background-color: transparent; outline: 2px solid transparent; }
-        }
         .nhtml-patch-glow { animation: nhtml-glow 0.6s ease-out; }
         #nhtml-hud {
-            position: fixed; bottom: 10px; right: 10px;
-            background: rgba(0,0,0,0.8); color: #0f0;
-            padding: 5px 10px; border-radius: 5px;
-            font-family: monospace; font-size: 10px;
-            z-index: 9999; border: 1px solid #050;
-            pointer-events: none; opacity: 0.8;
+            position: fixed; bottom: 15px; right: 15px;
+            background: rgba(10, 10, 10, 0.95);
+            backdrop-filter: blur(10px);
+            color: #fff;
+            padding: 12px 16px;
+            border-radius: 14px;
+            font-family: 'Inter', system-ui, -apple-system, sans-serif;
+            font-size: 11px;
+            z-index: 100000;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            min-width: 220px;
+            cursor: pointer;
+            pointer-events: auto;
         }
-        #nhtml-hud span { color: #fff; }
+        #nhtml-hud:hover { border-color: rgba(255, 255, 255, 0.3); transform: translateY(-2px); }
+        #nhtml-hud.minimized { width: 40px; min-width: 40px; height: 40px; border-radius: 50%; padding: 0; display: flex; align-items: center; justify-content: center; }
+        #nhtml-hud.minimized .hud-content { display: none; }
+        #nhtml-hud.minimized::after { content: 'N'; font-weight: bold; font-size: 14px; color: #ff007f; }
+        
+        .hud-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; border-bottom: 1px solid rgba(255,255,255,0.05); padding-bottom: 8px; }
+        .hud-title { font-weight: 800; color: #ff007f; letter-spacing: 0.5px; text-transform: uppercase; font-size: 10px; }
+        .hud-row { display: flex; justify-content: space-between; margin-bottom: 4px; color: rgba(255,255,255,0.6); }
+        .hud-val { color: #fff; font-family: monospace; font-weight: bold; }
+        .hud-status { display: flex; align-items: center; gap: 6px; font-size: 10px; margin-top: 8px; }
+        .status-dot { width: 6px; height: 6px; border-radius: 50%; background: #555; }
+        .status-online { background: #22c55e; box-shadow: 0 0 8px #22c55e; }
+        .status-connecting { background: #eab308; }
+        .status-offline { background: #ef4444; }
     `;
     document.head.appendChild(style);
 }
@@ -81,7 +100,23 @@ function injectHud() {
     if (document.getElementById('nhtml-hud')) return;
     const hud = document.createElement('div');
     hud.id = 'nhtml-hud';
-    hud.innerHTML = 'NHTML v0.4.0: <span id="nhtml-hud-pkts">0</span> pkts | <span id="nhtml-hud-size">0</span> B <span id="nhtml-hud-mode">(WS)</span>';
+    hud.onclick = () => hud.classList.toggle('minimized');
+    hud.innerHTML = `
+        <div class="hud-content">
+            <div class="hud-header">
+                <span class="hud-title">NHTML v0.6.0 Debug</span>
+                <span style="opacity: 0.3; font-size: 9px;">GLOBAL CONNECT</span>
+            </div>
+            <div class="hud-row"><span>Transport</span><span id="nhtml-hud-mode" class="hud-val">WS</span></div>
+            <div class="hud-row"><span>Packets</span><span id="nhtml-hud-pkts" class="hud-val">0</span></div>
+            <div class="hud-row"><span>Traffic</span><span id="nhtml-hud-size" class="hud-val">0 K</span></div>
+            <div class="hud-row"><span>Latency</span><span id="nhtml-hud-latency" class="hud-val">-- ms</span></div>
+            <div class="hud-status">
+                <div id="nhtml-hud-dot" class="status-dot"></div>
+                <span id="nhtml-hud-status-text">Disconnected</span>
+            </div>
+        </div>
+    `;
     document.body.appendChild(hud);
 }
 
@@ -320,19 +355,20 @@ function processMessage(msg) {
                 });
             }
 
-            const hudMode = document.getElementById('nhtml-hud-mode');
-            if (hudMode) hudMode.innerText = "(WS)";
-            
-            const statusBadge = document.getElementById('nhtml-status-badge');
-            if (statusBadge) {
-                statusBadge.innerHTML = '<div style="width: 8px; height: 8px; background: #22c55e; border-radius: 50%; box-shadow: 0 0 10px #22c55e;"></div> Gateway Online';
+            const dot = document.getElementById('nhtml-hud-dot');
+            const statusText = document.getElementById('nhtml-hud-status-text');
+            if (dot) {
+                dot.className = 'status-dot status-online';
+                if (statusText) statusText.innerText = 'Connected (Secure)';
             }
             return;
         }
 
-        if (type === 0x09) { // PING
-            const pong = new Uint8Array(5); pong[0] = 0x09;
-            if(socket && socket.readyState === 1) socket.send(pong);
+        if (type === 0x09) { // PONG (from server)
+            const now = Date.now();
+            const latency = now - window.nhtml_last_ping;
+            const hudLatency = document.getElementById('nhtml-hud-latency');
+            if (hudLatency) hudLatency.innerText = latency + ' ms';
             return;
         }
 
@@ -340,6 +376,13 @@ function processMessage(msg) {
             const severity = chunk[5];
             const msgLen = view.getUint16(6);
             const message = new TextDecoder().decode(chunk.slice(8, 8 + msgLen));
+            
+            if (severity === 0x11 && message === "RELOAD") {
+                console.log("🔄 Hot Reload: Reloading page...");
+                window.location.reload();
+                return;
+            }
+
             const styles = ['color:#aaa','color:#00d4ff;font-weight:bold','color:#ffa000;font-weight:bold','color:#f40;font-weight:bold'];
             console.log(`%c[SERVER] ${message}`, styles[severity] || '');
             return;
@@ -590,6 +633,15 @@ function connect(wsUrl, timeoutMs = 5000) {
             window.nhtml_transport_mode = "WS_OPEN"; 
             reconnectAttempts = 0; 
             sendHello(); 
+            
+            // Latency Monitoring
+            setInterval(() => {
+                if (socket && socket.readyState === 1) {
+                    window.nhtml_last_ping = Date.now();
+                    const ping = new Uint8Array(5); ping[0] = 0x09;
+                    socket.send(ping);
+                }
+            }, 3000);
         };
         
         socket.onmessage = (e) => processMessage(e.data);

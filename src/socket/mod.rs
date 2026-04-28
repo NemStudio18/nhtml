@@ -59,7 +59,7 @@ impl FpmPool {
         }
         
         let is_unix = self.addr.starts_with('/') || self.addr.starts_with("./") || self.addr.contains(".sock") || self.addr.starts_with("unix:");
-        let clean_addr = self.addr.strip_prefix("unix:").unwrap_or(&self.addr);
+        let _clean_addr = self.addr.strip_prefix("unix:").unwrap_or(&self.addr);
 
         #[cfg(unix)]
         {
@@ -132,14 +132,21 @@ pub async fn serve(
     port: u16, 
     root: String, 
     _entry: String, 
-    php: String, 
+    _php: String, 
     fpm_addr: Option<String>,
     fpm_timeout: u64,
     sm: Arc<SessionManager>, 
     tx_monitor: tokio::sync::broadcast::Sender<crate::MonitoringEvent>, 
-    tx_app_broadcast: tokio::sync::broadcast::Sender<Arc<Vec<u8>>>
+    tx_app_broadcast: tokio::sync::broadcast::Sender<Arc<Vec<u8>>>,
+    tx_reload: tokio::sync::broadcast::Sender<()>,
+    security: Option<crate::config::SecurityConfig>,
 ) {
     let fpm_pool = fpm_addr.as_ref().map(|addr| Arc::new(FpmPool::new(addr.clone())));
+    
+    let rate_limiter = security.as_ref()
+        .and_then(|s| s.rate_limit.as_ref())
+        .and_then(|r| r.events_per_sec)
+        .map(|limit| Arc::new(RateLimiter::new(limit)));
 
     let shared_state = Arc::new(GatewayState {
         root: root.clone(),
@@ -149,15 +156,45 @@ pub async fn serve(
         fpm_timeout,
         tx_monitor,
         tx_app_broadcast,
+        tx_reload,
+        rate_limiter,
     });
 
     let app = Router::new()
         .route("/ws", get(handle_ws_route))
         .route("/", get(handle_http_root))
         .route("/*path", get(handle_http))
-        .with_state(shared_state);
+        .with_state(shared_state.clone());
 
-    let addr = format!("0.0.0.0:{}", port);
+    let addr: std::net::SocketAddr = format!("0.0.0.0:{}", port).parse().unwrap();
+    
+    // Vérification TLS
+    if let Some(sec) = security {
+        if let Some(tls) = sec.tls {
+            if tls.enabled {
+                info!("🚀 Gateway Sécurisée (HTTPS/WSS) en écoute sur https://{}", addr);
+                let config = match axum_server::tls_rustls::RustlsConfig::from_pem_file(
+                    &tls.cert,
+                    &tls.key
+                ).await {
+                    Ok(c) => c,
+                    Err(e) => {
+                        error!("❌ TLS: Erreur lors du chargement des certificats : {}", e);
+                        return;
+                    }
+                };
+
+                if let Err(e) = axum_server::bind_rustls(addr, config)
+                    .serve(app.into_make_service_with_connect_info::<std::net::SocketAddr>())
+                    .await {
+                    error!("❌ Gateway TLS Error: {}", e);
+                }
+                return;
+            }
+        }
+    }
+
+    info!("Gateway Industrielle en écoute sur http://{}", addr);
     let listener = match tokio::net::TcpListener::bind(&addr).await {
         Ok(l) => l,
         Err(e) => {
@@ -165,8 +202,7 @@ pub async fn serve(
             return;
         }
     };
-    info!("Gateway Industrielle en écoute sur http://{}", addr);
-    if let Err(e) = axum::serve(listener, app).await {
+    if let Err(e) = axum::serve(listener, app.into_make_service_with_connect_info::<std::net::SocketAddr>()).await {
         error!("❌ Gateway: Erreur lors de l'exécution du serveur Axum : {}", e);
     }
 }
@@ -174,12 +210,16 @@ pub async fn serve(
 async fn handle_ws_route(
     Query(params): Query<HashMap<String, String>>,
     State(state): State<Arc<GatewayState>>,
+    axum::extract::ConnectInfo(addr): axum::extract::ConnectInfo<std::net::SocketAddr>,
     ws: WebSocketUpgrade,
 ) -> Response {
     let sid = params.get("sid").cloned().unwrap_or_else(|| "AUTO".to_string());
     let path = params.get("path").cloned().unwrap_or_else(|| "".to_string());
-    info!("[WS] Upgrade request via /ws: {} (sid: {})", path, sid);
-    ws.on_upgrade(move |socket| handle_ws_wrapper(socket, path, sid, state))
+    
+    let ip = addr.ip().to_string();
+    
+    info!("[WS] Upgrade request from {} for path: {} (sid: {})", ip, path, sid);
+    ws.on_upgrade(move |socket| handle_ws_wrapper(socket, path, sid, ip, state))
 }
 
 struct GatewayState {
@@ -190,29 +230,69 @@ struct GatewayState {
     fpm_timeout: u64,
     tx_monitor: tokio::sync::broadcast::Sender<crate::MonitoringEvent>,
     tx_app_broadcast: tokio::sync::broadcast::Sender<Arc<Vec<u8>>>,
+    tx_reload: tokio::sync::broadcast::Sender<()>,
+    rate_limiter: Option<Arc<RateLimiter>>,
+}
+
+/// Simple Rate Limiter Token Bucket
+pub struct RateLimiter {
+    limit: u32,
+    clients: Mutex<HashMap<String, (std::time::Instant, u32)>>,
+}
+
+impl RateLimiter {
+    pub fn new(limit: u32) -> Self {
+        Self {
+            limit,
+            clients: Mutex::new(HashMap::new()),
+        }
+    }
+
+    pub async fn check(&self, ip: String) -> bool {
+        let mut clients = self.clients.lock().await;
+        let now = std::time::Instant::now();
+        
+        let entry = clients.entry(ip).or_insert((now, 0));
+        
+        if now.duration_since(entry.0).as_secs() >= 1 {
+            entry.0 = now;
+            entry.1 = 1;
+            return true;
+        }
+        
+        if entry.1 < self.limit {
+            entry.1 += 1;
+            return true;
+        }
+        
+        false
+    }
 }
 
 async fn handle_http_root(
     Query(params): Query<HashMap<String, String>>,
     State(state): State<Arc<GatewayState>>,
+    axum::extract::ConnectInfo(addr): axum::extract::ConnectInfo<std::net::SocketAddr>,
     ws: Option<WebSocketUpgrade>,
 ) -> Response {
-    handle_http_inner("".to_string(), params, state, ws).await
+    handle_http_inner("".to_string(), params, state, addr.ip().to_string(), ws).await
 }
 
 async fn handle_http(
     AxPath(path): AxPath<String>,
     Query(params): Query<HashMap<String, String>>,
     State(state): State<Arc<GatewayState>>,
+    axum::extract::ConnectInfo(addr): axum::extract::ConnectInfo<std::net::SocketAddr>,
     ws: Option<WebSocketUpgrade>,
 ) -> Response {
-    handle_http_inner(path, params, state, ws).await
+    handle_http_inner(path, params, state, addr.ip().to_string(), ws).await
 }
 
 async fn handle_http_inner(
     path: String,
     params: HashMap<String, String>,
     state: Arc<GatewayState>,
+    ip: String,
     ws: Option<WebSocketUpgrade>,
 ) -> Response {
     // 1. Si c'est une requête WebSocket, on upgrade
@@ -220,8 +300,8 @@ async fn handle_http_inner(
         let sid = params.get("sid").cloned().unwrap_or_else(|| "AUTO".to_string());
         let path_param = params.get("path").cloned().unwrap_or_else(|| path.clone());
         let state_clone = state.clone();
-        info!("[WS] Upgrade request for path: {} (sid: {})", path_param, sid);
-        return ws.on_upgrade(move |socket| handle_ws_wrapper(socket, path_param, sid, state_clone));
+        info!("[WS] Upgrade request from {} for path: {} (sid: {})", ip, path_param, sid);
+        return ws.on_upgrade(move |socket| handle_ws_wrapper(socket, path_param, sid, ip, state_clone));
     }
 
     // 2. Résolution intelligente du chemin
@@ -306,17 +386,15 @@ async fn handle_http_inner(
         }
 }
 
-async fn handle_ws_wrapper(socket: WebSocket, path: String, sid: String, state: Arc<GatewayState>) {
-    // Conversion Axum WebSocket -> Tungstenite-like Stream si besoin, 
-    // ou adaptation de la logique handle_connection existante.
-    // Pour l'instant on va adapter handle_connection pour accepter le socket Axum.
-    handle_connection_axum(socket, path, sid, state).await;
+async fn handle_ws_wrapper(socket: WebSocket, path: String, sid: String, ip: String, state: Arc<GatewayState>) {
+    handle_connection_axum(socket, path, sid, ip, state).await;
 }
 
 async fn handle_connection_axum(
     socket: WebSocket,
     requested_path: String,
     requested_sid: String,
+    ip: String,
     state: Arc<GatewayState>,
 ) {
     let root = &state.root;
@@ -497,8 +575,15 @@ async fn handle_connection_axum(
 
     // ── Boucle de messages ─────────────────────────────────────────────────
     let mut app_rx = state.tx_app_broadcast.subscribe();
+    let mut reload_rx = state.tx_reload.subscribe();
     loop {
         tokio::select! {
+            // ─── Hot Reload ───
+            Ok(_) = reload_rx.recv() => {
+                info!("[{}] Envoi du signal de Hot Reload...", session_id);
+                let reload_pkt = crate::proto::log_msg(0x11, "RELOAD");
+                let _ = ws_sender.send(WsMessage::Binary(reload_pkt)).await;
+            }
             // ─── Écouteur de Broadcast Applicatif (Multi-utilisateur) ───────
             Ok(msg_arc) = app_rx.recv() => {
                 let msg = &*msg_arc;
@@ -557,6 +642,14 @@ async fn handle_connection_axum(
                         let type_byte = data[0];
 
                         if type_byte == 0x02 { // EVENT
+                            // RATE LIMIT CHECK
+                            if let Some(rl) = &state.rate_limiter {
+                                if !rl.check(ip.clone()).await {
+                                    warn!("[{}] Rate Limit dépassé pour IP: {}", session_id, ip);
+                                    continue;
+                                }
+                            }
+
                             monitor_pkt(&state.tx_monitor, "IN", 0x02, data.len(), &session_id, None, Some(format!("Raw Event Data ({} bytes)", data.len())), None).await;
                             let ev_res = handle_event(&data, &mut session, state.clone()).await;
                             
@@ -871,6 +964,7 @@ async fn monitor_pkt(
         timestamp: Local::now().format("%H:%M:%S%.3f").to_string(),
         latency_ms: latency,
         compression_ratio: None,
+        node_id: None, // Node ID could be added if needed
         handler,
         details,
     };

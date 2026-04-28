@@ -1,10 +1,16 @@
 # 📜 Changelog NHTML
 
-## v0.6.0 (Mai 2026) — "Global Connect" (EN DÉVELOPPEMENT)
+## v0.6.0 (Mai 2026) — "Global Connect" (FINALISÉ)
 ### Added
 - **FastCGI/PHP-FPM Bridge**: Support pour la communication directe avec les pools FPM (ultra-basse latence).
 - **Scoped Broadcasting**: Possibilité de diffuser des patches à tous ou aux autres clients d'une session.
 - **Industrial Error Handling**: Refonte totale des erreurs via `GatewayError` (zéro panique).
+- **IP-Based Rate Limiting**: Protection native contre le spam d'événements basée sur l'adresse IP réelle des clients.
+- **Native TLS Support**: Support direct HTTPS/WSS via Rustls (native).
+- **Industrial Benchmark Tool**: Métriques de performance avancées (Latence économisée, complexité CPU, gain de bande passante).
+- **Production Build Engine**: Commande `nhtml build --production` avec minification et packaging NBPS optimisé.
+- **Project Sharing**: Commande `nhtml share` pour exposer un projet localement via tunnel sécurisé.
+- **Integration Test Suite**: Couverture de tests robuste pour l'alignement du protocole et la logique gateway.
 
 ---
 

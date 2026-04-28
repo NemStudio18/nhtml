@@ -50,12 +50,12 @@ Cette roadmap définit les actions précises à entreprendre pour transformer NH
 **Objectif** : Faciliter l'accès distant sécurisé et la mise en production.
 
 ### 1. Tunneling & CLI
-- [ ] **Action** : Ajouter la commande `nhtml share` permettant de créer un tunnel temporaire (via localtunnel ou service tiers) pour présenter un projet.
-- [ ] **Action** : Implémenter `nhtml build --production` pour minifier le B-TREE et optimiser les assets statiques.
+- [x] **Action** : Ajouter la commande `nhtml share` permettant de créer un tunnel temporaire (via localtunnel ou service tiers) pour présenter un projet.
+- [x] **Action** : Implémenter `nhtml build --production` pour minifier le B-TREE et optimiser les assets statiques.
 
 ### 2. Sécurisation Industrielle
-- [ ] **Action** : Finaliser le support du TLS natif dans le Gateway (via `rustls`) pour éviter de dépendre d'un reverse-proxy en mode standalone.
-- [ ] **Action** : Implémenter un Rate-Limiter par IP pour protéger le backend PHP des attaques par déni de service sur les événements WebSocket.
+- [x] **Action** : Finaliser le support du TLS natif dans le Gateway (via `rustls`) pour éviter de dépendre d'un reverse-proxy en mode standalone.
+- [x] **Action** : Implémenter un Rate-Limiter par IP pour protéger le backend PHP des attaques par déni de service sur les événements WebSocket.
 
 ---
 
@@ -63,9 +63,9 @@ Cette roadmap définit les actions précises à entreprendre pour transformer NH
 **Objectif** : Rendre NHTML "magique" à l'usage.
 
 ### 1. Hot Reload Intelligent
-- [ ] **Action** : Améliorer le `watcher` pour ne recharger que les nœuds modifiés (Partial Reload) plutôt que la session entière.
-- [ ] **Action** : Intégrer un overlay de debug directement dans la page (mini-dashboard escamotable).
+- [x] **Action** : Améliorer le `watcher` pour ne recharger que les nœuds modifiés (Partial Reload) plutôt que la session entière.
+- [x] **Action** : Intégrer un overlay de debug directement dans la page (mini-dashboard escamotable).
 
 ---
 
-> **Status Actuel** : Le socle industriel (FastCGI, Collaboration, No-Panic) est **terminé**. Nous entrons dans la phase de **Connectivité Cloud** et de **Sécurisation**.
+> **Status Actuel** : Le socle industriel et les fonctionnalités de connectivité Cloud sont **terminés**. NHTML v0.6.0 "Global Connect" est prêt pour la production.

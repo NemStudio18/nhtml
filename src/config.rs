@@ -7,6 +7,32 @@ pub struct NhtmlConfig {
     pub fastcgi: Option<FastCgiConfig>,
     #[allow(dead_code)]
     pub dev: Option<DevConfig>,
+    pub security: Option<SecurityConfig>,
+    pub database: Option<DatabaseConfig>,
+}
+
+#[derive(Debug, Deserialize, Default, Clone)]
+pub struct DatabaseConfig {
+    pub driver: Option<String>,
+    pub uri: Option<String>,
+}
+
+#[derive(Debug, Deserialize, Default, Clone)]
+pub struct SecurityConfig {
+    pub tls: Option<TlsConfig>,
+    pub rate_limit: Option<RateLimitConfig>,
+}
+
+#[derive(Debug, Deserialize, Clone)]
+pub struct TlsConfig {
+    pub enabled: bool,
+    pub cert: String,
+    pub key: String,
+}
+
+#[derive(Debug, Deserialize, Clone)]
+pub struct RateLimitConfig {
+    pub events_per_sec: Option<u32>,
 }
 
 #[derive(Debug, Deserialize)]

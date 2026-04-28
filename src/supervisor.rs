@@ -72,15 +72,19 @@ pub async fn start_php_server(
         }
     });
 
-    tokio::spawn(async move {
-        if let Err(e) = signal::ctrl_c().await {
-            error!("❌ Supervisor: Erreur lors de l'écoute du signal Ctrl+C : {}", e);
-            return;
+    // ATTENDRE que le processus se termine OU qu'on reçoive un Ctrl+C
+    tokio::select! {
+        res = child.wait() => {
+            let status = res?;
+            error!("⚠️ Supervisor: Le serveur PHP s'est arrêté avec le statut : {}", status);
         }
-        println!("\n🛑 Supervisor: Signal d'arrêt reçu, fermeture du serveur PHP...");
-        let _ = child.kill().await;
-        std::process::exit(0);
-    });
+        _ = signal::ctrl_c() => {
+            println!("\n🛑 Supervisor: Signal d'arrêt reçu, fermeture du serveur PHP...");
+            let _ = child.kill().await;
+            // On peut propager une erreur pour arrêter la boucle de redémarrage si on veut, 
+            // mais ici on va laisser la boucle redémarrer ou s'arrêter via le main
+        }
+    }
 
     Ok(())
 }
@@ -98,6 +102,7 @@ fn handle_log_line(line: &str, tx_m: &broadcast::Sender<crate::MonitoringEvent>,
         handler: Some("PHP_LOG".to_string()),
         latency_ms: None,
         compression_ratio: None,
+        node_id: None,
         details: Some(line.to_string()),
     });
 

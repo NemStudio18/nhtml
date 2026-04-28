@@ -2,6 +2,7 @@ use notify::{Watcher, RecursiveMode, Event};
 use std::path::Path;
 use tokio::sync::broadcast;
 use std::time::Duration;
+use tracing::error;
 
 #[allow(dead_code)]
 pub fn start_watcher(tx: broadcast::Sender<()>) {
