@@ -1,0 +1,16 @@
+NHTML COMMERCIAL LICENSE
+Version 1.0, June 2026
+
+This Commercial License is granted by NemStudio to the Licensee for the use of the NHTML Gateway Core in proprietary, closed-source, or commercial applications without the obligations imposed by the GNU Affero General Public License (AGPL) v3.
+
+1. GRANT OF LICENSE
+NemStudio hereby grants the Licensee a non-exclusive, non-transferable, perpetual license to use, modify, and distribute the NHTML Gateway Core binary and source code within their commercial products.
+
+2. RESTRICTIONS
+- You may not resell the NHTML Gateway Core as a standalone product.
+- You may not remove the original copyright notices from the source code.
+
+3. NO WARRANTY
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND.
+
+For pricing and custom terms, contact: license@nemstudio.io

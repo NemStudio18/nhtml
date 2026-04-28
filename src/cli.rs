@@ -29,7 +29,7 @@ pub fn create_new_project(name: &str) {
     </style>
 </head>
 <body>
-    <h1>Projet NHTML v0.4.0</h1>
+    <h1>Projet NHTML v0.7.0</h1>
     <div class="counter" n-id="counter_value">0</div>
     <button n-id="btn_increment" n-click="increment">ACTION</button>
 </body>

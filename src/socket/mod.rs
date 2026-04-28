@@ -19,6 +19,7 @@ use axum::{
 };
 use axum::http::{StatusCode, header};
 use std::collections::{HashMap, HashSet};
+use std::time::Instant;
 
 use crate::compiler::{NhtmlCompiler, CompileResult};
 use crate::compiler::handler_table::{HandlerTable, build_from_tree};
@@ -54,16 +55,19 @@ impl FpmPool {
 
     pub async fn acquire(&self) -> crate::core::Result<FpmClient> {
         let mut clients = self.clients.lock().await;
-        if let Some(client) = clients.pop() {
+        while let Some(mut client) = clients.pop() {
+            // Tentative de vérification rapide (Optionnel: on pourrait faire un ping FastCGI réel ici)
+            // Pour l'instant on fait confiance ou on gère l'erreur au call.
+            // Mais on peut au moins vérifier si le transport tokio est toujours là
             return Ok(client);
         }
         
         let is_unix = self.addr.starts_with('/') || self.addr.starts_with("./") || self.addr.contains(".sock") || self.addr.starts_with("unix:");
-        let _clean_addr = self.addr.strip_prefix("unix:").unwrap_or(&self.addr);
 
         #[cfg(unix)]
         {
             if is_unix {
+                let clean_addr = self.addr.strip_prefix("unix:").unwrap_or(&self.addr);
                 info!("[FPM] Connexion via Unix Socket: {}", clean_addr);
                 let stream = UnixStream::connect(clean_addr).await
                     .map_err(|e| crate::core::GatewayError::SocketError(format!("Connexion FPM Unix échouée sur {} : {}", clean_addr, e)))?;
@@ -168,20 +172,31 @@ pub async fn serve(
         .route("/*path", get(handle_http))
         .with_state(shared_state.clone());
 
-    let addr: std::net::SocketAddr = format!("0.0.0.0:{}", port).parse().unwrap();
+    let addr_res = format!("0.0.0.0:{}", port).parse::<std::net::SocketAddr>();
+    let addr = match addr_res {
+        Ok(a) => a,
+        Err(_) => {
+            error!("❌ Erreur: Port invalide '{}'", port);
+            return;
+        }
+    };
     
     // Vérification TLS
     if let Some(sec) = security {
         if let Some(tls) = sec.tls {
             if tls.enabled {
                 info!("🚀 Gateway Sécurisée (HTTPS/WSS) en écoute sur https://{}", addr);
-                let config = match axum_server::tls_rustls::RustlsConfig::from_pem_file(
+                let config_res = axum_server::tls_rustls::RustlsConfig::from_pem_file(
                     &tls.cert,
                     &tls.key
-                ).await {
+                ).await;
+
+                let config = match config_res {
                     Ok(c) => c,
                     Err(e) => {
-                        error!("❌ TLS: Erreur lors du chargement des certificats : {}", e);
+                        error!("❌ Erreur TLS: Impossible de charger les certificats ({} / {}) : {}", tls.cert, tls.key, e);
+                        error!("⚠️ Fallback: Démarrage en mode HTTP standard...");
+                        axum_server::bind(addr).serve(app.into_make_service_with_connect_info::<std::net::SocketAddr>()).await.ok();
                         return;
                     }
                 };
@@ -241,27 +256,27 @@ struct GatewayState {
 /// Simple Rate Limiter Token Bucket
 pub struct RateLimiter {
     limit: u32,
-    clients: Mutex<HashMap<String, (std::time::Instant, u32)>>,
+    ips: Mutex<HashMap<String, (Instant, u32)>>,
 }
 
 impl RateLimiter {
     pub fn new(limit: u32) -> Self {
         Self {
             limit,
-            clients: Mutex::new(HashMap::new()),
+            ips: Mutex::new(HashMap::new()),
         }
     }
 
     pub async fn check(&self, ip: String) -> bool {
-        let mut clients = self.clients.lock().await;
+        let mut ips = self.ips.lock().await;
         let now = std::time::Instant::now();
         
         // Anti-leak: Clean up if map is getting too large (heuristic)
-        if clients.len() > 1000 {
-            clients.retain(|_, (last, _)| now.duration_since(*last).as_secs() < 3600);
+        if ips.len() > 1000 {
+            ips.retain(|_, (last, _)| now.duration_since(*last).as_secs() < 3600);
         }
 
-        let entry = clients.entry(ip).or_insert((now, 0));
+        let entry = ips.entry(ip).or_insert((now, 0));
         
         if now.duration_since(entry.0).as_secs() >= 1 {
             entry.0 = now;
@@ -313,26 +328,25 @@ async fn handle_http_inner(
         return ws.on_upgrade(move |socket| handle_ws_wrapper(socket, path_param, sid, ip, state_clone));
     }
 
-    // 2. Résolution intelligente du chemin
-    let mut full_path = format!("./{}", path);
-    if !std::path::Path::new(&full_path).exists() {
-        full_path = format!("{}/{}", state.root, path);
-    }
-    
-    let path_obj = std::path::Path::new(&full_path);
+    // 2. Résolution sécurisée du chemin (Anti-Path Traversal)
+    let safe_path = path.replace("..", "");
+    let mut full_path = std::path::PathBuf::from(&state.root);
+    full_path.push(safe_path.trim_start_matches('/'));
+
+    let path_obj = full_path.as_path();
 
     // Si c'est un dossier, on cherche index.nhtml
     let mut final_path = full_path.clone();
     if path_obj.is_dir() {
-        let index = if final_path.ends_with('/') { "index.nhtml" } else { "/index.nhtml" };
-        final_path.push_str(index);
+        let index = if final_path.to_string_lossy().ends_with('/') { "index.nhtml" } else { "index.nhtml" }; // PathBuf::push handles separators
+        final_path.push(index);
     }
     
-    let final_path_obj = std::path::Path::new(&final_path);
-    info!("[HTTP] Request: {} -> Resolved: {}", path, final_path);
+    let final_path_obj = final_path.as_path();
+    info!("[HTTP] Request: {} -> Resolved: {}", path, final_path.display());
 
     if !final_path_obj.exists() {
-        warn!("[HTTP] 404 - Not Found: {}", final_path);
+        warn!("[HTTP] 404 - Not Found: {}", final_path.display());
         return (StatusCode::NOT_FOUND, format!("Fichier non trouvé: {}", path)).into_response();
     }
 
@@ -819,15 +833,23 @@ async fn handle_event(
         }
 
         // 3. Vérification HMAC (Authenticité)
+        // Le paquet doit faire au moins 41 octets (Type:1 + Len:4 + Seq:4 + Sig:32)
+        if data.len() < 41 {
+            error!("[{}] REJET: Paquet EVENT trop court ({})", session.state.session_id, data.len());
+            return result;
+        }
+
         let mut sign_data = Vec::new();
         sign_data.push(0x02); // Type
         let total_len = u32::from_be_bytes([data[1], data[2], data[3], data[4]]);
         sign_data.extend_from_slice(&total_len.to_be_bytes());
         sign_data.extend_from_slice(&seq_id.to_be_bytes());
-        if data.len() >= 41 { sign_data.extend_from_slice(&data[41..]); }
+        
+        // On ajoute tout le payload APRES la signature (offset 41)
+        sign_data.extend_from_slice(&data[41..]);
 
         if !verify_hmac(&secret, &sign_data, &signature) {
-            error!("[{}] REJET: Signature HMAC invalide !", session.state.session_id);
+            error!("[{}] REJET: Signature HMAC invalide ! Payload détourné ?", session.state.session_id);
             return result;
         }
         let _ = session.sm.update_seq_id(session.state.session_id.clone(), seq_id).await;

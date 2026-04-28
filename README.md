@@ -5,7 +5,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/Version-v0.4.0-ff007f?style=flat-square" />
+  <img src="https://img.shields.io/badge/Version-v0.7.0-ff007f?style=flat-square" />
   <img src="https://img.shields.io/badge/Gateway-Rust-orange?style=flat-square&logo=rust" />
   <img src="https://img.shields.io/badge/Backend-PHP_8.x-777bb4?style=flat-square&logo=php" />
   <img src="https://img.shields.io/badge/Transport-Binary_NBPS-blue?style=flat-square" />
@@ -250,11 +250,27 @@ NHTML s'adapte à n'importe quelle infrastructure sans changer une seule ligne d
 
 ---
 
-### ⚖️ Licence
-NHTML utilise un modèle **Triple-Licence** pour soutenir à la fois la communauté et les entreprises :
-- **SDKs & Bridge** : [Licence MIT](./LICENSE_MIT) — Utilisation libre pour tout projet.
-- **Gateway (Core)** : [Licence AGPL v3](./LICENSE_AGPL) — Open Source Copyleft.
-- **Entreprise** : [Licence Commerciale](./LICENSE_COMMERCIAL.md) — Pour un usage propriétaire ou à source fermée.
+## 📄 Licensing
+
+NHTML is distributed under a **Triple-License** model to support both open-source and professional usage:
+
+- **MIT License**: For SDKs (PHP, Python, etc.) and client-side bridge.
+- **AGPL v3 License**: For the Gateway Core (Rust). This ensures the core remains free and improvements are contributed back.
+- **Commercial License**: For enterprise usage requiring proprietary integration or bypassing AGPL obligations.
+
+See `LICENSE_MIT`, `LICENSE_AGPL.txt`, and `LICENSE_COMMERCIAL.txt` for details.
+
+---
+
+## 📄 Licences (FR)
+
+NHTML utilise un modèle de **Triple-Licence** :
+
+- **Licence MIT** : Pour les SDKs et le bridge client.
+- **Licence AGPL v3** : Pour le cœur de la Gateway (Rust). Garantit que le moteur reste libre.
+- **Licence Commerciale** : Pour un usage propriétaire ou s'affranchir des obligations AGPL.
+
+Consultez `LICENSE_MIT`, `LICENSE_AGPL.txt`, et `LICENSE_COMMERCIAL.txt` pour plus d'informations.
 
 ---
 

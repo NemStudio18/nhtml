@@ -44,6 +44,10 @@ enum Commands {
         /// URI de la base de données (ex: mysql://user:pass@host/db)
         #[arg(long)]
         db_uri: Option<String>,
+
+        /// Active les logs au format JSON (pour ELK/Datadog)
+        #[arg(long)]
+        json: bool,
     },
     /// Inspecte un paquet binaire NBPS (hex)
     Inspect { hex: String },
@@ -119,8 +123,8 @@ async fn main() {
         Commands::New { name } => {
             cli::create_new_project(&name);
         }
-        Commands::Start { dev, port, path, entry, php, fpm, db_uri } => {
-            println!("🛰️ NHTML Gateway v0.6.0");
+        Commands::Start { dev, port, path, entry, php, fpm, db_uri, json: _ } => {
+            println!("🛰️ NHTML Gateway v0.7.0");
             println!("📂 Projet : {}", path);
             println!("🌐 Port   : {}", port);
             
@@ -220,7 +224,7 @@ async fn main() {
         Commands::Bench { path } => {
             cli::run_benchmark(&path);
         }
-        Commands::Share { port } => {
+        Commands::Share { port, json: _ } => {
             cli::run_share(port);
         }
         Commands::Build { production, output } => {

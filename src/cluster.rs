@@ -24,10 +24,10 @@ pub async fn start_cluster_bridge(
     let pub_client = client.clone();
     let my_gid = gateway_id.clone();
     tokio::spawn(async move {
-        let mut pub_conn = match pub_client.get_async_connection().await {
+        let mut pub_conn = match pub_client.get_multiplexed_async_connection().await {
             Ok(c) => c,
             Err(e) => {
-                error!("❌ Cluster: Connexion Publication échouée : {}", e);
+                error!("❌ Cluster: Connexion Publication multiplexée échouée : {}", e);
                 return;
             }
         };
@@ -36,13 +36,10 @@ pub async fn start_cluster_bridge(
             let msg = &*msg_arc;
             if msg.len() < 2 { continue; }
             
-            // On vérifie si le message vient d'une autre gateway (relais)
-            // Format interne : [Scope:1][GidLen:1][Gid:str][SidLen:1][Sid:str][Payload:...]
             let gid_len = msg[1] as usize;
             if msg.len() < 2 + gid_len { continue; }
             let sender_gid = String::from_utf8_lossy(&msg[2..2+gid_len]);
             
-            // Si c'est nous l'auteur original, on publie sur Redis pour les autres
             if sender_gid == my_gid {
                 let _: Result<(), _> = pub_conn.publish("nhtml:broadcast", msg).await;
             }
@@ -50,7 +47,14 @@ pub async fn start_cluster_bridge(
     });
 
     // 2. Task de Souscription (Redis -> Local)
-    let mut pubsub = client.get_async_connection().await.unwrap().into_pubsub();
+    let mut pubsub = match client.get_async_pubsub().await {
+        Ok(ps) => ps,
+        Err(e) => {
+            error!("❌ Cluster: Impossible d'obtenir un client PubSub Async : {}", e);
+            return;
+        }
+    };
+    
     if let Err(e) = pubsub.subscribe("nhtml:broadcast").await {
         error!("❌ Cluster: Échec de souscription Redis : {}", e);
         return;

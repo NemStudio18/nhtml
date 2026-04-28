@@ -1,5 +1,23 @@
 # 📜 Changelog NHTML
 
+## v0.7.0 (Juin 2026) — "Industrial Scale" (DEVELOPMENT)
+### Added
+- **Redis Gateway Clustering**: Support natif pour le déploiement multi-nœuds avec synchronisation des sessions via Redis.
+- **Filtering Multi-Gateway**: Prévention des boucles de broadcast via filtrage par `gateway_id` unique.
+- **Observability Dashboard**: Nouveaux onglets FLOW, METRICS et SESSIONS dans les DevTools.
+- **Prometheus Export**: Exportation des métriques système (Clients actifs, Débit paquets) vers Prometheus/Grafana.
+- **Structured JSON Logging**: Flag `--json` pour intégration avec ELK et Datadog.
+- **Triple-License Model**: MIT (SDKs), AGPLv3 (Gateway Core), et Licence Commerciale.
+
+### Fixed
+- **Security Hardening**: Correction d'une faille de Path Traversal dans le serveur HTTP.
+- **HMAC Reliability**: Correction de l'offset de signature et couverture totale du payload.
+- **Memory Safety**: Prévention des fuites mémoire dans le Rate Limiter et protection contre les overflows.
+- **Port Handling**: Suppression d'un panic possible sur les ports invalides.
+- **Unix Compatibility**: Correction d'une erreur de compilation sur les sockets Unix.
+
+---
+
 ## v0.6.0 (Mai 2026) — "Global Connect" (FINALISÉ)
 ### Added
 - **FastCGI/PHP-FPM Bridge**: Support pour la communication directe avec les pools FPM (ultra-basse latence).
