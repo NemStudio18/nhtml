@@ -40,4 +40,4 @@ This roadmap defines the next steps for scaling NHTML.
 
 ### 2. Monitoring & Alerting
 - [x] **Action**: Export metrics to Prometheus / Grafana.
-- [ ] **Action**: Structured JSON logs for easy integration with ELK or Datadog.
+- [x] **Action**: Structured JSON logs for easy integration with ELK or Datadog.

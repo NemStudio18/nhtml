@@ -40,4 +40,4 @@ Cette roadmap définit les prochaines étapes pour passer à l'échelle supérie
 
 ### 2. Monitoring & Alerting
 - [x] **Action** : Exportation des métriques vers Prometheus / Grafana.
-- [ ] **Action** : Logs structurés JSON pour intégration facile avec ELK ou Datadog.
+- [x] **Action** : Logs structurés JSON pour intégration facile avec ELK ou Datadog.

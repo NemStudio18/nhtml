@@ -60,6 +60,10 @@ enum Commands {
         /// Port local à exposer (default: 8080)
         #[arg(short, long, default_value_t = 8080)]
         port: u16,
+
+        /// Active les logs au format JSON (pour ELK/Datadog)
+        #[arg(long)]
+        json: bool,
     },
     /// Compile le projet pour la production
     Build {
@@ -75,8 +79,19 @@ enum Commands {
 
 #[tokio::main]
 async fn main() {
-    tracing_subscriber::fmt::init();
     let mut cli = Cli::parse();
+    
+    // Initialisation du logging
+    if let Commands::Start { json, .. } = cli.command {
+        if json {
+            tracing_subscriber::fmt().json().init();
+        } else {
+            tracing_subscriber::fmt::init();
+        }
+    } else {
+        tracing_subscriber::fmt::init();
+    }
+
     let config = crate::config::NhtmlConfig::load();
 
     // Appliquer la config sur les ports si non spécifiés explicitement

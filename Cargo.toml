@@ -34,7 +34,7 @@ toml = "0.8"
 urlencoding = "2.1"
 tracing = "0.1"
 scraper = "0.18"
-tracing-subscriber = "0.3"
+tracing-subscriber = { version = "0.3", features = ["json"] }
 url = "2.5"
 mime_guess = "2.0"
 hmac = "0.12"
