@@ -43,6 +43,8 @@ type FpmClient = fastcgi_client::Client<fastcgi_client::io::TokioCompat<FpmStrea
 pub struct FpmPool {
     addr: String,
     clients: Mutex<Vec<FpmClient>>,
+    max_size: usize,
+    current_size: std::sync::Arc<std::sync::atomic::AtomicUsize>,
 }
 
 impl FpmPool {
@@ -50,17 +52,26 @@ impl FpmPool {
         Self {
             addr,
             clients: Mutex::new(Vec::new()),
+            max_size: 100, // Limite par défaut à 100 connexions
+            current_size: std::sync::Arc::new(std::sync::atomic::AtomicUsize::new(0)),
         }
     }
 
     pub async fn acquire(&self) -> crate::core::Result<FpmClient> {
-        let mut clients = self.clients.lock().await;
-        while let Some(client) = clients.pop() {
-            // Tentative de vérification rapide (Optionnel: on pourrait faire un ping FastCGI réel ici)
-            // Pour l'instant on fait confiance ou on gère l'erreur au call.
-            // Mais on peut au moins vérifier si le transport tokio est toujours là
-            return Ok(client);
+        {
+            let mut clients = self.clients.lock().await;
+            if let Some(client) = clients.pop() {
+                return Ok(client);
+            }
         }
+        
+        // Vérifier si on peut encore créer une connexion
+        let curr = self.current_size.load(std::sync::atomic::Ordering::SeqCst);
+        if curr >= self.max_size {
+            return Err(crate::core::GatewayError::SocketError(format!("FpmPool saturé ({} connexions)", self.max_size)));
+        }
+        
+        self.current_size.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
         
         let is_unix = self.addr.starts_with('/') || self.addr.starts_with("./") || self.addr.contains(".sock") || self.addr.starts_with("unix:");
 
@@ -271,9 +282,9 @@ impl RateLimiter {
         let mut ips = self.ips.lock().await;
         let now = std::time::Instant::now();
         
-        // Anti-leak: Clean up if map is getting too large (heuristic)
+        // Anti-leak: Nettoyage agressif si la table devient trop large
         if ips.len() > 1000 {
-            ips.retain(|_, (last, _)| now.duration_since(*last).as_secs() < 3600);
+            ips.retain(|_, (last, _)| now.duration_since(*last).as_secs() < 60);
         }
 
         let entry = ips.entry(ip).or_insert((now, 0));
@@ -285,7 +296,7 @@ impl RateLimiter {
         }
         
         if entry.1 < self.limit {
-            entry.1 += 1;
+            entry.1 = entry.1.saturating_add(1);
             return true;
         }
         
@@ -616,10 +627,10 @@ async fn handle_connection_axum(
                     let scope_type = msg[0];
                     let gid_len = msg[1] as usize;
                     if msg.len() >= 3 + gid_len {
-                        let _sender_gid = String::from_utf8_lossy(&msg[2..2+gid_len]);
+                        let _sender_gid = String::from_utf8(msg[2..2+gid_len].to_vec()).unwrap_or_else(|_| "unknown".to_string());
                         let sid_len = msg[2+gid_len] as usize;
                         if msg.len() >= 3 + gid_len + sid_len {
-                            let sender_sid = String::from_utf8_lossy(&msg[3+gid_len..3+gid_len+sid_len]);
+                            let sender_sid = String::from_utf8(msg[3+gid_len..3+gid_len+sid_len].to_vec()).unwrap_or_else(|_| "unknown".to_string());
                             let pkt_data = &msg[3+gid_len+sid_len..];
                             
                             let (should_send, final_pkt) = match scope_type {
@@ -629,9 +640,9 @@ async fn handle_connection_axum(
                                     if pkt_data.len() > 0 {
                                         let rid_len = pkt_data[0] as usize;
                                         if pkt_data.len() >= 1 + rid_len {
-                                            let rid = String::from_utf8_lossy(&pkt_data[1..1+rid_len]);
+                                            let rid = String::from_utf8(pkt_data[1..1+rid_len].to_vec()).unwrap_or_else(|_| "global".to_string());
                                             let payload = &pkt_data[1+rid_len..];
-                                            (session_rooms.contains(rid.as_ref()), payload.to_vec())
+                                            (session_rooms.contains(&rid), payload.to_vec())
                                         } else { (false, Vec::new()) }
                                     } else { (false, Vec::new()) }
                                 },
@@ -639,7 +650,7 @@ async fn handle_connection_axum(
                                     if pkt_data.len() > 0 {
                                         let tsid_len = pkt_data[0] as usize;
                                         if pkt_data.len() >= 1 + tsid_len {
-                                            let tsid = String::from_utf8_lossy(&pkt_data[1..1+tsid_len]);
+                                            let tsid = String::from_utf8(pkt_data[1..1+tsid_len].to_vec()).unwrap_or_else(|_| "unknown".to_string());
                                             let payload = &pkt_data[1+tsid_len..];
                                             (tsid == session_id, payload.to_vec())
                                         } else { (false, Vec::new()) }
@@ -959,10 +970,22 @@ async fn handle_event(
         
         let mut msg = Vec::new();
         let scope_type = match bc.scope.as_str() {
+            "room" if bc.room_id.is_some() => proto::SCOPE_ROOM,
+            "room" => {
+                warn!("[{}] Broadcast ROOM requis mais room_id manquant !", session.state.session_id);
+                return result;
+            },
+            "direct" if bc.target_sid.is_some() => proto::SCOPE_DIRECT,
+            "direct" => {
+                warn!("[{}] Broadcast DIRECT requis mais target_sid manquant !", session.state.session_id);
+                return result;
+            },
             "all" => proto::SCOPE_ALL,
-            "room" => proto::SCOPE_ROOM,
-            "direct" => proto::SCOPE_DIRECT,
-            _ => proto::SCOPE_OTHERS,
+            "others" => proto::SCOPE_OTHERS,
+            _ => {
+                warn!("[{}] Scope de broadcast inconnu: {}", session.state.session_id, bc.scope);
+                return result;
+            }
         };
         
         msg.push(scope_type);

@@ -11,3 +11,7 @@ target_locked/
 ai_build/
 *.exe
 *.pdb
+
+# Internal Documentation
+docs/**/ROADMAP*
+docs/**/DETAILED_ROADMAP*

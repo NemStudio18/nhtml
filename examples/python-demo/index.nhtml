@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <title>NHTML | Python SDK Demo</title>
+    <style>
+        :root { --primary: #3776ab; --bg: #0f172a; }
+        body { background: var(--bg); color: white; font-family: sans-serif; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; margin: 0; }
+        .card { background: #1e293b; padding: 2rem; border-radius: 1rem; box-shadow: 0 10px 25px rgba(0,0,0,0.5); text-align: center; border: 1px solid #334155; }
+        h1 { color: var(--primary); margin-bottom: 0.5rem; }
+        .counter { font-size: 3rem; font-weight: bold; margin: 1rem 0; }
+        button { background: var(--primary); color: white; border: none; padding: 0.75rem 1.5rem; border-radius: 0.5rem; cursor: pointer; font-weight: bold; transition: opacity 0.2s; }
+        button:hover { opacity: 0.9; }
+        .langs { margin-top: 2rem; display: flex; gap: 10px; }
+        .langs button { background: #334155; font-size: 0.8rem; }
+    </style>
+</head>
+<body>
+    <div class="card">
+        <h1 n-id="title">Bienvenue sur NHTML (Python)</h1>
+        <p>Ce compteur est géré par un backend <b>FastAPI</b> via le SDK NHTML.</p>
+        
+        <div class="counter" n-id="counter_val">0</div>
+        
+        <button n-click="increment" n-value-from="counter_val">INCRÉMENTER</button>
+        
+        <div class="langs">
+            <button n-click="set_lang" n-value="fr">FRANÇAIS</button>
+            <button n-click="set_lang" n-value="en">ENGLISH</button>
+        </div>
+    </div>
+
+    <script src="/assets/js/bridge.js" defer></script>
+</body>
+</html>
