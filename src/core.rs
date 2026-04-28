@@ -6,6 +6,7 @@ pub struct SessionState {
     pub session_id: String,
     pub last_event_id: u64,
     pub last_version: u32,
+    pub gateway_id: Option<String>,
 }
 
 impl SessionState {
@@ -14,6 +15,7 @@ impl SessionState {
             session_id: id,
             last_event_id: 0,
             last_version: 0,
+            gateway_id: None,
         }
     }
 }

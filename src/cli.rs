@@ -288,6 +288,7 @@ async fn handle_devtools_ws(socket: WebSocket, tx_monitor: broadcast::Sender<cra
                 0x05 => "SYNC",
                 0x07 => "B-TREE",
                 0x09 => "PING",
+                0x0A => "METRICS",
                 0x10 => "LOG",
                 0x7F => "ERROR",
                 _ => "UNKNOWN"
@@ -370,6 +371,29 @@ async fn handle_devtools_ws(socket: WebSocket, tx_monitor: broadcast::Sender<cra
             
             let pkt = crate::proto::patch(&ops);
             let mut s = sender_for_monitor.lock().await;
+            if let Err(_) = s.send(WsMessage::Binary(pkt)).await {
+                break;
+            }
+        }
+    });
+
+    // 4. Task de METRICS (Relais des stats système)
+    let sender_for_metrics = ws_sender.clone();
+    tokio::spawn(async move {
+        loop {
+            tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
+            
+            // Simulation ou lecture des vraies métriques (v0.7.0)
+            // Pour l'instant on utilise des valeurs statiques/globales simulées
+            // mais on a déjà les compteurs Prometheus en arrière-plan.
+            
+            let mut ops = Vec::new();
+            // Note: On pourrait lire metrics::gauge!("nhtml_active_clients") ici si on avait un handle
+            // Pour l'instant on envoie des placeholders qui seront liés aux vrais compteurs plus tard
+            ops.push(crate::proto::PatchOp::set_text(701, 1, "PROD-READY")); // Status
+            
+            let pkt = crate::proto::patch(&ops);
+            let mut s = sender_for_metrics.lock().await;
             if let Err(_) = s.send(WsMessage::Binary(pkt)).await {
                 break;
             }
