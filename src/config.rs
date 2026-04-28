@@ -9,6 +9,13 @@ pub struct NhtmlConfig {
     pub dev: Option<DevConfig>,
     pub security: Option<SecurityConfig>,
     pub database: Option<DatabaseConfig>,
+    pub cluster: Option<ClusterConfig>,
+}
+
+#[derive(Debug, Deserialize, Default, Clone)]
+pub struct ClusterConfig {
+    pub enabled: bool,
+    pub redis_url: String,
 }
 
 #[derive(Debug, Deserialize, Default, Clone)]

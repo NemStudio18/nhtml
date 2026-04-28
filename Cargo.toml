@@ -1,6 +1,6 @@
 [package]
 name = "nhtml-gateway"
-version = "0.6.0"
+version = "0.7.0"
 edition = "2021"
 license = "AGPL-3.0"
 [lib]
@@ -41,3 +41,6 @@ hmac = "0.12"
 sha2 = "0.10"
 getrandom = { version = "0.2", features = ["js"] }
 fastcgi-client = { version = "0.11", features = ["runtime-tokio"] }
+redis = { version = "0.24", features = ["tokio-comp"] }
+metrics = "0.22"
+metrics-exporter-prometheus = "0.12"

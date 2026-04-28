@@ -94,6 +94,12 @@ async fn main() {
     let (tx_app_broadcast, _) = broadcast::channel::<std::sync::Arc<Vec<u8>>>(1024);
     let (tx_reload, _) = broadcast::channel::<()>(10);
 
+    // Initialisation des métriques Prometheus (v0.7.0)
+    let _ = metrics_exporter_prometheus::PrometheusBuilder::new()
+        .install()
+        .expect("failed to install Prometheus recorder");
+    info!("📊 Metrics: Exportateur Prometheus prêt sur le port standard des métriques.");
+
     match cli.command {
         Commands::New { name } => {
             cli::create_new_project(&name);
@@ -156,6 +162,17 @@ async fn main() {
             if is_dev {
                 let tx_r = tx_reload.clone();
                 watcher::start_watcher(tx_r);
+            }
+
+            // Cluster (Redis sync)
+            if let Some(ref cluster) = config.cluster {
+                if cluster.enabled {
+                    let tx_a = tx_app_broadcast.clone();
+                    let url = cluster.redis_url.clone();
+                    tokio::spawn(async move {
+                        nhtml_gateway::cluster::start_cluster_bridge(url, tx_a).await;
+                    });
+                }
             }
 
             info!("🚀 NHTML Gateway starting...");

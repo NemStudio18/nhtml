@@ -219,6 +219,7 @@ async fn handle_ws_route(
     let ip = addr.ip().to_string();
     
     info!("[WS] Upgrade request from {} for path: {} (sid: {})", ip, path, sid);
+    metrics::gauge!("nhtml_active_clients").increment(1.0);
     ws.on_upgrade(move |socket| handle_ws_wrapper(socket, path, sid, ip, state))
 }
 
@@ -636,6 +637,7 @@ async fn handle_connection_axum(
                     Some(m) => m,
                     None => {
                         info!("[{}] Connexion terminée", session_id);
+                        metrics::gauge!("nhtml_active_clients").decrement(1.0);
                         break;
                     }
                 };
@@ -645,6 +647,7 @@ async fn handle_connection_axum(
                         if data.is_empty() { continue; }
 
                         let type_byte = data[0];
+                        metrics::counter!("nhtml_packets_received_total", "type" => type_byte.to_string()).increment(1);
 
                         if type_byte == 0x02 { // EVENT
                             // RATE LIMIT CHECK

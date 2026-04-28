@@ -8,6 +8,7 @@ pub mod decoder;
 pub mod config;
 pub mod compiler;
 pub mod socket;
+pub mod cluster;
 
 use serde::{Serialize, Deserialize};
 
