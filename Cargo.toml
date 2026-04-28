@@ -31,4 +31,4 @@ mime_guess = "2.0"
 hmac = "0.12"
 sha2 = "0.10"
 getrandom = { version = "0.2", features = ["js"] }
-fastcgi-client = "0.8"
+fastcgi-client = { version = "0.11", features = ["runtime-tokio"] }

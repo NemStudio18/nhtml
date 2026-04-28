@@ -9,7 +9,7 @@ mod config;
 mod compiler;
 mod socket;
 
-use tracing::info;
+use tracing::{info, error};
 use clap::{Parser, Subcommand};
 use tokio::sync::broadcast;
 use serde::{Serialize, Deserialize};
@@ -128,7 +128,13 @@ async fn main() {
             });
 
             info!("🚀 NHTML Gateway starting...");
-            let sm = crate::session::SessionManager::new().await.expect("Impossible d'init le SessionManager");
+            let sm = match crate::session::SessionManager::new().await {
+                Ok(s) => s,
+                Err(e) => {
+                    error!("❌ Fatal: Impossible d'initialiser le SessionManager : {}", e);
+                    return;
+                }
+            };
             socket::serve(port, path, entry, php, fpm_addr, std::sync::Arc::new(sm), tx_monitor, tx_app_broadcast).await;
         }
         Commands::Devtools => {

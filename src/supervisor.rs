@@ -4,6 +4,7 @@ use std::path::Path;
 use std::process::Stdio;
 use tokio::io::{BufReader, AsyncBufReadExt};
 use tokio::sync::broadcast;
+use tracing::error;
 use crate::MonitoringEvent;
 
 pub async fn start_php_server(
@@ -23,19 +24,32 @@ pub async fn start_php_server(
 
     println!("⚙️ Supervisor: Tentative de lancement avec : {}", php_bin);
 
-    let mut child = Command::new(&php_bin)
+    let mut child = match Command::new(&php_bin)
         .arg("-S")
         .arg(format!("127.0.0.1:{}", port))
         .arg("router.php")
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
-        .spawn()
-        .expect("Échec du lancement du serveur PHP");
+        .spawn() {
+            Ok(c) => c,
+            Err(e) => {
+                error!("❌ Supervisor: Échec du lancement du serveur PHP ({}) : {}", php_bin, e);
+                return;
+            }
+        };
 
     println!("✅ Supervisor: Serveur PHP opérationnel sur le port {}.", port);
 
-    let stdout = child.stdout.take().unwrap();
-    let stderr = child.stderr.take().unwrap();
+    let stdout = child.stdout.take();
+    let stderr = child.stderr.take();
+
+    if stdout.is_none() || stderr.is_none() {
+        error!("❌ Supervisor: Impossible de capturer stdout/stderr du serveur PHP.");
+        return;
+    }
+
+    let stdout = stdout.unwrap();
+    let stderr = stderr.unwrap();
 
     let tx_m = tx_monitor.clone();
     let tx_a = tx_app_broadcast.clone();
@@ -59,7 +73,10 @@ pub async fn start_php_server(
     });
 
     tokio::spawn(async move {
-        signal::ctrl_c().await.expect("Erreur lors de l'écoute du signal Ctrl+C");
+        if let Err(e) = signal::ctrl_c().await {
+            error!("❌ Supervisor: Erreur lors de l'écoute du signal Ctrl+C : {}", e);
+            return;
+        }
         println!("\n🛑 Supervisor: Signal d'arrêt reçu, fermeture du serveur PHP...");
         let _ = child.kill().await;
         std::process::exit(0);

@@ -26,9 +26,13 @@ use sha2::Sha256;
 type HmacSha256 = Hmac<Sha256>;
 
 fn verify_hmac(secret: &[u8], data: &[u8], signature: &[u8]) -> bool {
-    let mut mac = HmacSha256::new_from_slice(secret).expect("HMAC can take key of any size");
-    mac.update(data);
-    mac.verify_slice(signature).is_ok()
+    if let Ok(mut mac) = HmacSha256::new_from_slice(secret) {
+        mac.update(data);
+        mac.verify_slice(signature).is_ok()
+    } else {
+        error!("HMAC: Erreur lors de la création du contexte (clé invalide?)");
+        false
+    }
 }
 
 // ─── État de session ────────────────────────────────────────────────────────
@@ -81,9 +85,17 @@ pub async fn serve(
         .with_state(shared_state);
 
     let addr = format!("0.0.0.0:{}", port);
-    let listener = tokio::net::TcpListener::bind(&addr).await.expect("Impossible de lier le port");
+    let listener = match tokio::net::TcpListener::bind(&addr).await {
+        Ok(l) => l,
+        Err(e) => {
+            error!("❌ Gateway: Impossible de lier le port {} : {}", port, e);
+            return;
+        }
+    };
     info!("Gateway Industrielle en écoute sur http://{}", addr);
-    axum::serve(listener, app).await.unwrap();
+    if let Err(e) = axum::serve(listener, app).await {
+        error!("❌ Gateway: Erreur lors de l'exécution du serveur Axum : {}", e);
+    }
 }
 
 async fn handle_ws_route(
@@ -197,16 +209,26 @@ async fn handle_http_inner(
             html.push_str(bridge_script);
         }
         
-        return Response::builder()
+        match Response::builder()
             .header(header::CONTENT_TYPE, "text/html; charset=utf-8")
-            .body(axum::body::Body::from(html))
-            .unwrap();
+            .body(axum::body::Body::from(html)) {
+                Ok(r) => return r,
+                Err(e) => {
+                    error!("[HTTP] Erreur de construction de réponse : {}", e);
+                    return (StatusCode::INTERNAL_SERVER_ERROR, "Erreur interne").into_response();
+                }
+            }
     }
 
-    Response::builder()
+    match Response::builder()
         .header(header::CONTENT_TYPE, mime_str)
-        .body(axum::body::Body::from(content))
-        .unwrap()
+        .body(axum::body::Body::from(content)) {
+            Ok(r) => r,
+            Err(e) => {
+                error!("[HTTP] Erreur de construction de réponse : {}", e);
+                (StatusCode::INTERNAL_SERVER_ERROR, "Erreur interne").into_response()
+            }
+        }
 }
 
 async fn handle_ws_wrapper(socket: WebSocket, path: String, sid: String, state: Arc<GatewayState>) {
@@ -336,11 +358,11 @@ async fn handle_connection_axum(
         &session.fpm_addr
     ).await;
     
-    let init_patches = match init_patches_res {
+    let (init_patches, _) = match init_patches_res {
         Ok(p) => p,
         Err(e) => {
             error!("[{}] PHP Init Error: {}", session_id, e);
-            Vec::new()
+            (Vec::new(), None)
         }
     };
     
@@ -386,6 +408,7 @@ async fn handle_connection_axum(
     // ── Boucle de messages ─────────────────────────────────────────────────
     let mut app_rx = state.tx_app_broadcast.subscribe();
     loop {
+        tokio::select! {
             // ─── Écouteur de Broadcast Applicatif (Multi-utilisateur) ───────
             Ok(msg) = app_rx.recv() => {
                 if msg.len() > 2 {
@@ -788,37 +811,30 @@ async fn call_php_fpm(
     context: &serde_json::Value,
     handler_table: &HandlerTable,
 ) -> crate::core::Result<(Vec<(proto::PatchOp, bool)>, Option<proto::BroadcastInstruction>)> {
-    use fastcgi_client::{Client, Params};
-    use std::io::{Cursor, Read};
-    use std::net::TcpStream;
+    use fastcgi_client::{Client, Params, Request};
+    use tokio::net::TcpStream;
+    use std::io::Cursor;
 
-    let addr_own = addr.to_string();
-    let script_own = php_script.to_string();
     let input = context.to_string();
+    let stream = TcpStream::connect(addr).await
+        .map_err(|e| crate::core::GatewayError::SocketError(format!("Connexion FPM échouée sur {} : {}", addr, e)))?;
+    
+    let client = Client::new_tokio(stream);
 
-    let result = tokio::task::spawn_blocking(move || {
-        // Support simple TCP pour l'instant (127.0.0.1:9000)
-        let stream = TcpStream::connect(&addr_own).map_err(|e| e.to_string())?;
-        let mut client = Client::new(stream, false);
+    let mut params = Params::default();
+    params.insert("SCRIPT_FILENAME".into(), php_script.into());
+    params.insert("REQUEST_METHOD".into(), "POST".into());
+    params.insert("CONTENT_TYPE".into(), "application/json".into());
+    params.insert("CONTENT_LENGTH".into(), input.len().to_string().into());
 
-        let mut params = Params::default();
-        params.insert("SCRIPT_FILENAME".into(), script_own.into());
-        params.insert("REQUEST_METHOD".into(), "POST".into());
-        params.insert("CONTENT_TYPE".into(), "application/json".into());
-        params.insert("CONTENT_LENGTH".into(), input.len().to_string().into());
+    let mut body = input.as_bytes();
+    let output = client.execute_once(Request::new(params, &mut body)).await
+        .map_err(|e| crate::core::GatewayError::FastCgiError(e.to_string()))?;
 
-        let mut body = Cursor::new(input);
-        let output = client.execute(params, &mut body).map_err(|e| e.to_string())?;
-
-        let mut stdout = Vec::new();
-        output.get_stdout().read_to_end(&mut stdout).map_err(|e| e.to_string())?;
-        
-        Ok::<Vec<u8>, String>(stdout)
-    }).await.map_err(|e| crate::core::GatewayError::FastCgiError(e.to_string()))?;
-
-    match result {
-        Ok(stdout) => Ok(parse_php_response(&stdout, handler_table)),
-        Err(e) => Err(crate::core::GatewayError::FastCgiError(e))
+    if let Some(stdout) = output.stdout {
+        Ok(parse_php_response(&stdout, handler_table))
+    } else {
+        Ok((Vec::new(), None))
     }
 }
 
@@ -846,7 +862,7 @@ fn parse_php_response(
         Ok(v) => v,
         Err(e) => {
             error!("Réponse PHP invalide: {} — Content: {}", e, json_clean);
-            return vec![];
+            return (Vec::new(), None);
         }
     };
     
@@ -876,7 +892,7 @@ fn parse_php_response(
     }
 
     let mut patch_ops = Vec::new();
-    let Some(ops) = ops_array else { return vec![]; };
+    let Some(ops) = ops_array else { return (Vec::new(), None); };
 
     for op in ops {
         let is_broadcast = op["broadcast"].as_bool().unwrap_or(false);
@@ -955,5 +971,4 @@ fn parse_single_op(op: &serde_json::Value, handler_table: &HandlerTable) -> Opti
     };
 
     Some(patch)
-}
 }
