@@ -129,6 +129,14 @@ NHTML adapts to any infrastructure without changing a single line of your code:
 
 ---
 
+### ⚖️ License
+NHTML uses a **Triple-License** model to support both the community and commercial users:
+- **SDKs & Bridge**: [MIT License](./LICENSE_MIT) — Free to use in any project.
+- **Gateway (Core)**: [AGPL v3](./LICENSE_AGPL) — Open Source Copyleft.
+- **Enterprise**: [Commercial License](./LICENSE_COMMERCIAL.md) — For proprietary/closed-source use.
+
+---
+
 ## 🇫🇷 Version Française
 
 ### ⚡ Le web réactif. Sans écrire de JavaScript.
@@ -243,8 +251,10 @@ NHTML s'adapte à n'importe quelle infrastructure sans changer une seule ligne d
 ---
 
 ### ⚖️ Licence
-
-- **NHTML** (Gateway, SDK, Bridge) — [AGPL v3](./LICENSE)
+NHTML utilise un modèle **Triple-Licence** pour soutenir à la fois la communauté et les entreprises :
+- **SDKs & Bridge** : [Licence MIT](./LICENSE_MIT) — Utilisation libre pour tout projet.
+- **Gateway (Core)** : [Licence AGPL v3](./LICENSE_AGPL) — Open Source Copyleft.
+- **Entreprise** : [Licence Commerciale](./LICENSE_COMMERCIAL.md) — Pour un usage propriétaire ou à source fermée.
 
 ---
 
