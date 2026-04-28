@@ -3,6 +3,7 @@
 /// dispatche vers PHP, renvoie les PATCH.
 
 use std::sync::Arc;
+use tokio::net::TcpStream;
 use futures_util::{SinkExt, StreamExt};
 use tracing::{info, warn, error};
 use axum::extract::ws::{Message as WsMessage, WebSocket, WebSocketUpgrade};
@@ -22,8 +23,42 @@ use crate::core::SessionState;
 use crate::session::SessionManager;
 use hmac::{Hmac, Mac};
 use sha2::Sha256;
+use tokio::sync::Mutex;
+use fastcgi_client::conn::KeepAlive;
 
 type HmacSha256 = Hmac<Sha256>;
+type FpmClient = fastcgi_client::Client<fastcgi_client::io::TokioCompat<TcpStream>, KeepAlive>;
+
+/// Pool de connexions FastCGI pour la réutilisation des sockets.
+pub struct FpmPool {
+    addr: String,
+    clients: Mutex<Vec<FpmClient>>,
+}
+
+impl FpmPool {
+    pub fn new(addr: String) -> Self {
+        Self {
+            addr,
+            clients: Mutex::new(Vec::new()),
+        }
+    }
+
+    pub async fn acquire(&self) -> crate::core::Result<FpmClient> {
+        let mut clients = self.clients.lock().await;
+        if let Some(client) = clients.pop() {
+            Ok(client)
+        } else {
+            let stream = TcpStream::connect(&self.addr).await
+                .map_err(|e| crate::core::GatewayError::SocketError(format!("Pool: Connexion FPM échouée sur {} : {}", self.addr, e)))?;
+            Ok(fastcgi_client::Client::new_keep_alive_tokio(stream))
+        }
+    }
+
+    pub async fn release(&self, client: FpmClient) {
+        let mut clients = self.clients.lock().await;
+        clients.push(client);
+    }
+}
 
 fn verify_hmac(secret: &[u8], data: &[u8], signature: &[u8]) -> bool {
     if let Ok(mut mac) = HmacSha256::new_from_slice(secret) {
@@ -70,10 +105,13 @@ pub async fn serve(
     tx_monitor: tokio::sync::broadcast::Sender<crate::MonitoringEvent>, 
     tx_app_broadcast: tokio::sync::broadcast::Sender<Vec<u8>>
 ) {
+    let fpm_pool = fpm_addr.as_ref().map(|addr| Arc::new(FpmPool::new(addr.clone())));
+
     let shared_state = Arc::new(GatewayState {
         root: root.clone(),
         sm: sm.clone(),
         fpm_addr,
+        fpm_pool,
         tx_monitor,
         tx_app_broadcast,
     });
@@ -113,6 +151,7 @@ struct GatewayState {
     root: String,
     sm: Arc<SessionManager>,
     fpm_addr: Option<String>,
+    fpm_pool: Option<Arc<FpmPool>>,
     tx_monitor: tokio::sync::broadcast::Sender<crate::MonitoringEvent>,
     tx_app_broadcast: tokio::sync::broadcast::Sender<Vec<u8>>,
 }
@@ -355,7 +394,7 @@ async fn handle_connection_axum(
         0, 0, "init", &[], 
         &session_id, 0,
         sm.clone(),
-        &session.fpm_addr
+        state.clone()
     ).await;
     
     let (init_patches, _) = match init_patches_res {
@@ -447,7 +486,7 @@ async fn handle_connection_axum(
 
                         if type_byte == 0x02 { // EVENT
                             monitor_pkt(&state.tx_monitor, "IN", 0x02, data.len(), &session_id, None, Some(format!("Raw Event Data ({} bytes)", data.len())), None).await;
-                            if let Some(patch_pkt) = handle_event(&data, &mut session, &state.tx_app_broadcast, &state.tx_monitor).await {
+                            if let Some(patch_pkt) = handle_event(&data, &mut session, state.clone()).await {
                                 ws_sender.send(WsMessage::Binary(patch_pkt)).await.ok();
                             }
                         } else if type_byte == 0x01 { // HELLO (Client → Server)
@@ -554,8 +593,7 @@ async fn handle_connection_axum(
 async fn handle_event(
     data       : &[u8],
     session    : &mut Session,
-    tx_app_broadcast: &tokio::sync::broadcast::Sender<Vec<u8>>,
-    tx_monitor: &tokio::sync::broadcast::Sender<crate::MonitoringEvent>
+    state      : Arc<GatewayState>
 ) -> Option<Vec<u8>>
 {
     // 1. Décodage v0.5.0 (Sécurité Industrielle)
@@ -604,7 +642,7 @@ async fn handle_event(
     info!("[{}] EVENT validé (Seq:{}) node={} handler='{}'", 
         session.state.session_id, seq_id, node_id, handler);
 
-    monitor_pkt(tx_monitor, "IN", proto::PKT_EVENT, data.len(), &session.state.session_id, Some(handler.clone()), Some(format!("Payload: {} bytes", payload.len())), None).await;
+    monitor_pkt(&state.tx_monitor, "IN", proto::PKT_EVENT, data.len(), &session.state.session_id, Some(handler.clone()), Some(format!("Payload: {} bytes", payload.len())), None).await;
 
     // --- Mise à jour AUTO de l'état local depuis le payload ---
     if let Ok(json_payload) = serde_json::from_slice::<serde_json::Value>(payload) {
@@ -629,7 +667,7 @@ async fn handle_event(
         &session.state.session_id,
         session.state.last_version,
         session.sm.clone(),
-        &session.fpm_addr
+        state.clone()
     ).await;
 
     let (patches, broadcast_instr) = match res {
@@ -669,7 +707,7 @@ async fn handle_event(
             }
             let elapsed = start.elapsed().as_millis() as u64;
             let patch_pkt = proto::patch(&final_patches);
-            monitor_pkt(tx_monitor, "OUT", proto::PKT_PATCH, patch_pkt.len(), &session.state.session_id, Some(handler.clone()), Some(format!("Applied {} patches", final_patches.len())), Some(elapsed)).await;
+            monitor_pkt(&state.tx_monitor, "OUT", proto::PKT_PATCH, patch_pkt.len(), &session.state.session_id, Some(handler.clone()), Some(format!("Applied {} patches", final_patches.len())), Some(elapsed)).await;
             
             // --- Traitement du Broadcast v0.6.0 (SDK-driven) ---
             if let Some(bc) = broadcast_instr {
@@ -682,7 +720,7 @@ async fn handle_event(
                 msg.extend_from_slice(session.state.session_id.as_bytes());
                 msg.extend_from_slice(&bc_pkt);
                 
-                let _ = tx_app_broadcast.send(msg);
+                let _ = state.tx_app_broadcast.send(msg);
             }
 
             return Some(patch_pkt);
@@ -728,7 +766,7 @@ async fn call_php(
     session_id    : &str,
     last_version  : u32,
     sm            : Arc<SessionManager>,
-    fpm_addr      : &Option<String>,
+    state         : Arc<GatewayState>,
 ) -> crate::core::Result<(Vec<(proto::PatchOp, bool)>, Option<proto::BroadcastInstruction>)>
 {
     use serde_json::json;
@@ -763,8 +801,8 @@ async fn call_php(
         "nodes": nodes_map, 
     });
 
-    if let Some(ref addr) = fpm_addr {
-        call_php_fpm(addr, php_script, &context, handler_table).await
+    if let Some(ref pool) = state.fpm_pool {
+        call_php_fpm(pool, php_script, &context, handler_table).await
     } else {
         call_php_process(php_script, &context, handler_table).await
     }
@@ -806,20 +844,17 @@ async fn call_php_process(
 }
 
 async fn call_php_fpm(
-    addr: &str,
+    pool: &FpmPool,
     php_script: &str,
     context: &serde_json::Value,
     handler_table: &HandlerTable,
 ) -> crate::core::Result<(Vec<(proto::PatchOp, bool)>, Option<proto::BroadcastInstruction>)> {
-    use fastcgi_client::{Client, Params, Request};
-    use tokio::net::TcpStream;
-    use std::io::Cursor;
+    use fastcgi_client::{Params, Request};
 
     let input = context.to_string();
-    let stream = TcpStream::connect(addr).await
-        .map_err(|e| crate::core::GatewayError::SocketError(format!("Connexion FPM échouée sur {} : {}", addr, e)))?;
     
-    let client = Client::new_tokio(stream);
+    // Acquérir un client du pool
+    let mut client = pool.acquire().await?;
 
     let mut params = Params::default();
     params.insert("SCRIPT_FILENAME".into(), php_script.into());
@@ -828,13 +863,20 @@ async fn call_php_fpm(
     params.insert("CONTENT_LENGTH".into(), input.len().to_string().into());
 
     let mut body = input.as_bytes();
-    let output = client.execute_once(Request::new(params, &mut body)).await
-        .map_err(|e| crate::core::GatewayError::FastCgiError(e.to_string()))?;
+    
+    // Exécuter la requête (Keep-Alive)
+    let output_res = client.execute(Request::new(params, &mut body)).await;
 
-    if let Some(stdout) = output.stdout {
-        Ok(parse_php_response(&stdout, handler_table))
-    } else {
-        Ok((Vec::new(), None))
+    match output_res {
+        Ok(output) => {
+            pool.release(client).await;
+            let stdout = output.stdout.as_deref().unwrap_or(&[]);
+            Ok(parse_php_response(stdout, handler_table))
+        }
+        Err(e) => {
+            // Ne PAS rendre le client s'il y a une erreur de socket
+            Err(crate::core::GatewayError::FastCgiError(e.to_string()))
+        }
     }
 }
 
