@@ -50,12 +50,12 @@ This roadmap defines the precise actions required to transform NHTML into an ult
 **Goal**: Facilitate secure remote access and production readiness.
 
 ### 1. Tunneling & CLI
-- [ ] **Action**: Add the `nhtml share` command to create a temporary tunnel (via localtunnel or third-party service) for project demos.
-- [ ] **Action**: Implement `nhtml build --production` to minify the B-TREE and optimize static assets.
+- [x] **Action**: Add the `nhtml share` command to create a temporary tunnel (via localtunnel or third-party service) for project demos.
+- [x] **Action**: Implement `nhtml build --production` to minify the B-TREE and optimize static assets.
 
 ### 2. Industrial Hardening
-- [ ] **Action**: Finalize native TLS support in the Gateway (via `rustls`) to avoid dependency on reverse proxies in standalone mode.
-- [ ] **Action**: Implement an IP-based Rate-Limiter to protect the PHP backend from DoS attacks via WebSocket events.
+- [x] **Action**: Finalize native TLS support in the Gateway (via `rustls`) to avoid dependency on reverse proxies in standalone mode.
+- [x] **Action**: Implement an IP-based Rate-Limiter to protect the PHP backend from DoS attacks via WebSocket events.
 
 ---
 
@@ -63,9 +63,9 @@ This roadmap defines the precise actions required to transform NHTML into an ult
 **Goal**: Make NHTML "magic" to use.
 
 ### 1. Smart Hot Reload
-- [ ] **Action**: Improve the `watcher` to only reload modified nodes (Partial Reload) rather than the entire session.
-- [ ] **Action**: Integrate a debug overlay directly in the page (retractable mini-dashboard).
+- [x] **Action**: Improve the `watcher` to only reload modified nodes (Partial Reload) rather than the entire session.
+- [x] **Action**: Integrate a debug overlay directly in the page (retractable mini-dashboard).
 
 ---
 
-> **Current Status**: The industrial foundation (FastCGI, Collaboration, No-Panic) is **complete**. We are now moving into the **Cloud Connectivity** and **Hardening** phase.
+> **Current Status**: The industrial core and Cloud connectivity features are **finished**. NHTML v0.6.0 "Global Connect" is ready for production.
