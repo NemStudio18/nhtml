@@ -15,19 +15,21 @@ Le Gateway NHTML est un serveur WebSocket écrit en Rust, conçu pour faire le p
 Aucune compilation n'est requise pour l'utilisation standard.
 1. Téléchargez le binaire correspondant à votre OS depuis les [Releases](https://github.com/NemStudio18/nhtml-gateway/releases).
 2. Placez le binaire dans le dossier de votre projet PHP.
-3. Lancez : `./nhtml start --dev` (votre app sera dispo sur `http://127.0.0.1:3000`)
+3. Lancez : `./nhtml start --dev` (votre app sera dispo sur `http://127.0.0.1:8080`)
 
 ## 💻 Commandes CLI
 
 Le binaire `nhtml` expose plusieurs commandes pour s'adapter à votre workflow :
 
-- **`nhtml start`** : Lance le Gateway WebSocket, le serveur HTTP (port 3000, avec auto-injection du bridge NHTML), et le superviseur PHP.
-  - `--dev` : Active l'auto-rechargement (live-reload).
-  - `--ws-port <port>` : Force le port du WebSocket (défaut: 8080).
-  - `--php-port <port>` : Force le port du backend PHP (défaut: 8000).
-- **`nhtml devtools`** : Lance le tableau de bord de diagnostic.
-  - `--port <port>` : Définit le port du serveur DevTools (défaut: 8081).
-- **`nhtml bench <fichier.nhtml>`** : Compare les performances de transmission (Taille HTML brute vs Taille du patch NBPS).
+- **`nhtml start`** : Lance le Gateway WebSocket et supervise le backend PHP.
+  - `--dev` : Active l'auto-rechargement (watcher).
+  - `--port <port>` : Définit le port d'écoute (défaut: 8080).
+  - `--fpm <addr>` : Active le mode haute-performance via PHP-FPM.
+- **`nhtml share`** : Expose votre projet local sur internet via un tunnel sécurisé.
+- **`nhtml build`** : Prépare votre projet pour la production.
+  - `--production` : Optimisation et minification maximale.
+- **`nhtml devtools`** : Lance le tableau de bord de diagnostic (défaut: 8081).
+- **`nhtml bench <chemin>`** : Compare les métriques de performance.
 
 ## 🛠️ Développement
 Si vous souhaitez compiler le gateway vous-même :

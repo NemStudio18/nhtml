@@ -252,6 +252,11 @@ impl RateLimiter {
         let mut clients = self.clients.lock().await;
         let now = std::time::Instant::now();
         
+        // Anti-leak: Clean up if map is getting too large (heuristic)
+        if clients.len() > 1000 {
+            clients.retain(|_, (last, _)| now.duration_since(*last).as_secs() < 3600);
+        }
+
         let entry = clients.entry(ip).or_insert((now, 0));
         
         if now.duration_since(entry.0).as_secs() >= 1 {

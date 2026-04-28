@@ -557,6 +557,10 @@ function processMessage(msg) {
             if (isCompressed) {
                 if (window.fzstd) {
                     btreeData = window.fzstd.decompress(btreeData);
+                    if (btreeData.length !== origLen) {
+                        console.error(`[NHTML] B-TREE Integrity Error: Expected ${origLen} bytes, got ${btreeData.length}`);
+                        return;
+                    }
                 } else {
                     console.error("[NHTML] B-TREE is compressed but fzstd is missing! Using raw data (will fail).");
                 }

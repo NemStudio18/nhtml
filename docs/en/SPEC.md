@@ -15,6 +15,8 @@ Each binary packet starts with a **5-byte Header**:
 | `0x02` | **EVENT** | Client -> Srv | HMAC-SHA256 signed interaction. |
 | `0x03` | **PATCH** | Srv -> Client | Atomic DOM mutation instructions. |
 | `0x04` | **BIND** | Srv -> Client | Local Actions registration. |
+| `0x07` | **B-TREE** | Srv -> Client | Full DOM Snapshot (Zstd Compressed). |
+| `0x08` | **PUSH_PATCH**| Client -> Srv | Local Patch relay (Zero-Server Mode). |
 | `0x09` | **PING/PONG** | Bi-directional | Keep-Alive & Heartbeat. |
 
 ---

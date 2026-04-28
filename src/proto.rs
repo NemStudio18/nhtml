@@ -1,7 +1,6 @@
-#![allow(dead_code)]
-/// proto.rs — Sérialisation binaire des paquets Nhtml v0.2.1
-/// Source de vérité côté Rust pour le format des paquets.
-/// Doit rester en sync avec NHTML_SPEC_v0.2.1.md et nhtml_types.h
+/// proto.rs — Binary serialization for Nhtml v0.6.0
+/// Rust source of truth for NBPS (Nhtml Binary Packet Specification).
+/// Must remain in sync with SPEC.md and bridge.js.
 
 // ─── Constantes ────────────────────────────────────────────────────────────
 
