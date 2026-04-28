@@ -7,14 +7,14 @@ This roadmap defines the precise actions required to transform NHTML into an ult
 ## 🚀 Phase 6.1: High-Performance Infrastructure (FastCGI)
 **Goal**: Eliminate PHP fork overhead and stabilize industrial backends.
 
-### 1. Persistent Connection Pooling
-- [ ] **Action**: Implement a socket pool management system in `src/socket/mod.rs`.
-- [ ] **Action**: Handle `Keep-Alive` to reuse FastCGI connections across multiple events within the same session.
-- [ ] **Action**: Add configurable socket timeout in `nhtml.config.toml`.
+### 1. Persistent Connection Pool
+- [x] **Action**: Implement a socket pool management system in `src/socket/mod.rs`.
+- [x] **Action**: Manage `Keep-Alive` to reuse FastCGI connections between multiple events in the same session.
+- [x] **Action**: Add a configurable socket timeout in `nhtml.config.toml`.
 
 ### 2. Unix Socket Support (Linux/macOS)
-- [ ] **Action**: Extend the binary to accept Unix socket paths (e.g., `/var/run/php/php8.2-fpm.sock`) in addition to TCP.
-- [ ] **Action**: Auto-detect mode (Stream vs Unix) based on the FPM address prefix.
+- [x] **Action**: Extend the binary to accept Unix socket paths (e.g., `/var/run/php/php8.2-fpm.sock`) in addition to TCP.
+- [x] **Action**: Auto-detect mode (Stream vs Unix) based on the FPM address prefix.
 
 ---
 
@@ -23,7 +23,7 @@ This roadmap defines the precise actions required to transform NHTML into an ult
 
 ### 1. Scoped Routing Engine
 - [x] **Done**: Sender identification via `SenderSID`.
-- [ ] **Action**: Optimize the broadcasting loop to avoid unnecessary binary payload clones (using `Arc<Vec<u8>>`).
+- [x] **Action**: Optimize the broadcasting loop to avoid unnecessary binary payload clones (using `Arc<Vec<u8>>`).
 - [ ] **Action**: Add support for "Rooms" (session groups) to limit broadcasting to a subset of users.
 
 ### 2. Extended PHP SDK
@@ -37,8 +37,8 @@ This roadmap defines the precise actions required to transform NHTML into an ult
 
 ### 1. "No-Panic" Refactoring
 - [x] **Done**: Introduction of `GatewayError`.
-- [ ] **Action**: Replace remaining `expect()` and `unwrap()` in `main.rs` and `supervisor.rs` with proper error propagation.
-- [ ] **Action**: Improve FastCGI error logging (Timeout, Connection Refused) to display them in DevTools.
+- [x] **Action**: Replace the last `expect()` and `unwrap()` in `main.rs` and `supervisor.rs` with proper error propagation.
+- [ ] **Action**: Improve logging of FastCGI errors (Timeout, Connection Refused) to display them in DevTools.
 
 ### 2. Auto-Recovery (Healthchecks)
 - [ ] **Action**: The Supervisor should attempt to restart the backend if a systematic crash is detected.

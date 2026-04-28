@@ -95,7 +95,7 @@ async fn main() {
 
     // Channels globaux
     let (tx_monitor, _) = broadcast::channel::<MonitoringEvent>(100);
-    let (tx_app_broadcast, _) = broadcast::channel::<Vec<u8>>(100);
+    let (tx_app_broadcast, _) = broadcast::channel::<std::sync::Arc<Vec<u8>>>(1024);
 
     match cli.command {
         Commands::New { name } => {
@@ -107,9 +107,11 @@ async fn main() {
             println!("🌐 Port   : {}", port);
 
             // Priorité : Argument CLI > Fichier Config
-            let fpm_addr = fpm.or(config.fpm);
+            let fpm_addr = fpm.or(config.fastcgi.as_ref().and_then(|f| f.address.clone()));
+            let fpm_timeout = config.fastcgi.as_ref().and_then(|f| f.timeout_ms).unwrap_or(5000);
+            
             if let Some(ref addr) = fpm_addr {
-                println!("🚀 Mode Performance : PHP-FPM via {}", addr);
+                println!("🚀 Mode Performance : PHP-FPM via {} (timeout: {}ms)", addr, fpm_timeout);
             }
             
             // Lancement du superviseur PHP
@@ -135,7 +137,7 @@ async fn main() {
                     return;
                 }
             };
-            socket::serve(port, path, entry, php, fpm_addr, std::sync::Arc::new(sm), tx_monitor, tx_app_broadcast).await;
+            socket::serve(port, path, entry, php, fpm_addr, fpm_timeout, std::sync::Arc::new(sm), tx_monitor, tx_app_broadcast).await;
         }
         Commands::Devtools => {
             let devtools_port = config.ports.as_ref().and_then(|p| p.devtools).unwrap_or(8081);

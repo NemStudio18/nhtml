@@ -4,9 +4,15 @@ use std::fs;
 #[derive(Debug, Deserialize, Default)]
 pub struct NhtmlConfig {
     pub ports: Option<PortsConfig>,
-    pub fpm: Option<String>,
+    pub fastcgi: Option<FastCgiConfig>,
     #[allow(dead_code)]
     pub dev: Option<DevConfig>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct FastCgiConfig {
+    pub address: Option<String>,
+    pub timeout_ms: Option<u64>,
 }
 
 #[derive(Debug, Deserialize)]

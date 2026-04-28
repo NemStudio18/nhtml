@@ -9,9 +9,9 @@ use crate::MonitoringEvent;
 
 pub async fn start_php_server(
     port: u16, 
-    tx_monitor: broadcast::Sender<MonitoringEvent>,
-    tx_app_broadcast: broadcast::Sender<Vec<u8>>
-) {
+    tx_monitor: broadcast::Sender<crate::MonitoringEvent>,
+    tx_app_broadcast: broadcast::Sender<std::sync::Arc<Vec<u8>>>
+) -> std::io::Result<()> {
     let php_bin = if Path::new("./php.exe").exists() {
         "./php.exe".to_string()
     } else if Path::new("./php/php.exe").exists() {
@@ -34,7 +34,7 @@ pub async fn start_php_server(
             Ok(c) => c,
             Err(e) => {
                 error!("❌ Supervisor: Échec du lancement du serveur PHP ({}) : {}", php_bin, e);
-                return;
+                return Err(e);
             }
         };
 
@@ -45,7 +45,7 @@ pub async fn start_php_server(
 
     if stdout.is_none() || stderr.is_none() {
         error!("❌ Supervisor: Impossible de capturer stdout/stderr du serveur PHP.");
-        return;
+        return Err(std::io::Error::new(std::io::ErrorKind::Other, "Pipe failed"));
     }
 
     let stdout = stdout.unwrap();
@@ -81,9 +81,11 @@ pub async fn start_php_server(
         let _ = child.kill().await;
         std::process::exit(0);
     });
+
+    Ok(())
 }
 
-fn handle_log_line(line: &str, tx_m: &broadcast::Sender<MonitoringEvent>, tx_a: &broadcast::Sender<Vec<u8>>) {
+fn handle_log_line(line: &str, tx_m: &broadcast::Sender<crate::MonitoringEvent>, tx_a: &broadcast::Sender<std::sync::Arc<Vec<u8>>>) {
     let log_pkt = crate::proto::log_msg(2, line); // INFO
     
     // 1. Dashboard (Struct MonitoringEvent)
@@ -100,5 +102,5 @@ fn handle_log_line(line: &str, tx_m: &broadcast::Sender<MonitoringEvent>, tx_a: 
     });
 
     // 2. Browser Console (NBPS 0x10)
-    let _ = tx_a.send(log_pkt);
+    let _ = tx_a.send(std::sync::Arc::new(log_pkt));
 }

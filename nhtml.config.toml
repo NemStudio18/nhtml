@@ -14,3 +14,9 @@ devtools = 8081
 [dev]
 # Activer le live-reload par défaut sans taper --dev (défaut: false)
 auto_reload = false
+
+[fastcgi]
+# Adresse du serveur PHP-FPM (ex: "127.0.0.1:9000" ou "unix:/var/run/php/php-fpm.sock")
+address = ""
+# Timeout pour les appels FastCGI en millisecondes (défaut: 5000)
+timeout_ms = 5000

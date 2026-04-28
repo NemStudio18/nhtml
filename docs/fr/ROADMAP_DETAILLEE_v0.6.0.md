@@ -8,13 +8,13 @@ Cette roadmap définit les actions précises à entreprendre pour transformer NH
 **Objectif** : Éliminer l'overhead du fork PHP et stabiliser les backends industriels.
 
 ### 1. Pool de Connexions Persistantes
-- [ ] **Action** : Implémenter un système de gestion de pool de sockets dans `src/socket/mod.rs`.
-- [ ] **Action** : Gérer le `Keep-Alive` pour réutiliser les connexions FastCGI entre plusieurs événements d'une même session.
-- [ ] **Action** : Ajouter un timeout de socket configurable dans `nhtml.config.toml`.
+- [x] **Action** : Implémenter un système de gestion de pool de sockets dans `src/socket/mod.rs`.
+- [x] **Action** : Gérer le `Keep-Alive` pour réutiliser les connexions FastCGI entre plusieurs événements d'une même session.
+- [x] **Action** : Ajouter un timeout de socket configurable dans `nhtml.config.toml`.
 
 ### 2. Support des Sockets Unix (Linux/macOS)
-- [ ] **Action** : Étendre le binaire pour accepter les chemins de sockets Unix (ex: `/var/run/php/php8.2-fpm.sock`) en plus de TCP.
-- [ ] **Action** : Auto-détection du mode (Stream vs Unix) basée sur le préfixe de l'adresse FPM.
+- [x] **Action** : Étendre le binaire pour accepter les chemins de sockets Unix (ex: `/var/run/php/php8.2-fpm.sock`) en plus de TCP.
+- [x] **Action** : Auto-détection du mode (Stream vs Unix) basée sur le préfixe de l'adresse FPM.
 
 ---
 
@@ -23,7 +23,7 @@ Cette roadmap définit les actions précises à entreprendre pour transformer NH
 
 ### 1. Moteur de Routage Scoped
 - [x] **Fait** : Identification de l'expéditeur via `SenderSID`.
-- [ ] **Action** : Optimiser la boucle de diffusion pour éviter les clones inutiles du payload binaire (utilisation de `Arc<Vec<u8>>`).
+- [x] **Action** : Optimiser la boucle de diffusion pour éviter les clones inutiles du payload binaire (utilisation de `Arc<Vec<u8>>`).
 - [ ] **Action** : Ajouter le support des "Rooms" (groupes de sessions) pour limiter le broadcast à un sous-ensemble d'utilisateurs.
 
 ### 2. SDK PHP étendu
@@ -37,7 +37,7 @@ Cette roadmap définit les actions précises à entreprendre pour transformer NH
 
 ### 1. Refactoring "No-Panic"
 - [x] **Fait** : Introduction de `GatewayError`.
-- [ ] **Action** : Remplacer les derniers `expect()` et `unwrap()` dans `main.rs` et `supervisor.rs` par une remontée d'erreur propre.
+- [x] **Action** : Remplacer les derniers `expect()` et `unwrap()` dans `main.rs` et `supervisor.rs` par une remontée d'erreur propre.
 - [ ] **Action** : Améliorer le logging des erreurs FastCGI (Timeout, Connection Refused) pour les afficher dans le DevTools.
 
 ### 2. Auto-Récupération (Healthchecks)

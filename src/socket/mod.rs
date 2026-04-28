@@ -4,6 +4,10 @@
 
 use std::sync::Arc;
 use tokio::net::TcpStream;
+#[cfg(unix)]
+use tokio::net::UnixStream;
+#[cfg(unix)]
+use tokio_util::either::Either;
 use futures_util::{SinkExt, StreamExt};
 use tracing::{info, warn, error};
 use axum::extract::ws::{Message as WsMessage, WebSocket, WebSocketUpgrade};
@@ -27,7 +31,12 @@ use tokio::sync::Mutex;
 use fastcgi_client::conn::KeepAlive;
 
 type HmacSha256 = Hmac<Sha256>;
-type FpmClient = fastcgi_client::Client<fastcgi_client::io::TokioCompat<TcpStream>, KeepAlive>;
+#[cfg(unix)]
+type FpmStream = Either<TcpStream, UnixStream>;
+#[cfg(not(unix))]
+type FpmStream = TcpStream;
+
+type FpmClient = fastcgi_client::Client<fastcgi_client::io::TokioCompat<FpmStream>, KeepAlive>;
 
 /// Pool de connexions FastCGI pour la réutilisation des sockets.
 pub struct FpmPool {
@@ -46,12 +55,36 @@ impl FpmPool {
     pub async fn acquire(&self) -> crate::core::Result<FpmClient> {
         let mut clients = self.clients.lock().await;
         if let Some(client) = clients.pop() {
-            Ok(client)
-        } else {
-            let stream = TcpStream::connect(&self.addr).await
-                .map_err(|e| crate::core::GatewayError::SocketError(format!("Pool: Connexion FPM échouée sur {} : {}", self.addr, e)))?;
-            Ok(fastcgi_client::Client::new_keep_alive_tokio(stream))
+            return Ok(client);
         }
+        
+        let is_unix = self.addr.starts_with('/') || self.addr.starts_with("./") || self.addr.contains(".sock") || self.addr.starts_with("unix:");
+        let clean_addr = self.addr.strip_prefix("unix:").unwrap_or(&self.addr);
+
+        #[cfg(unix)]
+        {
+            if is_unix {
+                info!("[FPM] Connexion via Unix Socket: {}", clean_addr);
+                let stream = UnixStream::connect(clean_addr).await
+                    .map_err(|e| crate::core::GatewayError::SocketError(format!("Connexion FPM Unix échouée sur {} : {}", clean_addr, e)))?;
+                return Ok(fastcgi_client::Client::new_keep_alive_tokio(Either::Right(stream)));
+            }
+        }
+
+        #[cfg(not(unix))]
+        if is_unix {
+            return Err(crate::core::GatewayError::SocketError("Les sockets Unix ne sont pas supportés sur cette plateforme.".to_string()));
+        }
+
+        // Mode TCP (Commun à tous ou fallback)
+        let stream = TcpStream::connect(&self.addr).await
+            .map_err(|e| crate::core::GatewayError::SocketError(format!("Connexion FPM TCP échouée sur {} : {}", self.addr, e)))?;
+        
+        #[cfg(unix)]
+        return Ok(fastcgi_client::Client::new_keep_alive_tokio(Either::Left(stream)));
+        
+        #[cfg(not(unix))]
+        return Ok(fastcgi_client::Client::new_keep_alive_tokio(stream));
     }
 
     pub async fn release(&self, client: FpmClient) {
@@ -101,9 +134,10 @@ pub async fn serve(
     _entry: String, 
     php: String, 
     fpm_addr: Option<String>,
+    fpm_timeout: u64,
     sm: Arc<SessionManager>, 
     tx_monitor: tokio::sync::broadcast::Sender<crate::MonitoringEvent>, 
-    tx_app_broadcast: tokio::sync::broadcast::Sender<Vec<u8>>
+    tx_app_broadcast: tokio::sync::broadcast::Sender<Arc<Vec<u8>>>
 ) {
     let fpm_pool = fpm_addr.as_ref().map(|addr| Arc::new(FpmPool::new(addr.clone())));
 
@@ -112,6 +146,7 @@ pub async fn serve(
         sm: sm.clone(),
         fpm_addr,
         fpm_pool,
+        fpm_timeout,
         tx_monitor,
         tx_app_broadcast,
     });
@@ -152,8 +187,9 @@ struct GatewayState {
     sm: Arc<SessionManager>,
     fpm_addr: Option<String>,
     fpm_pool: Option<Arc<FpmPool>>,
+    fpm_timeout: u64,
     tx_monitor: tokio::sync::broadcast::Sender<crate::MonitoringEvent>,
-    tx_app_broadcast: tokio::sync::broadcast::Sender<Vec<u8>>,
+    tx_app_broadcast: tokio::sync::broadcast::Sender<Arc<Vec<u8>>>,
 }
 
 async fn handle_http_root(
@@ -449,7 +485,8 @@ async fn handle_connection_axum(
     loop {
         tokio::select! {
             // ─── Écouteur de Broadcast Applicatif (Multi-utilisateur) ───────
-            Ok(msg) = app_rx.recv() => {
+            Ok(msg_arc) = app_rx.recv() => {
+                let msg = &*msg_arc;
                 if msg.len() > 2 {
                     let scope_type = msg[0];
                     let sid_len = msg[1] as usize;
@@ -561,7 +598,7 @@ async fn handle_connection_axum(
 
                                 // 4. Broadcaster aux autres clients de la session
                                 let broadcast_pkt = proto::patch(&validated_ops);
-                                let _ = state.tx_app_broadcast.send(broadcast_pkt);
+                                let _ = state.tx_app_broadcast.send(std::sync::Arc::new(broadcast_pkt));
                             }
                         }
 
@@ -720,7 +757,7 @@ async fn handle_event(
                 msg.extend_from_slice(session.state.session_id.as_bytes());
                 msg.extend_from_slice(&bc_pkt);
                 
-                let _ = state.tx_app_broadcast.send(msg);
+                let _ = state.tx_app_broadcast.send(Arc::new(msg));
             }
 
             return Some(patch_pkt);
@@ -802,7 +839,7 @@ async fn call_php(
     });
 
     if let Some(ref pool) = state.fpm_pool {
-        call_php_fpm(pool, php_script, &context, handler_table).await
+        call_php_fpm(pool, php_script, &context, handler_table, state.fpm_timeout).await
     } else {
         call_php_process(php_script, &context, handler_table).await
     }
@@ -848,8 +885,10 @@ async fn call_php_fpm(
     php_script: &str,
     context: &serde_json::Value,
     handler_table: &HandlerTable,
+    timeout_ms: u64,
 ) -> crate::core::Result<(Vec<(proto::PatchOp, bool)>, Option<proto::BroadcastInstruction>)> {
     use fastcgi_client::{Params, Request};
+    use tokio::time::{timeout, Duration};
 
     let input = context.to_string();
     
@@ -864,18 +903,27 @@ async fn call_php_fpm(
 
     let mut body = input.as_bytes();
     
-    // Exécuter la requête (Keep-Alive)
-    let output_res = client.execute(Request::new(params, &mut body)).await;
+    // Exécuter la requête (Keep-Alive) avec TIMEOUT
+    let output_res = timeout(
+        Duration::from_millis(timeout_ms),
+        client.execute(Request::new(params, &mut body))
+    ).await;
 
     match output_res {
-        Ok(output) => {
+        Ok(Ok(output)) => {
+            // Rendre le client au pool s'il est toujours fonctionnel
             pool.release(client).await;
             let stdout = output.stdout.as_deref().unwrap_or(&[]);
             Ok(parse_php_response(stdout, handler_table))
         }
-        Err(e) => {
+        Ok(Err(e)) => {
             // Ne PAS rendre le client s'il y a une erreur de socket
             Err(crate::core::GatewayError::FastCgiError(e.to_string()))
+        }
+        Err(_) => {
+            // Timeout atteint
+            error!("[FPM] Timeout de {}ms atteint pour {}", timeout_ms, php_script);
+            Err(crate::core::GatewayError::FastCgiError(format!("Timeout FastCGI ({}ms)", timeout_ms)))
         }
     }
 }
