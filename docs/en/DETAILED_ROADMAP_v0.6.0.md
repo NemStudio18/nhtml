@@ -37,26 +37,35 @@ This roadmap defines the precise actions required to transform NHTML into an ult
 
 ### 1. "No-Panic" Refactoring
 - [x] **Done**: Introduction of `GatewayError`.
-- [x] **Action**: Replace the last `expect()` and `unwrap()` in `main.rs` and `supervisor.rs` with proper error propagation.
-- [ ] **Action**: Improve logging of FastCGI errors (Timeout, Connection Refused) to display them in DevTools.
+- [x] **Action**: Replace the last `expect()` and `unwrap()` in `main.rs`, `supervisor.rs`, `socket/mod.rs`, `cli.rs` and `compiler/mod.rs` with robust error handling.
+- [x] **Action**: Improve logging of FastCGI errors (Timeout, Connection Refused) to display them in DevTools via `monitor_pkt`.
 
 ### 2. Auto-Recovery (Healthchecks)
-- [ ] **Action**: The Supervisor should attempt to restart the backend if a systematic crash is detected.
-- [ ] **Action**: Display a visual alert in the browser via a special `LOG` packet if the backend is unreachable.
+- [x] **Action**: The Supervisor now automatically attempts to restart the development PHP server upon crash (auto-restart loop).
+- [x] **Action**: Display visual alerts (LOG 0x10) in the browser when the PHP/FastCGI backend is unreachable.
 
 ---
 
 ## ☁️ Phase 6.4: Cloud Connectivity & Deployment
-**Goal**: Facilitate secure remote access.
+**Goal**: Facilitate secure remote access and production readiness.
 
-### 1. Cloud Tunneling Integration (Optional)
-- [ ] **Action**: Explore lightweight integration of a `cloudflared` or `ngrok` binary to expose the local Gateway externally with a single command.
-- [ ] **Action**: Add an `nhtml tunnel` command to the CLI.
+### 1. Tunneling & CLI
+- [ ] **Action**: Add the `nhtml share` command to create a temporary tunnel (via localtunnel or third-party service) for project demos.
+- [ ] **Action**: Implement `nhtml build --production` to minify the B-TREE and optimize static assets.
 
-### 2. Production Documentation
-- [ ] **Action**: Create exemplary Nginx and Apache configuration files including WebSocket handling (`Upgrade: websocket`).
-- [ ] **Action**: Security hardening guide (Fail2Ban, Rate Limiting).
+### 2. Industrial Hardening
+- [ ] **Action**: Finalize native TLS support in the Gateway (via `rustls`) to avoid dependency on reverse proxies in standalone mode.
+- [ ] **Action**: Implement an IP-based Rate-Limiter to protect the PHP backend from DoS attacks via WebSocket events.
 
 ---
 
-> **Current Status**: The core FastCGI architecture and Broadcasting are functional. The immediate priority is **pool stability** and **refactoring critical errors**.
+## 💎 Phase 6.5: Fine-tuned Developer Experience (DX)
+**Goal**: Make NHTML "magic" to use.
+
+### 1. Smart Hot Reload
+- [ ] **Action**: Improve the `watcher` to only reload modified nodes (Partial Reload) rather than the entire session.
+- [ ] **Action**: Integrate a debug overlay directly in the page (retractable mini-dashboard).
+
+---
+
+> **Current Status**: The industrial foundation (FastCGI, Collaboration, No-Panic) is **complete**. We are now moving into the **Cloud Connectivity** and **Hardening** phase.

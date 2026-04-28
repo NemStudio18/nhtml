@@ -218,36 +218,49 @@ impl NhtmlCompiler {
         let document     = Html::parse_document(source);
 
         // Extraire le head
-        let head_sel = Selector::parse("head").unwrap();
-        let head_html = if let Some(head) = document.select(&head_sel).next() {
-            head.inner_html()
-        } else {
-            "".to_string()
-        };
+        let head_html = if let Ok(head_sel) = Selector::parse("head") {
+            if let Some(head) = document.select(&head_sel).next() {
+                head.inner_html()
+            } else {
+                "".to_string()
+            }
+        } else { "".to_string() };
 
         // Trouver le body
-        let body_sel = Selector::parse("body").unwrap();
-        let body_ref = document.select(&body_sel).next();
+        let body_ref = if let Ok(body_sel) = Selector::parse("body") {
+            document.select(&body_sel).next()
+        } else { None };
 
         let mut root_nodes = Vec::new();
 
         if let Some(body) = body_ref {
             for child in body.children() {
                 if let Node::Element(_) = child.value() {
-                    let child_ref = ElementRef::wrap(child).unwrap();
-                    root_nodes.push(compiler.parse_element(child_ref, 0));
+                    if let Some(child_ref) = ElementRef::wrap(child) {
+                        root_nodes.push(compiler.parse_element(child_ref, 0));
+                    }
                 }
             }
         } else {
             // Fallback : prendre le premier élément du document
-            let first_sel = Selector::parse(":root > *").unwrap();
-            if let Some(first) = document.select(&first_sel).next() {
-                root_nodes.push(compiler.parse_element(first, 0));
+            if let Ok(first_sel) = Selector::parse(":root > *") {
+                if let Some(first) = document.select(&first_sel).next() {
+                    root_nodes.push(compiler.parse_element(first, 0));
+                }
             }
         }
 
         if root_nodes.is_empty() {
-            panic!("Aucun élément racine trouvé dans le .nhtml");
+            warn!("Aucun élément racine trouvé dans le .nhtml");
+            // On renvoie un résultat vide mais valide au lieu de paniquer
+            return CompileResult {
+                root: NodeSpec { id: 0, parent_id: 0, node_type: 0x01, tag: "div".to_string(), attrs: Vec::new(), n_attrs: NAttrs::default(), text: "No content found".to_string(), children: Vec::new() },
+                nid_map: HashMap::new(),
+                states: Vec::new(),
+                btree_bytes: Vec::new(),
+                bind_packets: Vec::new(),
+                html: "<!-- Empty Document -->".to_string(),
+            };
         }
 
         // --- NOUVEAU : Format A (Liste d'états) attendu par bridge.js ---
@@ -324,8 +337,9 @@ impl NhtmlCompiler {
         for child in el.children() {
             match child.value() {
                 Node::Element(_) => {
-                    let child_ref = ElementRef::wrap(child).unwrap();
-                    children.push(self.parse_element(child_ref, id));
+                    if let Some(child_ref) = ElementRef::wrap(child) {
+                        children.push(self.parse_element(child_ref, id));
+                    }
                 }
                 Node::Text(t) => {
                     let trimmed = t.trim();

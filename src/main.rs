@@ -114,13 +114,25 @@ async fn main() {
                 println!("🚀 Mode Performance : PHP-FPM via {} (timeout: {}ms)", addr, fpm_timeout);
             }
             
-            // Lancement du superviseur PHP
+            // Lancement du superviseur PHP avec Auto-Restart
             let php_port = config.ports.as_ref().and_then(|p| p.php).unwrap_or(8000);
-            tokio::spawn(supervisor::start_php_server(
-                php_port, 
-                tx_monitor.clone(), 
-                tx_app_broadcast.clone()
-            ));
+            let tx_m = tx_monitor.clone();
+            let tx_a = tx_app_broadcast.clone();
+            tokio::spawn(async move {
+                loop {
+                    info!("⚙️ Supervisor: Démarrage du serveur PHP sur le port {}...", php_port);
+                    let res = supervisor::start_php_server(
+                        php_port, 
+                        tx_m.clone(), 
+                        tx_a.clone()
+                    ).await;
+                    
+                    if let Err(e) = res {
+                        error!("❌ Supervisor: Le serveur PHP a crashé : {}. Tentative de redémarrage dans 2s...", e);
+                    }
+                    tokio::time::sleep(tokio::time::Duration::from_secs(2)).await;
+                }
+            });
 
             // Lancement des DevTools
             let devtools_port = config.ports.as_ref().and_then(|p| p.devtools).unwrap_or(8081);

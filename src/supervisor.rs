@@ -48,8 +48,8 @@ pub async fn start_php_server(
         return Err(std::io::Error::new(std::io::ErrorKind::Other, "Pipe failed"));
     }
 
-    let stdout = stdout.unwrap();
-    let stderr = stderr.unwrap();
+    let stdout = stdout.ok_or_else(|| std::io::Error::new(std::io::ErrorKind::Other, "Stdout pipe failed"))?;
+    let stderr = stderr.ok_or_else(|| std::io::Error::new(std::io::ErrorKind::Other, "Stderr pipe failed"))?;
 
     let tx_m = tx_monitor.clone();
     let tx_a = tx_app_broadcast.clone();
@@ -101,6 +101,12 @@ fn handle_log_line(line: &str, tx_m: &broadcast::Sender<crate::MonitoringEvent>,
         details: Some(line.to_string()),
     });
 
-    // 2. Browser Console (NBPS 0x10)
-    let _ = tx_a.send(std::sync::Arc::new(log_pkt));
+    // 2. Browser Console (NBPS 0x10) - Format Broadcaster v0.6.0
+    let mut msg = Vec::new();
+    msg.push(crate::proto::SCOPE_ALL); // 0x02
+    msg.push(6); // len("SYSTEM")
+    msg.extend_from_slice(b"SYSTEM");
+    msg.extend_from_slice(&log_pkt);
+    
+    let _ = tx_a.send(std::sync::Arc::new(msg));
 }

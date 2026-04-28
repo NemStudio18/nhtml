@@ -10,12 +10,19 @@ pub fn start_watcher(tx: broadcast::Sender<()>) {
     std::thread::spawn(move || {
         let (tx_notify, rx_notify) = std::sync::mpsc::channel();
         
-        let mut watcher = notify::recommended_watcher(tx_notify)
-            .expect("❌ Échec de création du Watcher");
+        let mut watcher = match notify::recommended_watcher(tx_notify) {
+            Ok(w) => w,
+            Err(e) => {
+                error!("❌ Watcher: Échec de création ({})", e);
+                return;
+            }
+        };
 
         // Surveille le dossier courant récursivement
-        watcher.watch(Path::new("."), RecursiveMode::Recursive)
-            .expect("❌ Échec de la surveillance du dossier");
+        if let Err(e) = watcher.watch(Path::new("."), RecursiveMode::Recursive) {
+            error!("❌ Watcher: Échec de la surveillance du dossier ({})", e);
+            return;
+        }
 
         // Extensions sources qui déclenchent le Hot Reload
         const SOURCE_EXTENSIONS: &[&str] = &["nhtml", "php", "js", "css", "html"];

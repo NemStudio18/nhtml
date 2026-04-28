@@ -767,7 +767,11 @@ async fn handle_event(
         Ok(p) => p,
         Err(e) => {
             error!("[{}] PHP Error: {}", session.state.session_id, e);
-            let err_msg = format!("Internal Server Error: {}", e);
+            let err_msg = format!("PHP Backend Error: {}", e);
+            
+            // Log vers le Dashboard DevTools
+            monitor_pkt(&state.tx_monitor, "ERR", proto::PKT_LOG, err_msg.len(), &session.state.session_id, Some(handler.clone()), Some(err_msg.clone()), None).await;
+
             result.patch_pkt = Some(proto::log_msg(3, &err_msg));
             return result;
         }

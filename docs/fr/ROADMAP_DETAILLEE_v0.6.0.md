@@ -37,26 +37,35 @@ Cette roadmap définit les actions précises à entreprendre pour transformer NH
 
 ### 1. Refactoring "No-Panic"
 - [x] **Fait** : Introduction de `GatewayError`.
-- [x] **Action** : Remplacer les derniers `expect()` et `unwrap()` dans `main.rs` et `supervisor.rs` par une remontée d'erreur propre.
-- [ ] **Action** : Améliorer le logging des erreurs FastCGI (Timeout, Connection Refused) pour les afficher dans le DevTools.
+- [x] **Action** : Remplacer les derniers `expect()` et `unwrap()` dans `main.rs`, `supervisor.rs`, `socket/mod.rs`, `cli.rs` et `compiler/mod.rs` par une gestion d'erreurs robuste.
+- [x] **Action** : Améliorer le logging des erreurs FastCGI (Timeout, Connection Refused) pour les afficher dans le DevTools via `monitor_pkt`.
 
 ### 2. Auto-Récupération (Healthchecks)
-- [ ] **Action** : Le Superviseur doit tenter de redémarrer le backend s'il détecte un crash systématique.
-- [ ] **Action** : Afficher une alerte visuelle dans le navigateur via un paquet `LOG` spécial si le backend est injoignable.
+- [x] **Action** : Le Superviseur tente désormais de redémarrer automatiquement le serveur PHP de développement en cas de crash (boucle d'auto-restart).
+- [x] **Action** : Affichage d'alertes visuelles (LOG 0x10) dans le navigateur lorsque le backend PHP/FastCGI est injoignable.
 
 ---
 
 ## ☁️ Phase 6.4 : Connectivité Cloud & Déploiement
-**Objectif** : Faciliter l'accès distant sécurisé.
+**Objectif** : Faciliter l'accès distant sécurisé et la mise en production.
 
-### 1. Intégration Cloud Tunneling (Optionnel)
-- [ ] **Action** : Explorer l'intégration légère d'un binaire `cloudflared` ou `ngrok` pour exposer le Gateway local vers l'extérieur en une commande.
-- [ ] **Action** : Ajouter une commande `nhtml tunnel` dans la CLI.
+### 1. Tunneling & CLI
+- [ ] **Action** : Ajouter la commande `nhtml share` permettant de créer un tunnel temporaire (via localtunnel ou service tiers) pour présenter un projet.
+- [ ] **Action** : Implémenter `nhtml build --production` pour minifier le B-TREE et optimiser les assets statiques.
 
-### 2. Documentation de Production
-- [ ] **Action** : Créer des fichiers de configuration Nginx et Apache exemplaires incluant la gestion des WebSockets (`Upgrade: websocket`).
-- [ ] **Action** : Guide de sécurisation (Fail2Ban, Rate Limiting).
+### 2. Sécurisation Industrielle
+- [ ] **Action** : Finaliser le support du TLS natif dans le Gateway (via `rustls`) pour éviter de dépendre d'un reverse-proxy en mode standalone.
+- [ ] **Action** : Implémenter un Rate-Limiter par IP pour protéger le backend PHP des attaques par déni de service sur les événements WebSocket.
 
 ---
 
-> **Status Actuel** : L'architecture de base FastCGI et le Broadcasting sont fonctionnels. La priorité immédiate est la **stabilité du pool** et le **refactoring des erreurs critiques**.
+## 💎 Phase 6.5 : Expérience Développeur (DX) Fine
+**Objectif** : Rendre NHTML "magique" à l'usage.
+
+### 1. Hot Reload Intelligent
+- [ ] **Action** : Améliorer le `watcher` pour ne recharger que les nœuds modifiés (Partial Reload) plutôt que la session entière.
+- [ ] **Action** : Intégrer un overlay de debug directement dans la page (mini-dashboard escamotable).
+
+---
+
+> **Status Actuel** : Le socle industriel (FastCGI, Collaboration, No-Panic) est **terminé**. Nous entrons dans la phase de **Connectivité Cloud** et de **Sécurisation**.

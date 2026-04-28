@@ -11,7 +11,10 @@ pub fn create_new_project(name: &str) {
         return;
     }
 
-    fs::create_dir_all(project_dir).expect("Impossible de créer le dossier du projet");
+    if let Err(e) = fs::create_dir_all(project_dir) {
+        println!("❌ Erreur : Impossible de créer le dossier '{}' : {}", name, e);
+        return;
+    }
 
     // 1. Création de index.nhtml
     let html_content = r#"<!DOCTYPE html>
@@ -31,7 +34,10 @@ pub fn create_new_project(name: &str) {
     <button n-id="btn_increment" n-click="increment">ACTION</button>
 </body>
 </html>"#;
-    fs::write(project_dir.join("index.nhtml"), html_content).unwrap();
+    if let Err(e) = fs::write(project_dir.join("index.nhtml"), html_content) {
+        println!("❌ Erreur : Impossible d'écrire index.nhtml : {}", e);
+        return;
+    }
 
     // 2. Création de app.php
     let php_content = r#"<?php
@@ -48,7 +54,10 @@ if ($event === 'click' && $nid === 'btn_increment') {
 header('Content-Type: application/json');
 echo json_encode($patches);
 "#;
-    fs::write(project_dir.join("app.php"), php_content).unwrap();
+    if let Err(e) = fs::write(project_dir.join("app.php"), php_content) {
+        println!("❌ Erreur : Impossible d'écrire app.php : {}", e);
+        return;
+    }
 
     println!("✅ Projet '{}' créé avec succès !", name);
 }
@@ -74,25 +83,39 @@ pub fn dump_database() {
     };
     
     println!("\n--- SESSIONS & NODES ---");
-    let mut stmt = conn.prepare("SELECT session_id, node_id, value, version FROM nodes").expect("Erreur SELECT");
-    let rows = stmt.query_map([], |row| {
+    let mut stmt = match conn.prepare("SELECT session_id, node_id, value, version FROM nodes") {
+        Ok(s) => s,
+        Err(e) => { println!("❌ Erreur SQL Prepare: {}", e); return; }
+    };
+    let rows = match stmt.query_map([], |row| {
         Ok((row.get::<_, String>(0)?, row.get::<_, u32>(1)?, row.get::<_, String>(2)?, row.get::<_, u32>(3)?))
-    }).expect("Erreur query");
+    }) {
+        Ok(r) => r,
+        Err(e) => { println!("❌ Erreur SQL Query: {}", e); return; }
+    };
 
     for r in rows {
-        let (sid, nid, val, ver) = r.unwrap();
-        println!("Session: {} | Node: {} | Value: '{}' | Ver: {}", sid, nid, val, ver);
+        if let Ok((sid, nid, val, ver)) = r {
+            println!("Session: {} | Node: {} | Value: '{}' | Ver: {}", sid, nid, val, ver);
+        }
     }
 
     println!("\n--- EVENT LOG (Derniers 10) ---");
-    let mut stmt = conn.prepare("SELECT timestamp, session_id, event_type, node_id FROM event_log ORDER BY id DESC LIMIT 10").expect("Erreur SELECT");
-    let rows = stmt.query_map([], |row| {
+    let mut stmt = match conn.prepare("SELECT timestamp, session_id, event_type, node_id FROM event_log ORDER BY id DESC LIMIT 10") {
+        Ok(s) => s,
+        Err(e) => { println!("❌ Erreur SQL Prepare: {}", e); return; }
+    };
+    let rows = match stmt.query_map([], |row| {
         Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?, row.get::<_, String>(2)?, row.get::<_, u32>(3)?))
-    }).expect("Erreur query");
+    }) {
+        Ok(r) => r,
+        Err(e) => { println!("❌ Erreur SQL Query: {}", e); return; }
+    };
 
     for r in rows {
-        let (ts, sid, ev, nid) = r.unwrap();
-        println!("[{}] {} | {} on Node {}", ts, sid, ev, nid);
+        if let Ok((ts, sid, ev, nid)) = r {
+            println!("[{}] {} | {} on Node {}", ts, sid, ev, nid);
+        }
     }
 }
 
@@ -172,8 +195,13 @@ pub async fn run_devtools(tx_monitor: broadcast::Sender<crate::MonitoringEvent>,
         }));
 
     let addr = format!("{}:{}", host, port);
-    let listener = tokio::net::TcpListener::bind(&addr).await
-        .unwrap_or_else(|_| panic!("Impossible de lier le port DevTools sur {}", addr));
+    let listener = match tokio::net::TcpListener::bind(&addr).await {
+        Ok(l) => l,
+        Err(e) => {
+            println!("❌ Impossible de lier le port DevTools sur {} : {}", addr, e);
+            return;
+        }
+    };
     
     if let Some(ref t) = token {
         println!("🚀 DevTools NHTML disponibles sur http://{}?token={}", addr, t);
@@ -184,7 +212,9 @@ pub async fn run_devtools(tx_monitor: broadcast::Sender<crate::MonitoringEvent>,
         }
     }
     
-    axum::serve(listener, app).await.unwrap();
+    if let Err(e) = axum::serve(listener, app).await {
+        println!("❌ Erreur serveur DevTools : {}", e);
+    }
 }
 
 async fn handle_devtools_ws(socket: WebSocket, tx_monitor: broadcast::Sender<crate::MonitoringEvent>) {
@@ -567,9 +597,16 @@ async fn handle_devtools_ws(socket: WebSocket, tx_monitor: broadcast::Sender<cra
                         comparison.push_str("<div style='display:grid; grid-template-columns:1fr 1fr 1fr; gap:10px; font-size:0.7rem; color:var(--text-dim); margin-bottom:10px;'><span>NODE</span><span>SESSION A</span><span>SESSION B</span></div>");
 
                         if let Ok(conn) = rusqlite::Connection::open(&db_path) {
-                            let mut stmt = conn.prepare("SELECT node_id, value FROM nodes WHERE session_id = ?").expect("Err");
-                            let nodes_a: std::collections::HashMap<u32, String> = stmt.query_map([&sid1], |row| Ok((row.get(0)?, row.get(1)?))).unwrap().flatten().collect();
-                            let nodes_b: std::collections::HashMap<u32, String> = stmt.query_map([&sid2], |row| Ok((row.get(0)?, row.get(1)?))).unwrap().flatten().collect();
+                            let mut stmt = match conn.prepare("SELECT node_id, value FROM nodes WHERE session_id = ?") {
+                                Ok(s) => s,
+                                Err(_) => continue,
+                            };
+                            let nodes_a: std::collections::HashMap<u32, String> = stmt.query_map([&sid1], |row| Ok((row.get(0)?, row.get(1)?))).map(|r| r.flatten().collect()).unwrap_or_default();
+                            let mut stmt = match conn.prepare("SELECT node_id, value FROM nodes WHERE session_id = ?") {
+                                Ok(s) => s,
+                                Err(_) => continue,
+                            };
+                            let nodes_b: std::collections::HashMap<u32, String> = stmt.query_map([&sid2], |row| Ok((row.get(0)?, row.get(1)?))).map(|r| r.flatten().collect()).unwrap_or_default();
 
                             let mut all_nids: Vec<_> = nodes_a.keys().chain(nodes_b.keys()).collect();
                             all_nids.sort();
