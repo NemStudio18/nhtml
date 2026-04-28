@@ -23,4 +23,18 @@ class Nhtml {
         $callback($patch);
         $patch->send();
     }
+
+    /**
+     * Rejoint un salon (Room) immédiatement.
+     */
+    public static function joinRoom(string $roomId): void {
+        (new Patch())->joinRoom($roomId)->send();
+    }
+
+    /**
+     * Quitte un salon (Room) immédiatement.
+     */
+    public static function leaveRoom(string $roomId): void {
+        (new Patch())->leaveRoom($roomId)->send();
+    }
 }

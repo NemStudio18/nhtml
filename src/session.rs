@@ -70,6 +70,16 @@ impl SessionManager {
                 )",
                 [],
             )?;
+
+            // Table des salons (Rooms)
+            conn.execute(
+                "CREATE TABLE IF NOT EXISTS session_rooms (
+                    session_id TEXT,
+                    room_id TEXT,
+                    PRIMARY KEY(session_id, room_id)
+                )",
+                [],
+            )?;
             Ok(())
         }).await?;
 
@@ -174,6 +184,52 @@ impl SessionManager {
                 ))
             })?;
             
+            let mut res = Vec::new();
+            for r in rows {
+                res.push(r?);
+            }
+            Ok(res)
+        }).await
+    }
+
+    // --- Gestion des Salons (Rooms) ---
+
+    pub async fn join_room(&self, session_id: String, room_id: String) -> tokio_rusqlite::Result<()> {
+        self.conn.call(move |conn| {
+            conn.execute(
+                "INSERT OR IGNORE INTO session_rooms (session_id, room_id) VALUES (?1, ?2)",
+                rusqlite::params![session_id, room_id],
+            )?;
+            Ok(())
+        }).await
+    }
+
+    pub async fn leave_room(&self, session_id: String, room_id: String) -> tokio_rusqlite::Result<()> {
+        self.conn.call(move |conn| {
+            conn.execute(
+                "DELETE FROM session_rooms WHERE session_id = ?1 AND room_id = ?2",
+                rusqlite::params![session_id, room_id],
+            )?;
+            Ok(())
+        }).await
+    }
+
+    pub async fn get_session_rooms(&self, session_id: String) -> tokio_rusqlite::Result<Vec<String>> {
+        self.conn.call(move |conn| {
+            let mut stmt = conn.prepare("SELECT room_id FROM session_rooms WHERE session_id = ?1")?;
+            let rows = stmt.query_map([session_id], |row| row.get::<_, String>(0))?;
+            let mut res = Vec::new();
+            for r in rows {
+                res.push(r?);
+            }
+            Ok(res)
+        }).await
+    }
+
+    pub async fn get_room_sessions(&self, room_id: String) -> tokio_rusqlite::Result<Vec<String>> {
+        self.conn.call(move |conn| {
+            let mut stmt = conn.prepare("SELECT session_id FROM session_rooms WHERE room_id = ?1")?;
+            let rows = stmt.query_map([room_id], |row| row.get::<_, String>(0))?;
             let mut res = Vec::new();
             for r in rows {
                 res.push(r?);

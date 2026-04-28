@@ -8,6 +8,9 @@ namespace Nhtml;
 
 class Patch {
     protected array $ops = [];
+    protected array $joinRooms = [];
+    protected array $leaveRooms = [];
+    protected ?array $broadcastInstr = null;
 
     public static function create(): self {
         return new static();
@@ -70,6 +73,7 @@ class Patch {
 
     /**
      * Marque la dernière opération comme devant être diffusée à tous les clients
+     * @deprecated Utilisez broadcastInRoom() ou broadcastToOthers() pour plus de contrôle
      */
     public function broadcast(bool $b = true): self {
         if (!empty($this->ops)) {
@@ -78,18 +82,71 @@ class Patch {
         return $this;
     }
 
+    /**
+     * Configure une diffusion groupée explicite (v0.6.0)
+     */
+    public function broadcastToAll(array $ops): self {
+        $this->broadcastInstr = ['scope' => 'all', 'patch' => $ops];
+        return $this;
+    }
+
+    public function broadcastToOthers(array $ops): self {
+        $this->broadcastInstr = ['scope' => 'others', 'patch' => $ops];
+        return $this;
+    }
+
+    public function broadcastInRoom(string $roomId, array $ops): self {
+        $this->broadcastInstr = ['scope' => 'room', 'room_id' => $roomId, 'patch' => $ops];
+        return $this;
+    }
+
+    public function broadcastToSession(string $sessionId, array $ops): self {
+        $this->broadcastInstr = ['scope' => 'direct', 'target_sid' => $sessionId, 'patch' => $ops];
+        return $this;
+    }
+
+    /**
+     * Gestion des Salons
+     */
+    public function joinRoom(string $roomId): self {
+        $this->joinRooms[] = $roomId;
+        return $this;
+    }
+
+    public function leaveRoom(string $roomId): self {
+        $this->leaveRooms[] = $roomId;
+        return $this;
+    }
+
     public function getOps(): array {
         return $this->ops;
     }
 
     /**
-     * Envoie la réponse au Gateway Rust (Format tableau brut attendu par socket/mod.rs)
+     * Envoie la réponse au Gateway Rust
      */
     public function send(): void {
         if (PHP_SAPI !== 'cli' && !headers_sent()) {
             header('Content-Type: application/json');
         }
-        echo json_encode($this->ops);
+
+        $response = [
+            'patch' => $this->ops
+        ];
+
+        if (!empty($this->joinRooms)) {
+            $response['join_room'] = $this->joinRooms;
+        }
+
+        if (!empty($this->leaveRooms)) {
+            $response['leave_room'] = $this->leaveRooms;
+        }
+
+        if ($this->broadcastInstr) {
+            $response['broadcast'] = $this->broadcastInstr;
+        }
+
+        echo json_encode($response);
         exit;
     }
 }

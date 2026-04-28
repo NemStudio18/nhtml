@@ -16,6 +16,11 @@ pub const PKT_PING   : u8 = 0x09;
 pub const PKT_LOG    : u8 = 0x10;
 pub const PKT_ERR    : u8 = 0x7F;
 
+pub const SCOPE_OTHERS : u8 = 0x01;
+pub const SCOPE_ALL    : u8 = 0x02;
+pub const SCOPE_ROOM   : u8 = 0x03;
+pub const SCOPE_DIRECT : u8 = 0x04;
+
 pub const OP_SET_TEXT      : u8 = 0x01;
 pub const OP_SET_ATTR      : u8 = 0x02;
 pub const OP_DEL_ATTR      : u8 = 0x03;
@@ -370,6 +375,8 @@ pub fn log_msg(severity: u8, message: &str) -> Vec<u8> {
 /// Instruction de diffusion multi-utilisateur (v0.6.0)
 #[derive(Debug, Clone)]
 pub struct BroadcastInstruction {
-    pub scope: String, // "all", "others", "group:X"
+    pub scope: String, // "all", "others", "room", "direct"
+    pub room_id: Option<String>,
+    pub target_sid: Option<String>,
     pub patches: Vec<PatchOp>,
 }

@@ -24,11 +24,11 @@ This roadmap defines the precise actions required to transform NHTML into an ult
 ### 1. Scoped Routing Engine
 - [x] **Done**: Sender identification via `SenderSID`.
 - [x] **Action**: Optimize the broadcasting loop to avoid unnecessary binary payload clones (using `Arc<Vec<u8>>`).
-- [ ] **Action**: Add support for "Rooms" (session groups) to limit broadcasting to a subset of users.
+- [x] **Action**: Add support for "Rooms" (session groups) to limit broadcasting to a subset of users.
 
 ### 2. Extended PHP SDK
-- [ ] **Action**: Add the `Nhtml::broadcast($scope)` method to the PHP SDK.
-- [ ] **Action**: Allow simultaneous sending of a private patch AND a public broadcast in the same JSON response.
+- [x] **Action**: Add `Nhtml::joinRoom()`, `Nhtml::leaveRoom()` and `Nhtml::broadcastInRoom()` methods to the PHP SDK.
+- [x] **Action**: Allow simultaneous sending of a private patch AND a public broadcast in the same JSON response.
 
 ---
 

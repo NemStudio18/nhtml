@@ -18,7 +18,7 @@ use axum::{
     Router,
 };
 use axum::http::{StatusCode, header};
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use crate::compiler::{NhtmlCompiler, CompileResult};
 use crate::compiler::handler_table::{HandlerTable, build_from_tree};
@@ -424,7 +424,12 @@ async fn handle_connection_axum(
     }
 
     // ─── Hydratation initiale (Appel PHP Init) ───────────────────────────
-    let init_patches_res = call_php(
+    let mut session_rooms: HashSet<String> = sm.get_session_rooms(session_id.clone()).await
+        .unwrap_or_default()
+        .into_iter()
+        .collect();
+
+    let init_res = call_php(
         &session.php_script,
         &session.handler_table,
         0, 0, "init", &[], 
@@ -433,13 +438,23 @@ async fn handle_connection_axum(
         state.clone()
     ).await;
     
-    let (init_patches, _) = match init_patches_res {
+    let (init_patches, _, init_join, init_leave) = match init_res {
         Ok(p) => p,
         Err(e) => {
             error!("[{}] PHP Init Error: {}", session_id, e);
-            (Vec::new(), None)
+            (Vec::new(), None, Vec::new(), Vec::new())
         }
     };
+
+    // Traiter les salons initiaux
+    for r in init_join {
+        let _ = sm.join_room(session_id.clone(), r.clone()).await;
+        session_rooms.insert(r);
+    }
+    for r in init_leave {
+        let _ = sm.leave_room(session_id.clone(), r.clone()).await;
+        session_rooms.remove(&r);
+    }
     
     if !init_patches.is_empty() {
         let mut final_patches = Vec::new();
@@ -492,16 +507,36 @@ async fn handle_connection_axum(
                     let sid_len = msg[1] as usize;
                     if msg.len() >= 2 + sid_len {
                         let sender_sid = String::from_utf8_lossy(&msg[2..2+sid_len]);
-                        let pkt = &msg[2+sid_len..];
+                        let pkt_data = &msg[2+sid_len..];
                         
-                        let should_send = match scope_type {
-                            0x01 => sender_sid != session_id, // others
-                            0x02 => true, // all
-                            _ => false
+                        let (should_send, final_pkt) = match scope_type {
+                            proto::SCOPE_OTHERS => (sender_sid != session_id, pkt_data.to_vec()),
+                            proto::SCOPE_ALL => (true, pkt_data.to_vec()),
+                            proto::SCOPE_ROOM => {
+                                if pkt_data.len() > 0 {
+                                    let rid_len = pkt_data[0] as usize;
+                                    if pkt_data.len() >= 1 + rid_len {
+                                        let rid = String::from_utf8_lossy(&pkt_data[1..1+rid_len]);
+                                        let payload = &pkt_data[1+rid_len..];
+                                        (session_rooms.contains(rid.as_ref()), payload.to_vec())
+                                    } else { (false, Vec::new()) }
+                                } else { (false, Vec::new()) }
+                            },
+                            proto::SCOPE_DIRECT => {
+                                if pkt_data.len() > 0 {
+                                    let tsid_len = pkt_data[0] as usize;
+                                    if pkt_data.len() >= 1 + tsid_len {
+                                        let tsid = String::from_utf8_lossy(&pkt_data[1..1+tsid_len]);
+                                        let payload = &pkt_data[1+tsid_len..];
+                                        (tsid == session_id, payload.to_vec())
+                                    } else { (false, Vec::new()) }
+                                } else { (false, Vec::new()) }
+                            },
+                            _ => (false, Vec::new())
                         };
                         
-                        if should_send {
-                            let _ = ws_sender.send(WsMessage::Binary(pkt.to_vec())).await;
+                        if should_send && !final_pkt.is_empty() {
+                            let _ = ws_sender.send(WsMessage::Binary(final_pkt)).await;
                         }
                     }
                 }
@@ -523,7 +558,13 @@ async fn handle_connection_axum(
 
                         if type_byte == 0x02 { // EVENT
                             monitor_pkt(&state.tx_monitor, "IN", 0x02, data.len(), &session_id, None, Some(format!("Raw Event Data ({} bytes)", data.len())), None).await;
-                            if let Some(patch_pkt) = handle_event(&data, &mut session, state.clone()).await {
+                            let ev_res = handle_event(&data, &mut session, state.clone()).await;
+                            
+                            // Mise à jour locale des salons
+                            for r in ev_res.join_rooms { session_rooms.insert(r); }
+                            for r in ev_res.leave_rooms { session_rooms.remove(&r); }
+                            
+                            if let Some(patch_pkt) = ev_res.patch_pkt {
                                 ws_sender.send(WsMessage::Binary(patch_pkt)).await.ok();
                             }
                         } else if type_byte == 0x01 { // HELLO (Client → Server)
@@ -598,7 +639,14 @@ async fn handle_connection_axum(
 
                                 // 4. Broadcaster aux autres clients de la session
                                 let broadcast_pkt = proto::patch(&validated_ops);
-                                let _ = state.tx_app_broadcast.send(std::sync::Arc::new(broadcast_pkt));
+                                
+                                let mut msg = Vec::new();
+                                msg.push(proto::SCOPE_OTHERS);
+                                msg.push(session_id.len() as u8);
+                                msg.extend_from_slice(session_id.as_bytes());
+                                msg.extend_from_slice(&broadcast_pkt);
+                                
+                                let _ = state.tx_app_broadcast.send(std::sync::Arc::new(msg));
                             }
                         }
 
@@ -627,12 +675,20 @@ async fn handle_connection_axum(
     }
 }
 
+struct EventResult {
+    patch_pkt: Option<Vec<u8>>,
+    join_rooms: Vec<String>,
+    leave_rooms: Vec<String>,
+}
+
 async fn handle_event(
     data       : &[u8],
     session    : &mut Session,
     state      : Arc<GatewayState>
-) -> Option<Vec<u8>>
+) -> EventResult
 {
+    let mut result = EventResult { patch_pkt: None, join_rooms: Vec::new(), leave_rooms: Vec::new() };
+
     // 1. Décodage v0.5.0 (Sécurité Industrielle)
     let decoded = crate::decoder::decode(data);
     let (seq_id, signature, node_id, handler_name, payload_str) = match decoded {
@@ -641,7 +697,7 @@ async fn handle_event(
         }
         _ => {
             warn!("[{}] Paquet EVENT invalide ou mal formé", session.state.session_id);
-            return None;
+            return result;
         }
     };
 
@@ -649,7 +705,7 @@ async fn handle_event(
     if let Ok(Some((secret, last_seq))) = session.sm.get_session_security(session.state.session_id.clone()).await {
         if seq_id <= last_seq {
             warn!("[{}] REJET: Attaque par rejeu détectée (SeqID {} <= {})", session.state.session_id, seq_id, last_seq);
-            return None;
+            return result;
         }
 
         // 3. Vérification HMAC (Authenticité)
@@ -662,7 +718,7 @@ async fn handle_event(
 
         if !verify_hmac(&secret, &sign_data, &signature) {
             error!("[{}] REJET: Signature HMAC invalide !", session.state.session_id);
-            return None;
+            return result;
         }
         let _ = session.sm.update_seq_id(session.state.session_id.clone(), seq_id).await;
     }
@@ -696,7 +752,7 @@ async fn handle_event(
 
     // Appeler PHP
     let start = std::time::Instant::now();
-    let res = call_php(
+    let php_res = call_php(
         &session.php_script,
         &session.handler_table,
         node_id as u16,
@@ -707,21 +763,30 @@ async fn handle_event(
         state.clone()
     ).await;
 
-    let (patches, broadcast_instr) = match res {
+    let (patches, broadcast_instr, join_rooms, leave_rooms) = match php_res {
         Ok(p) => p,
         Err(e) => {
             error!("[{}] PHP Error: {}", session.state.session_id, e);
-            // Envoyer un message d'erreur au client
             let err_msg = format!("Internal Server Error: {}", e);
-            let err_pkt = proto::log_msg(3, &err_msg); // 3 = ERROR level
-            return Some(err_pkt);
+            result.patch_pkt = Some(proto::log_msg(3, &err_msg));
+            return result;
         }
     };
 
+    result.join_rooms = join_rooms.clone();
+    result.leave_rooms = leave_rooms.clone();
+
+    // 4. Traiter les Salons (Rooms)
+    for room in join_rooms {
+        let _ = session.sm.join_room(session.state.session_id.clone(), room).await;
+    }
+    for room in leave_rooms {
+        let _ = session.sm.leave_room(session.state.session_id.clone(), room).await;
+    }
+
     if !patches.is_empty() {
         let mut final_patches = Vec::new();
-        let mut broadcast_patches = Vec::new();
-        for (mut op, is_broadcast) in patches {
+        for (mut op, _) in patches {
             let nid = session.handler_table.by_id.get(&(op.target_id)).and_then(|e| e.n_id.clone()).unwrap_or_default();
             if !nid.is_empty() {
                 let val = match op.op_type {
@@ -735,7 +800,7 @@ async fn handle_event(
                     }
                 }
             }
-            if is_broadcast { broadcast_patches.push(op.clone()); } else { final_patches.push(op); }
+            final_patches.push(op); 
         }
 
         if !final_patches.is_empty() {
@@ -745,25 +810,42 @@ async fn handle_event(
             let elapsed = start.elapsed().as_millis() as u64;
             let patch_pkt = proto::patch(&final_patches);
             monitor_pkt(&state.tx_monitor, "OUT", proto::PKT_PATCH, patch_pkt.len(), &session.state.session_id, Some(handler.clone()), Some(format!("Applied {} patches", final_patches.len())), Some(elapsed)).await;
-            
-            // --- Traitement du Broadcast v0.6.0 (SDK-driven) ---
-            if let Some(bc) = broadcast_instr {
-                info!("[{}] BROADCAST via PHP (scope: {})", session.state.session_id, bc.scope);
-                let bc_pkt = proto::patch(&bc.patches);
-                
-                let mut msg = Vec::new();
-                msg.push(if bc.scope == "all" { 0x02 } else { 0x01 });
-                msg.push(session.state.session_id.len() as u8);
-                msg.extend_from_slice(session.state.session_id.as_bytes());
-                msg.extend_from_slice(&bc_pkt);
-                
-                let _ = state.tx_app_broadcast.send(Arc::new(msg));
-            }
-
-            return Some(patch_pkt);
+            result.patch_pkt = Some(patch_pkt);
         }
     }
-    None
+
+    // 5. Traitement du Broadcast v0.6.0 (SDK-driven)
+    if let Some(bc) = broadcast_instr {
+        info!("[{}] BROADCAST via PHP (scope: {})", session.state.session_id, bc.scope);
+        let bc_pkt = proto::patch(&bc.patches);
+        
+        let mut msg = Vec::new();
+        let scope_type = match bc.scope.as_str() {
+            "all" => proto::SCOPE_ALL,
+            "room" => proto::SCOPE_ROOM,
+            "direct" => proto::SCOPE_DIRECT,
+            _ => proto::SCOPE_OTHERS,
+        };
+        
+        msg.push(scope_type);
+        msg.push(session.state.session_id.len() as u8);
+        msg.extend_from_slice(session.state.session_id.as_bytes());
+        
+        if scope_type == proto::SCOPE_ROOM {
+            let rid = bc.room_id.unwrap_or_else(|| "global".to_string());
+            msg.push(rid.len() as u8);
+            msg.extend_from_slice(rid.as_bytes());
+        } else if scope_type == proto::SCOPE_DIRECT {
+            let tsid = bc.target_sid.unwrap_or_else(|| "".to_string());
+            msg.push(tsid.len() as u8);
+            msg.extend_from_slice(tsid.as_bytes());
+        }
+        
+        msg.extend_from_slice(&bc_pkt);
+        let _ = state.tx_app_broadcast.send(Arc::new(msg));
+    }
+
+    result
 }
 
 async fn monitor_pkt(
@@ -804,7 +886,7 @@ async fn call_php(
     last_version  : u32,
     sm            : Arc<SessionManager>,
     state         : Arc<GatewayState>,
-) -> crate::core::Result<(Vec<(proto::PatchOp, bool)>, Option<proto::BroadcastInstruction>)>
+) -> crate::core::Result<(Vec<(proto::PatchOp, bool)>, Option<proto::BroadcastInstruction>, Vec<String>, Vec<String>)>
 {
     use serde_json::json;
 
@@ -849,7 +931,7 @@ async fn call_php_process(
     php_script: &str,
     context: &serde_json::Value,
     handler_table: &HandlerTable,
-) -> crate::core::Result<(Vec<(proto::PatchOp, bool)>, Option<proto::BroadcastInstruction>)> {
+) -> crate::core::Result<(Vec<(proto::PatchOp, bool)>, Option<proto::BroadcastInstruction>, Vec<String>, Vec<String>)> {
     use std::process::Stdio;
     use tokio::process::Command;
     use tokio::io::AsyncWriteExt;
@@ -886,7 +968,7 @@ async fn call_php_fpm(
     context: &serde_json::Value,
     handler_table: &HandlerTable,
     timeout_ms: u64,
-) -> crate::core::Result<(Vec<(proto::PatchOp, bool)>, Option<proto::BroadcastInstruction>)> {
+) -> crate::core::Result<(Vec<(proto::PatchOp, bool)>, Option<proto::BroadcastInstruction>, Vec<String>, Vec<String>)> {
     use fastcgi_client::{Params, Request};
     use tokio::time::{timeout, Duration};
 
@@ -933,7 +1015,7 @@ async fn call_php_fpm(
 fn parse_php_response(
     stdout        : &[u8],
     handler_table : &HandlerTable,
-) -> (Vec<(proto::PatchOp, bool)>, Option<proto::BroadcastInstruction>)
+) -> (Vec<(proto::PatchOp, bool)>, Option<proto::BroadcastInstruction>, Vec<String>, Vec<String>)
 {
     // Nettoyage éventuel du stdout (PHP peut afficher des warnings avant le JSON)
     let json_str = std::str::from_utf8(stdout).unwrap_or("");
@@ -952,7 +1034,7 @@ fn parse_php_response(
         Ok(v) => v,
         Err(e) => {
             error!("Réponse PHP invalide: {} — Content: {}", e, json_clean);
-            return (Vec::new(), None);
+            return (Vec::new(), None, Vec::new(), Vec::new());
         }
     };
     
@@ -964,9 +1046,16 @@ fn parse_php_response(
     };
 
     let mut broadcast = None;
+    let mut join_rooms = Vec::new();
+    let mut leave_rooms = Vec::new();
+
     if !json.is_array() {
+        // --- Broadcast ---
         if let Some(bc) = json.get("broadcast") {
             let scope = bc["scope"].as_str().unwrap_or("others").to_string();
+            let room_id = bc.get("room_id").and_then(|v| v.as_str()).map(|s| s.to_string());
+            let target_sid = bc.get("target_sid").and_then(|v| v.as_str()).map(|s| s.to_string());
+            
             let mut bc_ops = Vec::new();
             if let Some(patches) = bc["patch"].as_array() {
                 for op in patches {
@@ -976,13 +1065,35 @@ fn parse_php_response(
                 }
             }
             if !bc_ops.is_empty() {
-                broadcast = Some(proto::BroadcastInstruction { scope, patches: bc_ops });
+                broadcast = Some(proto::BroadcastInstruction { scope, room_id, target_sid, patches: bc_ops });
+            }
+        }
+
+        // --- Join Room ---
+        if let Some(j) = json.get("join_room") {
+            if let Some(s) = j.as_str() {
+                join_rooms.push(s.to_string());
+            } else if let Some(arr) = j.as_array() {
+                for v in arr {
+                    if let Some(s) = v.as_str() { join_rooms.push(s.to_string()); }
+                }
+            }
+        }
+
+        // --- Leave Room ---
+        if let Some(l) = json.get("leave_room") {
+            if let Some(s) = l.as_str() {
+                leave_rooms.push(s.to_string());
+            } else if let Some(arr) = l.as_array() {
+                for v in arr {
+                    if let Some(s) = v.as_str() { leave_rooms.push(s.to_string()); }
+                }
             }
         }
     }
 
     let mut patch_ops = Vec::new();
-    let Some(ops) = ops_array else { return (Vec::new(), None); };
+    let Some(ops) = ops_array else { return (Vec::new(), None, join_rooms, leave_rooms); };
 
     for op in ops {
         let is_broadcast = op["broadcast"].as_bool().unwrap_or(false);
@@ -991,7 +1102,7 @@ fn parse_php_response(
         }
     }
 
-    (patch_ops, broadcast)
+    (patch_ops, broadcast, join_rooms, leave_rooms)
 }
 
 fn parse_single_op(op: &serde_json::Value, handler_table: &HandlerTable) -> Option<proto::PatchOp> {

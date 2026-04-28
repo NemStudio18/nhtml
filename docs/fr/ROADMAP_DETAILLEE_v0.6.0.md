@@ -24,11 +24,11 @@ Cette roadmap définit les actions précises à entreprendre pour transformer NH
 ### 1. Moteur de Routage Scoped
 - [x] **Fait** : Identification de l'expéditeur via `SenderSID`.
 - [x] **Action** : Optimiser la boucle de diffusion pour éviter les clones inutiles du payload binaire (utilisation de `Arc<Vec<u8>>`).
-- [ ] **Action** : Ajouter le support des "Rooms" (groupes de sessions) pour limiter le broadcast à un sous-ensemble d'utilisateurs.
+- [x] **Action** : Ajouter le support des "Rooms" (groupes de sessions) pour limiter le broadcast à un sous-ensemble d'utilisateurs.
 
 ### 2. SDK PHP étendu
-- [ ] **Action** : Ajouter la méthode `Nhtml::broadcast($scope)` dans le SDK PHP.
-- [ ] **Action** : Permettre l'envoi simultané d'un patch privé ET d'un broadcast public dans la même réponse JSON.
+- [x] **Action** : Ajouter la méthode `Nhtml::joinRoom()`, `Nhtml::leaveRoom()` et `Nhtml::broadcastInRoom()`.
+- [x] **Action** : Permettre l'envoi simultané d'un patch privé ET d'un broadcast public dans la même réponse JSON.
 
 ---
 
