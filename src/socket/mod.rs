@@ -129,6 +129,7 @@ impl Session {
 // ─── Point d'entrée ─────────────────────────────────────────────────────────
 
 pub async fn serve(
+    gateway_id: String,
     port: u16, 
     root: String, 
     _entry: String, 
@@ -149,6 +150,7 @@ pub async fn serve(
         .map(|limit| Arc::new(RateLimiter::new(limit)));
 
     let shared_state = Arc::new(GatewayState {
+        gateway_id,
         root: root.clone(),
         sm: sm.clone(),
         fpm_addr,
@@ -224,6 +226,7 @@ async fn handle_ws_route(
 }
 
 struct GatewayState {
+    pub gateway_id: String,
     root: String,
     sm: Arc<SessionManager>,
     fpm_addr: Option<String>,
@@ -593,41 +596,45 @@ async fn handle_connection_axum(
             // ─── Écouteur de Broadcast Applicatif (Multi-utilisateur) ───────
             Ok(msg_arc) = app_rx.recv() => {
                 let msg = &*msg_arc;
-                if msg.len() > 2 {
+                if msg.len() > 3 {
                     let scope_type = msg[0];
-                    let sid_len = msg[1] as usize;
-                    if msg.len() >= 2 + sid_len {
-                        let sender_sid = String::from_utf8_lossy(&msg[2..2+sid_len]);
-                        let pkt_data = &msg[2+sid_len..];
-                        
-                        let (should_send, final_pkt) = match scope_type {
-                            proto::SCOPE_OTHERS => (sender_sid != session_id, pkt_data.to_vec()),
-                            proto::SCOPE_ALL => (true, pkt_data.to_vec()),
-                            proto::SCOPE_ROOM => {
-                                if pkt_data.len() > 0 {
-                                    let rid_len = pkt_data[0] as usize;
-                                    if pkt_data.len() >= 1 + rid_len {
-                                        let rid = String::from_utf8_lossy(&pkt_data[1..1+rid_len]);
-                                        let payload = &pkt_data[1+rid_len..];
-                                        (session_rooms.contains(rid.as_ref()), payload.to_vec())
+                    let gid_len = msg[1] as usize;
+                    if msg.len() >= 3 + gid_len {
+                        let _sender_gid = String::from_utf8_lossy(&msg[2..2+gid_len]);
+                        let sid_len = msg[2+gid_len] as usize;
+                        if msg.len() >= 3 + gid_len + sid_len {
+                            let sender_sid = String::from_utf8_lossy(&msg[3+gid_len..3+gid_len+sid_len]);
+                            let pkt_data = &msg[3+gid_len+sid_len..];
+                            
+                            let (should_send, final_pkt) = match scope_type {
+                                proto::SCOPE_OTHERS => (sender_sid != session_id, pkt_data.to_vec()),
+                                proto::SCOPE_ALL => (true, pkt_data.to_vec()),
+                                proto::SCOPE_ROOM => {
+                                    if pkt_data.len() > 0 {
+                                        let rid_len = pkt_data[0] as usize;
+                                        if pkt_data.len() >= 1 + rid_len {
+                                            let rid = String::from_utf8_lossy(&pkt_data[1..1+rid_len]);
+                                            let payload = &pkt_data[1+rid_len..];
+                                            (session_rooms.contains(rid.as_ref()), payload.to_vec())
+                                        } else { (false, Vec::new()) }
                                     } else { (false, Vec::new()) }
-                                } else { (false, Vec::new()) }
-                            },
-                            proto::SCOPE_DIRECT => {
-                                if pkt_data.len() > 0 {
-                                    let tsid_len = pkt_data[0] as usize;
-                                    if pkt_data.len() >= 1 + tsid_len {
-                                        let tsid = String::from_utf8_lossy(&pkt_data[1..1+tsid_len]);
-                                        let payload = &pkt_data[1+tsid_len..];
-                                        (tsid == session_id, payload.to_vec())
+                                },
+                                proto::SCOPE_DIRECT => {
+                                    if pkt_data.len() > 0 {
+                                        let tsid_len = pkt_data[0] as usize;
+                                        if pkt_data.len() >= 1 + tsid_len {
+                                            let tsid = String::from_utf8_lossy(&pkt_data[1..1+tsid_len]);
+                                            let payload = &pkt_data[1+tsid_len..];
+                                            (tsid == session_id, payload.to_vec())
+                                        } else { (false, Vec::new()) }
                                     } else { (false, Vec::new()) }
-                                } else { (false, Vec::new()) }
-                            },
-                            _ => (false, Vec::new())
-                        };
-                        
-                        if should_send && !final_pkt.is_empty() {
-                            let _ = ws_sender.send(WsMessage::Binary(final_pkt)).await;
+                                },
+                                _ => (false, Vec::new())
+                            };
+                            
+                            if should_send && !final_pkt.is_empty() {
+                                let _ = ws_sender.send(WsMessage::Binary(final_pkt)).await;
+                            }
                         }
                     }
                 }
@@ -743,6 +750,8 @@ async fn handle_connection_axum(
                                 
                                 let mut msg = Vec::new();
                                 msg.push(proto::SCOPE_OTHERS);
+                                msg.push(state.gateway_id.len() as u8);
+                                msg.extend_from_slice(state.gateway_id.as_bytes());
                                 msg.push(session_id.len() as u8);
                                 msg.extend_from_slice(session_id.as_bytes());
                                 msg.extend_from_slice(&broadcast_pkt);
@@ -933,6 +942,8 @@ async fn handle_event(
         };
         
         msg.push(scope_type);
+        msg.push(state.gateway_id.len() as u8);
+        msg.extend_from_slice(state.gateway_id.as_bytes());
         msg.push(session.state.session_id.len() as u8);
         msg.extend_from_slice(session.state.session_id.as_bytes());
         

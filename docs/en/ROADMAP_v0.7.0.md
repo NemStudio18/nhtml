@@ -8,7 +8,7 @@ This roadmap defines the next steps for scaling NHTML.
 **Goal**: Allow NHTML to handle millions of simultaneous users.
 
 ### 1. Gateway Cluster Mode
-- [ ] **Action**: Support Redis as a synchronization backend for multi-gateway broadcasting.
+- [x] **Action**: Support Redis as a synchronization backend for multi-gateway broadcasting.
 - [ ] **Action**: Implement intelligent "Sticky Sessions" to ensure session consistency across multiple Gateway instances.
 - [ ] **Action**: Full deportation of session state to MySQL or PostgreSQL via an agnostic driver.
 
@@ -39,5 +39,5 @@ This roadmap defines the next steps for scaling NHTML.
 - [ ] **Action**: Real-time performance analyzer (CPU/Memory) per DOM node.
 
 ### 2. Monitoring & Alerting
-- [ ] **Action**: Export metrics to Prometheus / Grafana.
+- [x] **Action**: Export metrics to Prometheus / Grafana.
 - [ ] **Action**: Structured JSON logs for easy integration with ELK or Datadog.

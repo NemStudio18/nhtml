@@ -165,12 +165,16 @@ async fn main() {
             }
 
             // Cluster (Redis sync)
+            let gid = uuid::Uuid::new_v4().to_string();
+            info!("🆔 Gateway ID: {}", gid);
+
             if let Some(ref cluster) = config.cluster {
                 if cluster.enabled {
                     let tx_a = tx_app_broadcast.clone();
                     let url = cluster.redis_url.clone();
+                    let my_gid = gid.clone();
                     tokio::spawn(async move {
-                        nhtml_gateway::cluster::start_cluster_bridge(url, tx_a).await;
+                        nhtml_gateway::cluster::start_cluster_bridge(my_gid, url, tx_a).await;
                     });
                 }
             }
@@ -183,7 +187,7 @@ async fn main() {
                     return;
                 }
             };
-            socket::serve(port, path, entry, php, fpm_addr, fpm_timeout, std::sync::Arc::new(sm), tx_monitor, tx_app_broadcast, tx_reload, config.security.clone()).await;
+            socket::serve(gid, port, path, entry, php, fpm_addr, fpm_timeout, std::sync::Arc::new(sm), tx_monitor, tx_app_broadcast, tx_reload, config.security.clone()).await;
         }
         Commands::Devtools => {
             let devtools_port = config.ports.as_ref().and_then(|p| p.devtools).unwrap_or(8081);
