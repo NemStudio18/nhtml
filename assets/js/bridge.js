@@ -728,7 +728,7 @@ async function switchToWasm() {
             php.FS.writeFile('/app.php', code);
         }
 
-        const sdkFiles = [projectRoot + 'sdk/php/src/Nhtml.php', projectRoot + 'sdk/php/src/Protocol.php'];
+        const sdkFiles = [projectRoot + 'sdk/php/src/Nhtml.php', projectRoot + 'sdk/php/src/Patch.php'];
         for (const f of sdkFiles) {
             const res = await fetch(f + cacheBust);
             if (res.ok) {
