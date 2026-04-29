@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>NHTML — Native-HTML Binary Framework</title>
+    <title>NHTML — Native-HTML Binary Framework v0.7.1</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
@@ -16,6 +16,7 @@
             --text: #f8fafc;
             --text-dim: #94a3b8;
             --border: rgba(255, 255, 255, 0.08);
+            --success: #22c55e;
         }
 
         * {
@@ -78,12 +79,26 @@
 
         /* --- Hero --- */
         .hero {
-            padding: 8rem 0 6rem;
+            padding: 6rem 0 4rem;
             text-align: center;
         }
 
+        .badge {
+            display: inline-block;
+            padding: 6px 16px;
+            border-radius: 30px;
+            background: rgba(56, 189, 248, 0.1);
+            border: 1px solid rgba(56, 189, 248, 0.2);
+            color: var(--primary);
+            font-size: 0.85rem;
+            font-weight: 700;
+            margin-bottom: 2rem;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
         .hero h1 {
-            font-size: 5.5rem;
+            font-size: 4.5rem;
             font-weight: 800;
             line-height: 1.1;
             margin-bottom: 1.5rem;
@@ -98,9 +113,9 @@
         }
 
         .hero p {
-            font-size: 1.4rem;
+            font-size: 1.3rem;
             color: var(--text-dim);
-            max-width: 650px;
+            max-width: 750px;
             margin: 0 auto 3.5rem;
             font-weight: 300;
         }
@@ -109,6 +124,7 @@
             display: flex;
             gap: 1.5rem;
             justify-content: center;
+            flex-wrap: wrap;
         }
 
         .btn {
@@ -119,6 +135,9 @@
             font-size: 1.1rem;
             transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
             cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 10px;
         }
 
         .btn-primary {
@@ -145,93 +164,192 @@
             transform: translateY(-3px);
         }
 
-        /* --- Features --- */
-        .features {
+        /* --- Sections --- */
+        section {
+            padding: 5rem 0;
+        }
+
+        .section-title {
+            text-align: center;
+            margin-bottom: 4rem;
+        }
+
+        .section-title h2 {
+            font-size: 2.5rem;
+            font-weight: 800;
+            margin-bottom: 1rem;
+            letter-spacing: -1px;
+        }
+
+        .section-title p {
+            color: var(--text-dim);
+            font-size: 1.1rem;
+            max-width: 600px;
+            margin: 0 auto;
+        }
+
+        /* --- Features Grid --- */
+        .features-grid {
             display: grid;
-            grid-template-columns: repeat(3, 1fr);
-            gap: 2.5rem;
-            margin: 4rem 0;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 2rem;
         }
 
         .feature-card {
             background: var(--card-bg);
             border: 1px solid var(--border);
-            padding: 3rem;
+            padding: 2.5rem;
             border-radius: 24px;
-            text-align: left;
             backdrop-filter: blur(12px);
-            transition: transform 0.3s, border-color 0.3s;
+            transition: all 0.3s;
+            position: relative;
+            overflow: hidden;
         }
 
         .feature-card:hover {
             border-color: var(--primary);
             transform: translateY(-5px);
+            background: rgba(30, 41, 59, 0.9);
+        }
+
+        .feature-card i {
+            font-size: 2.5rem;
+            margin-bottom: 1.5rem;
+            display: block;
         }
 
         .feature-card h3 {
-            font-size: 1.5rem;
-            margin-bottom: 1.25rem;
+            font-size: 1.3rem;
+            margin-bottom: 1rem;
             color: white;
             display: flex;
             align-items: center;
-            gap: 10px;
+            gap: 12px;
         }
 
-        .feature-card h3 span { color: var(--primary); }
+        .feature-card h3 .icon-box {
+            width: 32px;
+            height: 32px;
+            background: rgba(56, 189, 248, 0.1);
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--primary);
+            font-size: 1rem;
+        }
 
         .feature-card p {
             color: var(--text-dim);
-            font-size: 1rem;
-            line-height: 1.7;
+            font-size: 0.95rem;
+            line-height: 1.6;
         }
 
-        /* --- Code Snippet --- */
+        /* --- Stats/Industrial Section --- */
+        .industrial-specs {
+            background: rgba(0,0,0,0.2);
+            border-radius: 32px;
+            padding: 4rem;
+            border: 1px solid var(--border);
+            margin: 4rem 0;
+        }
+
+        .specs-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 3rem;
+            text-align: center;
+        }
+
+        .spec-item .value {
+            font-size: 2.5rem;
+            font-weight: 800;
+            color: var(--primary);
+            display: block;
+            margin-bottom: 0.5rem;
+        }
+
+        .spec-item .label {
+            color: var(--text-dim);
+            font-size: 0.9rem;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            font-weight: 600;
+        }
+
+        /* --- Code Preview --- */
         .preview-container {
-            margin-top: 8rem;
             background: #020617;
             border-radius: 24px;
-            padding: 2.5rem;
+            padding: 2rem;
             border: 1px solid var(--border);
-            box-shadow: 0 50px 100px rgba(0,0,0,0.6);
-            position: relative;
-            overflow: hidden;
+            box-shadow: 0 40px 80px rgba(0,0,0,0.5);
+            margin-top: 2rem;
         }
 
         .preview-header {
             display: flex;
-            gap: 8px;
-            margin-bottom: 2rem;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1.5rem;
+            padding-bottom: 1rem;
+            border-bottom: 1px solid rgba(255,255,255,0.05);
         }
 
-        .dot { width: 12px; height: 12px; border-radius: 50%; }
-        .dot-r { background: #ef4444; }
-        .dot-y { background: #f59e0b; }
-        .dot-g { background: #10b981; }
+        .window-controls { display: flex; gap: 8px; }
+        .dot { width: 10px; height: 10px; border-radius: 50%; }
+        .dot-r { background: #ff5f56; }
+        .dot-y { background: #ffbd2e; }
+        .dot-g { background: #27c93f; }
+
+        .file-name { font-family: 'JetBrains Mono', monospace; font-size: 0.8rem; color: var(--text-dim); }
 
         pre {
             font-family: 'JetBrains Mono', monospace;
-            font-size: 1.1rem;
+            font-size: 0.95rem;
             color: #94a3b8;
-            text-align: left;
             overflow-x: auto;
+            line-height: 1.7;
         }
 
-        .code-accent { color: var(--primary); }
-        .code-comment { color: #475569; }
+        .code-accent { color: var(--primary); font-weight: 600; }
+        .code-comment { color: #475569; font-style: italic; }
         .code-string { color: var(--accent); }
+        .code-func { color: #facc15; }
+
+        /* --- CTA Footer --- */
+        .final-cta {
+            background: linear-gradient(135deg, rgba(56, 189, 248, 0.1), rgba(129, 140, 248, 0.1));
+            border-radius: 32px;
+            padding: 5rem 2rem;
+            text-align: center;
+            border: 1px solid rgba(56, 189, 248, 0.2);
+            margin-bottom: 6rem;
+        }
+
+        .final-cta h2 { font-size: 3rem; margin-bottom: 1.5rem; letter-spacing: -1px; }
 
         footer {
-            margin-top: 10rem;
             padding: 4rem 0;
             border-top: 1px solid var(--border);
             text-align: center;
             color: var(--text-dim);
-            font-size: 0.9rem;
         }
 
+        .footer-links {
+            display: flex;
+            justify-content: center;
+            gap: 2rem;
+            margin-bottom: 2rem;
+        }
+
+        .footer-links a { color: var(--text-dim); text-decoration: none; font-size: 0.9rem; transition: color 0.3s; }
+        .footer-links a:hover { color: var(--primary); }
+
         @media (max-width: 768px) {
-            .hero h1 { font-size: 3.5rem; }
-            .features { grid-template-columns: 1fr; }
+            .hero h1 { font-size: 3rem; }
+            .hero p { font-size: 1.1rem; }
+            .industrial-specs { padding: 2rem; }
             .nav-links { display: none; }
         }
     </style>
@@ -242,57 +360,125 @@
         <nav>
             <div class="logo">🛰️ NHTML</div>
             <div class="nav-links">
+                <a href="#features">Features</a>
+                <a href="#industrial">Industrial Hardening</a>
                 <a href="https://github.com/NemStudio18/nhtml/blob/main/docs/fr/GUIDE_DEMARRAGE.md">Documentation</a>
                 <a href="https://github.com/NemStudio18/nhtml">GitHub</a>
-                <a href="https://github.com/NemStudio18/nhtml/blob/main/INSTALL.md">Installation</a>
             </div>
         </nav>
 
         <section class="hero">
-            <h1>Server-Driven <span>Binary Interfaces</span></h1>
-            <p>NHTML transforms your browser into a high-performance binary engine. Build complex reactive apps with zero business logic on the frontend.</p>
+            <div class="badge">Industrial Release v0.7.1</div>
+            <h1>The Ultra-Fast <span>Binary Web Framework</span></h1>
+            <p>NHTML is a server-driven binary framework designed for extreme performance. Shift your business logic to the backend and let the browser strictly follow orders via NBPS protocol.</p>
             <div class="btn-group">
-                <a href="./examples/showcase/index.html" class="btn btn-primary">Launch Showcase Demo</a>
-                <a href="https://github.com/NemStudio18/nhtml/blob/main/docs/fr/GUIDE_DEMARRAGE.md" class="btn btn-secondary">Read Documentation</a>
+                <a href="./examples/showcase/index.html" class="btn btn-primary">
+                    <span>🚀 Launch Showcase</span>
+                </a>
+                <a href="https://github.com/NemStudio18/nhtml/blob/main/INSTALL.md" class="btn btn-secondary">
+                    <span>📦 Install Now</span>
+                </a>
             </div>
         </section>
 
-        <section class="features">
-            <div class="feature-card">
-                <h3><span>📦</span> Native NBPS</h3>
-                <p>A binary protocol optimized for atomic DOM mutations. Extremely low bandwidth using native Zstd compression.</p>
+        <section id="features">
+            <div class="section-title">
+                <h2>Built for the Modern Web</h2>
+                <p>NHTML eliminates frontend complexity by synchronizing the DOM through a high-performance binary pipeline.</p>
             </div>
-            <div class="feature-card">
-                <h3><span>🐘</span> Zero-JS Logic</h3>
-                <p>Write your business logic in PHP or Rust. The Gateway orchestrates the state, the client strictly follows orders.</p>
-            </div>
-            <div class="feature-card">
-                <h3><span>⚡</span> WASM Fallback</h3>
-                <p>No server? No problem. NHTML boots a PHP virtual machine in the browser via WebAssembly for static hosting.</p>
+
+            <div class="features-grid">
+                <div class="feature-card">
+                    <h3><div class="icon-box">⚡</div> Binary Speed</h3>
+                    <p>Uses Native Binary Packet Specification (NBPS) with Zstd compression for ultra-low bandwidth and sub-millisecond updates.</p>
+                </div>
+                <div class="feature-card">
+                    <h3><div class="icon-box">🐘</div> Server-Driven</h3>
+                    <p>No more state management on the client. Your PHP or Rust backend is the single source of truth for the entire DOM tree.</p>
+                </div>
+                <div class="feature-card">
+                    <h3><div class="icon-box">🛡️</div> Secure by Design</h3>
+                    <p>Mandatory HMAC-SHA256 signatures, sequence tracking, and strict Origin validation protect your app from XSS and hijacking.</p>
+                </div>
+                <div class="feature-card">
+                    <h3><div class="icon-box">🌐</div> Multi-Mode</h3>
+                    <p>Deploy as a Dedicated Rust Gateway, Shared PHP server, or Zero-Server static host via WebAssembly (PHP-WASM).</p>
+                </div>
+                <div class="feature-card">
+                    <h3><div class="icon-box">🔥</div> Hot Reload</h3>
+                    <p>Native file system watching with instant binary hydration. Edit your backend code and see the DOM patch in real-time.</p>
+                </div>
+                <div class="feature-card">
+                    <h3><div class="icon-box">🧩</div> Tiny Footprint</h3>
+                    <p>A 40KB JS bridge is all you need. No heavy framework bundles. No complex build steps for the frontend.</p>
+                </div>
             </div>
         </section>
 
-        <div class="preview-container">
-            <div class="preview-header">
-                <div class="dot dot-r"></div>
-                <div class="dot dot-y"></div>
-                <div class="dot dot-g"></div>
+        <section id="industrial" class="industrial-specs">
+            <div class="section-title">
+                <h2>Industrial Grade v0.7.1</h2>
+                <p>Engineered for production environments where reliability and performance are non-negotiable.</p>
             </div>
-            <pre>
-<span class="code-comment">// Your Server Side Logic (app.php)</span>
-<span class="code-accent">use</span> Nhtml\Nhtml;
+            
+            <div class="specs-grid">
+                <div class="spec-item">
+                    <span class="value">~1ms</span>
+                    <span class="label">Session Latency</span>
+                </div>
+                <div class="spec-item">
+                    <span class="value">0%</span>
+                    <span class="label">Panic Rate</span>
+                </div>
+                <div class="spec-item">
+                    <span class="value">100+</span>
+                    <span class="label">Concurrent Sessions</span>
+                </div>
+                <div class="spec-item">
+                    <span class="value">32-bit</span>
+                    <span class="label">HMAC Security</span>
+                </div>
+            </div>
 
-<span class="code-accent">if</span> ($event === <span class="code-string">'click'</span> && $nodeId === <span class="code-string">'btn-buy'</span>) {
-    Nhtml::patch()
-         ->setText(<span class="code-string">'status'</span>, <span class="code-string">'Item Added!'</span>)
-         ->addClass(<span class="code-string">'cart'</span>, <span class="code-string">'bump-animation'</span>)
-         ->send();
-}
-            </pre>
-        </div>
+            <div class="preview-container">
+                <div class="preview-header">
+                    <div class="window-controls">
+                        <div class="dot dot-r"></div>
+                        <div class="dot dot-y"></div>
+                        <div class="dot dot-g"></div>
+                    </div>
+                    <div class="file-name">app/controllers/CounterController.php</div>
+                </div>
+                <pre>
+<span class="code-comment">// NHTML Server-Side Logic</span>
+<span class="code-accent">public function</span> <span class="code-func">onIncrement</span>($event) {
+    <span class="code-accent">$this</span>->state->count++;
+    
+    <span class="code-comment">// Patch only the needed node via binary delta</span>
+    Nhtml::<span class="code-func">patch</span>()
+        -><span class="code-func">setText</span>(<span class="code-string">'counter_val'</span>, <span class="code-accent">$this</span>->state->count)
+        -><span class="code-func">addClass</span>(<span class="code-string">'counter_val'</span>, <span class="code-string">'pulse'</span>)
+        -><span class="code-func">broadcast</span>(SCOPE_ALL);
+}</pre>
+            </div>
+        </section>
+
+        <section class="final-cta">
+            <h2>Ready to go Binary?</h2>
+            <p style="color: var(--text-dim); margin-bottom: 3rem; font-size: 1.2rem;">Join the future of high-performance web development with NHTML.</p>
+            <div class="btn-group">
+                <a href="https://github.com/NemStudio18/nhtml" class="btn btn-primary">⭐ Star on GitHub</a>
+                <a href="./examples/index.nhtml" class="btn btn-secondary">Explore Examples</a>
+            </div>
+        </section>
 
         <footer>
-            <p>© 2027 NemStudio — Licensed under AGPL-3.0</p>
+            <div class="footer-links">
+                <a href="https://github.com/NemStudio18/nhtml/blob/main/docs/fr/ROADMAP_v0.7.1.md">Roadmap</a>
+                <a href="https://github.com/NemStudio18/nhtml/blob/main/LICENSE_COMMERCIAL.md">Licensing</a>
+                <a href="https://github.com/NemStudio18/nhtml/issues">Support</a>
+            </div>
+            <p>© 2027 NemStudio — NHTML is Licensed under AGPL-3.0 for Open Source use.</p>
         </footer>
     </div>
 

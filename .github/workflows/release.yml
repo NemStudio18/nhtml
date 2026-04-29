@@ -74,24 +74,24 @@ jobs:
         with:
           name: NHTML Gateway v${{ github.ref_name }}
           body: |
-            ## 🌍 NHTML Gateway v${{ github.ref_name }} — "Global Connect"
+            ## 🛡️ NHTML Gateway v${{ github.ref_name }} — "Industrial Hardening"
             
-            This release marks the transition to the **v0.6.0 Global Connect** architecture, focusing on high-performance backends and real-time collaboration.
+            This release achieves an **industrial-grade production state** for the NHTML ecosystem, focusing on reliability, security, and high-performance caching.
             
             ### ✨ Philosophy
-            - **Native Performance**: FastCGI support for ultra-low latency (< 2ms).
-            - **Industrial Security**: HMAC-SHA256 signatures and Sequence ID protection.
-            - **Seamless Collaboration**: Scoped broadcasting for real-time multi-user synchronization.
+            - **Zero-Panic Policy**: Every critical code path is now panic-free (no more `unwrap()`).
+            - **Industrial Stability**: Atomic session management and robust error recovery.
+            - **Security First**: Strict Origin validation and mandatory HMAC signatures.
             
-            ### 🛠️ Core Features
-            - **FastCGI/PHP-FPM Bridge**: Native support for PHP worker pools.
-            - **Scoped Broadcasting**: Real-time patches for `all` or `others`.
-            - **Industrial Error Handling**: Robust `GatewayError` system with automatic recovery.
-            - **Responsive Showcase**: Premium mobile-first flagship application.
-            - **WASM Persistence**: Local data persistence via IDBFS in zero-server mode.
+            ### 🛠️ v0.7.1 Features
+            - **Global Compilation Cache**: Initial session latency reduced to ~1ms through Arc-based caching.
+            - **NBPS v0.7.1 Hardening**: Strict binary bounds checking for all incoming/outgoing packets.
+            - **Atomic Persistence**: Thread-safe session sequence tracking via SQLite/Atomic logic.
+            - **CORS/Origin Security**: Native protection against Cross-Site WebSocket Hijacking (CSWH).
+            - **Multi-Mode Validation**: Certified compatibility for Dedicated, Shared, and Zero-Server (WASM) modes.
             
             ### 📦 Deployment
-            Download the binary for your platform and run `./nhtml start --dev` to explore. Use `--fpm 127.0.0.1:9000` for high-performance mode.
+            Download the binary for your platform and run `./nhtml start --dev` to explore. Use `--fpm 127.0.0.1:9000` for high-performance production mode.
           files: |
             artifacts/nhtml-linux
             artifacts/nhtml-windows.exe
