@@ -55,7 +55,9 @@ if ($handler === 'init' || !$handler) {
         
         if ($isMe) $author = "Moi ($author)";
         
-        $html .= "<div class='message $class'><div class='author'>$author</div>{$msg['content']}</div>";
+        $safe_author = htmlspecialchars($author, ENT_QUOTES, 'UTF-8');
+        $safe_content = htmlspecialchars($msg['content'], ENT_QUOTES, 'UTF-8');
+        $html .= "<div class='message $class'><div class='author'>$safe_author</div>$safe_content</div>";
     }
     
     if ($html) $p->replaceInner('msg_list', $html);
@@ -76,10 +78,12 @@ if ($handler === 'send') {
         $stmt = $db->prepare("INSERT INTO messages (session_id, author, content) VALUES (?, ?, ?)");
         $stmt->execute([$sessionId, $pseudo, $content]);
         
+        $safe_pseudo = htmlspecialchars($pseudo, ENT_QUOTES, 'UTF-8');
+        $safe_content = htmlspecialchars($content, ENT_QUOTES, 'UTF-8');
         $p->appendHtml('msg_list', "
             <div class='message received'>
-                <div class='author'>$pseudo</div>
-                $content
+                <div class='author'>$safe_pseudo</div>
+                $safe_content
             </div>
         ")->broadcast()->setText('chat_input', '')->focus('chat_input')->scrollTo('msg_list');
     }

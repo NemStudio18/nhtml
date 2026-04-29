@@ -44,3 +44,4 @@ redis = { version = "1.2", features = ["tokio-comp"] }
 metrics = "0.22"
 metrics-exporter-prometheus = "0.12"
 html-escape = "0.2"
+lru = "0.12"

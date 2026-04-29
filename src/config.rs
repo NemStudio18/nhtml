@@ -28,6 +28,7 @@ pub struct DatabaseConfig {
 pub struct SecurityConfig {
     pub tls: Option<TlsConfig>,
     pub rate_limit: Option<RateLimitConfig>,
+    pub allowed_origins: Option<Vec<String>>,
 }
 
 #[derive(Debug, Deserialize, Clone)]

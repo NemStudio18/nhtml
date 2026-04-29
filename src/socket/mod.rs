@@ -294,6 +294,9 @@ pub async fn serve(
         .and_then(|r| r.events_per_sec)
         .map(|limit| Arc::new(RateLimiter::new(limit)));
 
+    let allowed_origins = security.as_ref()
+        .and_then(|s| s.allowed_origins.clone());
+
     let shared_state = Arc::new(GatewayState {
         gateway_id,
         root: root.clone(),
@@ -305,6 +308,7 @@ pub async fn serve(
         tx_app_broadcast,
         tx_reload,
         rate_limiter,
+        allowed_origins,
         compile_cache: Mutex::new(HashMap::new()),
     });
 
@@ -367,16 +371,28 @@ pub async fn serve(
 }
 
 async fn handle_ws_route(
+    headers: header::HeaderMap,
     Query(params): Query<HashMap<String, String>>,
     State(state): State<Arc<GatewayState>>,
     axum::extract::ConnectInfo(addr): axum::extract::ConnectInfo<std::net::SocketAddr>,
     ws: WebSocketUpgrade,
 ) -> Response {
+    // ─── Origin Validation (CSWH Protection) ────────────────────────────
+    if let Some(allowed) = &state.allowed_origins {
+        let origin = headers
+            .get(header::ORIGIN)
+            .and_then(|v| v.to_str().ok())
+            .unwrap_or("");
+        if !allowed.is_empty() && !allowed.iter().any(|o| o == origin) {
+            warn!("[WS] Rejected connection from unauthorized Origin: '{}'", origin);
+            return (StatusCode::FORBIDDEN, "Forbidden: Origin not allowed").into_response();
+        }
+    }
+
     let sid = params.get("sid").cloned().unwrap_or_else(|| "AUTO".to_string());
     let path = params.get("path").cloned().unwrap_or_else(|| "".to_string());
-    
     let ip = addr.ip().to_string();
-    
+
     info!("[WS] Upgrade request from {} for path: {} (sid: {})", ip, path, sid);
     metrics::gauge!("nhtml_active_clients").increment(1.0);
     ws.on_upgrade(move |socket| handle_ws_wrapper(socket, path, sid, ip, state))
@@ -393,52 +409,56 @@ struct GatewayState {
     tx_app_broadcast: tokio::sync::broadcast::Sender<Arc<Vec<u8>>>,
     tx_reload: tokio::sync::broadcast::Sender<()>,
     rate_limiter: Option<Arc<RateLimiter>>,
+    allowed_origins: Option<Vec<String>>,
     pub compile_cache: Mutex<HashMap<String, (std::time::SystemTime, Arc<CompileResult>)>>,
 }
 
-/// Simple Rate Limiter Token Bucket
+/// Rate Limiter with true O(1) LRU eviction via `lru::LruCache`.
+/// Memory is bounded: at most LRU_CAPACITY IPs are tracked simultaneously.
+/// When the cache is full, the least-recently-seen IP is evicted automatically.
+const LRU_CAPACITY: usize = 2048;
+
 pub struct RateLimiter {
     pub limit: u32,
-    pub ips: Mutex<HashMap<String, (Instant, u32)>>,
+    // LruCache<ip, (window_start, event_count)>
+    cache: Mutex<lru::LruCache<String, (Instant, u32)>>,
 }
 
 impl RateLimiter {
     pub fn new(limit: u32) -> Self {
         Self {
             limit,
-            ips: Mutex::new(HashMap::new()),
+            cache: Mutex::new(lru::LruCache::new(
+                std::num::NonZeroUsize::new(LRU_CAPACITY).unwrap()
+            )),
         }
     }
 
+    /// Returns true if the request is allowed, false if rate-limited.
+    /// O(1) amortized: LruCache uses HashMap + doubly-linked list internally.
     pub async fn check(&self, ip: String) -> bool {
-        let mut ips = self.ips.lock().await;
-        let now = std::time::Instant::now();
-        
-        // Anti-leak: Nettoyage agressif basé sur le temps
-        // On nettoie si la table dépasse 500 entrées OU si la dernière purge remonte à plus de 60s
-        let needs_cleaning = ips.len() > 500;
-        
-        if needs_cleaning {
-            ips.retain(|_, (last, _)| now.duration_since(*last).as_secs() < 60);
-        }
+        let now = Instant::now();
+        let mut cache = self.cache.lock().await;
 
-        let entry = ips.entry(ip).or_insert((now, 0));
-        
-        // Reset du compteur si plus d'une seconde s'est écoulée
+        // `get_or_insert` promotes to MRU and returns a mutable ref in one O(1) op
+        let entry = cache.get_or_insert_mut(ip, || (now, 0));
+
+        // Reset window if more than 1 second has elapsed
         if now.duration_since(entry.0).as_secs() >= 1 {
             entry.0 = now;
             entry.1 = 1;
             return true;
         }
-        
+
         if entry.1 < self.limit {
             entry.1 = entry.1.saturating_add(1);
             return true;
         }
-        
+
         false
     }
 }
+
 
 async fn handle_http_root(
     headers: header::HeaderMap,
@@ -901,9 +921,11 @@ async fn handle_connection_axum(
                         else if type_byte == proto::PKT_PUSH_PATCH {
                             // 1. Validation du format minimal
                             if data.len() < 12 { continue; }
-                            
-                            // 2. Décoder le nombre d'opérations
-                            let op_count = u16::from_be_bytes([data[5], data[6]]) as usize;
+
+                            // 2. Décoder le nombre d'opérations (hard-cap à 64)
+                            const MAX_PUSH_OPS: usize = 64;
+                            let op_count = (u16::from_be_bytes([data[5], data[6]]) as usize).min(MAX_PUSH_OPS);
+                            if op_count == 0 { continue; }
                             let mut offset = 7;
                             let mut validated_ops = Vec::new();
                             
