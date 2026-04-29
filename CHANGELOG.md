@@ -3,6 +3,7 @@
 ## v0.7.3 (Avril 2026) — "Scale & Observability" (WIP)
 ### Added
 - **Native Load Balancing**: Dispatcher intelligent intégré supportant les stratégies **Round-Robin** et **Least-Connections**.
+- **Automated Healthchecks**: Surveillance active des backends FPM avec mise en quarantaine automatique des nœuds défaillants.
 - **Multi-Backend Configuration**: Support pour plusieurs adresses FastCGI/FPM simultanées via `nhtml.config.toml`.
 - **Evolution Branding**: Intégration du nouveau concept de logo minimaliste symbolisant l'évolution du HTML.
 

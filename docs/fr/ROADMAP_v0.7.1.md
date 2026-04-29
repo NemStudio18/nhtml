@@ -37,7 +37,7 @@ Cette roadmap définit les prochaines étapes pour passer à l'échelle supérie
 
 ### 2. Load Balancing Natif
 - [x] **Action** : Algorithme de Round-Robin ou Least-Connections intégré pour dispatcher vers plusieurs pools FPM.
-- [ ] **Action** : Healthchecks avancés des backends avec mise en quarantaine automatique.
+- [x] **Action** : Healthchecks avancés des backends avec mise en quarantaine automatique.
 
 ---
 

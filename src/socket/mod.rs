@@ -54,6 +54,7 @@ pub struct FpmPool {
     clients: Mutex<Vec<FpmClient>>,
     max_size: usize,
     pub current_size: std::sync::Arc<std::sync::atomic::AtomicUsize>,
+    pub is_healthy: std::sync::Arc<std::sync::atomic::AtomicBool>,
 }
 
 /// Équilibreur de charge pour distribuer les requêtes vers plusieurs backends FPM.
@@ -76,22 +77,40 @@ impl FpmLoadBalancer {
     }
 
     pub fn acquire_pool(&self) -> Option<Arc<FpmPool>> {
-        if self.pools.is_empty() {
+        let healthy_pools: Vec<_> = self.pools.iter()
+            .filter(|p| p.is_healthy.load(std::sync::atomic::Ordering::SeqCst))
+            .cloned()
+            .collect();
+
+        if healthy_pools.is_empty() {
+             // Fallback: Si tout est "mort", on tente quand même le premier par désespoir 
+             // ou on retourne None pour passer en mode CGI local ?
+             // Pour l'instant on retourne None pour que call_php bascule sur call_php_process
              return None;
         }
         
         match self.strategy.as_str() {
             "least-conn" => {
-                // Choisit le pool avec le moins de connexions actives
-                self.pools.iter()
+                healthy_pools.iter()
                     .min_by_key(|p| p.current_size.load(std::sync::atomic::Ordering::SeqCst))
                     .cloned()
             }
             _ => { // Round-robin par défaut
-                let idx = self.next.fetch_add(1, std::sync::atomic::Ordering::SeqCst) % self.pools.len();
-                Some(self.pools[idx].clone())
+                let idx = self.next.fetch_add(1, std::sync::atomic::Ordering::SeqCst) % healthy_pools.len();
+                Some(healthy_pools[idx].clone())
             }
         }
+    }
+
+    pub fn start_health_checks(self: Arc<Self>) {
+        tokio::spawn(async move {
+            loop {
+                for pool in &self.pools {
+                    let _ = pool.check_health().await;
+                }
+                tokio::time::sleep(std::time::Duration::from_secs(5)).await;
+            }
+        });
     }
 }
 
@@ -102,7 +121,32 @@ impl FpmPool {
             clients: Mutex::new(Vec::new()),
             max_size: 100, // Limite par défaut à 100 connexions
             current_size: std::sync::Arc::new(std::sync::atomic::AtomicUsize::new(0)),
+            is_healthy: std::sync::Arc::new(std::sync::atomic::AtomicBool::new(true)),
         }
+    }
+
+    /// Vérifie la santé du backend en tentant une connexion rapide.
+    pub async fn check_health(&self) -> bool {
+        let is_unix = self.addr.starts_with('/') || self.addr.starts_with("./") || self.addr.contains(".sock") || self.addr.starts_with("unix:");
+        
+        let result = if is_unix {
+            #[cfg(unix)]
+            {
+                let clean_addr = self.addr.strip_prefix("unix:").unwrap_or(&self.addr);
+                UnixStream::connect(clean_addr).await.is_ok()
+            }
+            #[cfg(not(unix))]
+            false
+        } else {
+            // Tentative de connexion TCP rapide
+            tokio::time::timeout(
+                std::time::Duration::from_millis(500),
+                tokio::net::TcpStream::connect(&self.addr)
+            ).await.is_ok()
+        };
+
+        self.is_healthy.store(result, std::sync::atomic::Ordering::SeqCst);
+        result
     }
 
     pub async fn acquire(&self) -> crate::core::Result<FpmClient> {
@@ -238,7 +282,9 @@ pub async fn serve(
         if fpm_addr_main.is_none() {
             fpm_addr_main = Some(addresses[0].clone());
         }
-        Some(Arc::new(FpmLoadBalancer::new(addresses, strategy)))
+        let lb = Arc::new(FpmLoadBalancer::new(addresses, strategy));
+        lb.clone().start_health_checks();
+        Some(lb)
     } else {
         None
     };
