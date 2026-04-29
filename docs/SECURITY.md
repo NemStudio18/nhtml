@@ -16,3 +16,23 @@ We have chosen to retain the `mysql` and `postgres` features in `sqlx` to ensure
 **Mitigation & Real-world Risk:**
 The practical risk is extremely low in typical deployments. The attack requires the attacker to be in a Man-in-the-Middle (MITM) position between the NHTML gateway and the MySQL database server and to perform a massive number of precise timing measurements during the authentication handshake.
 *   **Recommendation:** Always host your database securely. Ensure the connection between the NHTML gateway and the MySQL database is over a secure, trusted local network (e.g., within the same VPC or on the same host) or explicitly secured via TLS. Do not expose the raw database port to untrusted networks.
+
+---
+
+## Vulnérabilités Connues (FR)
+
+### Attaque Marvin (RSA) (RUSTSEC-2023-0071)
+**Dépendance:** `rsa` (transitive via `sqlx-mysql`)
+**Sévérité:** Moyenne (Canal auxiliaire temporel)
+
+**Description :**
+La crate `rsa`, incluse en tant que dépendance transitive par `sqlx-mysql` pour le plugin d'authentification `caching_sha2_password`, est vulnérable à l'attaque Marvin. Il s'agit d'une attaque par canal auxiliaire temporel (timing side-channel) qui pourrait théoriquement permettre la récupération de clé.
+
+**Pourquoi elle n'est pas corrigée dans NHTML :**
+Actuellement, il n'existe pas de version corrigée de la crate `rsa` dans la série `0.9.x` compatible avec les dépendances de `sqlx` 0.8.
+Nous avons choisi de conserver les fonctionnalités `mysql` et `postgres` dans `sqlx` pour garantir que NHTML puisse être déployé dans des environnements de production utilisant ces bases de données pour la gestion des sessions. Supprimer ces fonctionnalités limiterait sévèrement les capacités du framework.
+
+**Atténuation et Risque réel :**
+Le risque pratique est extrêmement faible dans des déploiements typiques. L'attaque nécessite que l'attaquant soit dans une position d'homme du milieu (MITM) entre la passerelle NHTML et le serveur de base de données MySQL, et effectue un nombre massif de mesures temporelles précises pendant l'échange d'authentification.
+*   **Recommandation :** Hébergez toujours votre base de données de manière sécurisée. Assurez-vous que la connexion entre la passerelle NHTML et la base de données MySQL s'effectue sur un réseau local sécurisé et de confiance (par exemple, au sein du même VPC ou sur le même hôte) ou est explicitement sécurisée via TLS. N'exposez pas le port brut de la base de données à des réseaux non fiables.
+

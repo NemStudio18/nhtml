@@ -312,6 +312,19 @@ pub async fn serve(
         compile_cache: Mutex::new(HashMap::new()),
     });
 
+    // Session TTL Cleanup Loop (background)
+    let sm_cleanup = sm.clone();
+    tokio::spawn(async move {
+        loop {
+            tokio::time::sleep(tokio::time::Duration::from_secs(3600)).await; // Every hour
+            match sm_cleanup.cleanup_expired_sessions(86400).await { // 24 hours TTL
+                Ok(count) if count > 0 => info!("🧹 Nettoyage TTL: {} sessions expirées supprimées.", count),
+                Err(e) => error!("❌ Erreur lors du nettoyage TTL des sessions: {}", e),
+                _ => {}
+            }
+        }
+    });
+
     let app = Router::new()
         .route("/ws", get(handle_ws_route))
         .route("/", get(handle_http_root))
