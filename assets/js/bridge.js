@@ -9,6 +9,10 @@ window.nhtml_transport_mode = "INIT";
 let httpFallbackUrl = "";
 let reconnectAttempts = 0;
 const MAX_BACKOFF = 30000;
+const bridgeScript = document.currentScript || Array.from(document.scripts).find(s => s.src.includes('bridge.js'));
+const bridgeUrl = bridgeScript ? new URL(bridgeScript.src, window.location.href) : null;
+const bridgeDir = bridgeUrl ? bridgeUrl.pathname.replace(/\/[^\/]*$/, '/') : '/assets/js/';
+const projectRoot = bridgeDir.replace(/assets\/js\/$/, '');
 
 window.nhtml_stats = { pkts: 0, size: 0 };
 window.nhtml_node_map = {};
@@ -689,7 +693,7 @@ async function switchToWasm() {
 
     try {
         if (!window.PhpWeb) {
-            const module = await import('/assets/js/php-wasm/PhpWeb.mjs');
+            const module = await import(bridgeDir + 'php-wasm/PhpWeb.mjs');
             window.PhpWeb = module.PhpWeb;
         }
         
@@ -724,7 +728,7 @@ async function switchToWasm() {
             php.FS.writeFile('/app.php', code);
         }
 
-        const sdkFiles = ['../../sdk/php/src/Nhtml.php', '../../sdk/php/src/Protocol.php'];
+        const sdkFiles = [projectRoot + 'sdk/php/src/Nhtml.php', projectRoot + 'sdk/php/src/Protocol.php'];
         for (const f of sdkFiles) {
             const res = await fetch(basePath + f + cacheBust);
             if (res.ok) {
