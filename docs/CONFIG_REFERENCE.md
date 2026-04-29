@@ -1,4 +1,4 @@
-# ⚙️ NHTML Configuration Reference (v0.6.0)
+# ⚙️ NHTML Configuration Reference (v0.7.1)
 
 This document describes all available options in `nhtml.config.toml`.
 
@@ -29,6 +29,9 @@ Security and traffic control settings.
 
 ### `[security.rate_limit]`
 *   **`events_per_sec`** (u32): Maximum events allowed per IP per second (Default: `10`).
+
+### `[security.cors]`
+*   **`allowed_origins`** (array of strings): List of domains allowed to connect to the Gateway. (Default: `*` in dev, strict in prod).
 
 ---
 

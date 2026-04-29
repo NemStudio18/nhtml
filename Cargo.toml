@@ -1,6 +1,6 @@
 [package]
 name = "nhtml-gateway"
-version = "0.7.0"
+version = "0.7.1"
 edition = "2021"
 license = "MIT OR AGPL-3.0-only OR LicenseRef-Commercial"
 [lib]
@@ -44,3 +44,4 @@ fastcgi-client = { version = "0.11", features = ["runtime-tokio"] }
 redis = { version = "1.2", features = ["tokio-comp"] }
 metrics = "0.22"
 metrics-exporter-prometheus = "0.12"
+html-escape = "0.2"

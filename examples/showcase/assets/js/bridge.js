@@ -19,6 +19,8 @@ window.nhtml_seq_id = 0;
 window.nhtml_session_secret = null;
 window.nhtml_crypto_key = null;
 window.nhtml_last_ping = 0;
+window.nhtml_message_queue = [];
+window.nhtml_processing = false;
 
 async function initNhtml(wsUrl, httpUrl = "") {
     if (window.location.search.includes('wasm=1')) {
@@ -313,8 +315,43 @@ function nhtml_init_local_actions(nodeId, binding) {
 }
 
 function processMessage(msg) {
+    window.nhtml_message_queue.push(msg);
+    processQueue();
+}
+
+async function processQueue() {
+    if (window.nhtml_processing || window.nhtml_message_queue.length === 0) return;
+    window.nhtml_processing = true;
+    while (window.nhtml_message_queue.length > 0) {
+        const msg = window.nhtml_message_queue.shift();
+        await processMessageInternal(msg);
+    }
+    window.nhtml_processing = false;
+}
+
+async function processMessageInternal(msg) {
     try {
-        const chunk = new Uint8Array(msg);
+        let chunk = new Uint8Array(msg);
+        
+        // 🛡️ Vérification HMAC-SHA256 (v0.7.1 Security)
+        // Tous les paquets Gateway -> Client sont signés si la clé est prête
+        if (window.nhtml_crypto_key && chunk.length > 32) {
+            const dataToVerify = chunk.slice(0, chunk.length - 32);
+            const signature = chunk.slice(chunk.length - 32);
+            
+            const isValid = await crypto.subtle.verify(
+                "HMAC", window.nhtml_crypto_key,
+                signature, dataToVerify
+            );
+            
+            if (!isValid) {
+                console.error("🚨 [SECURITY] Rejet d'un paquet Gateway malveillant ou corrompu ! Signature invalide.");
+                return;
+            }
+            // On continue avec les données authentifiées uniquement
+            chunk = dataToVerify;
+        }
+
         const view = new DataView(chunk.buffer, chunk.byteOffset, chunk.byteLength);
         const type = chunk[0];
 

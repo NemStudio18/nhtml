@@ -137,16 +137,16 @@ impl NodeSpec {
         let needs_nid = self.n_attrs.n_id.is_some() || self.n_attrs.primary_handler().is_some() || self.n_attrs.n_model.is_some();
         if needs_nid {
             let nid = self.n_attrs.n_id.clone().unwrap_or_else(|| format!("_gen_{}", self.id));
-            html.push_str(&format!(" n-id=\"{}\"", nid));
+            html.push_str(&format!(" n-id=\"{}\"", html_escape::encode_double_quoted_attribute(&nid)));
         }
 
         for (k, v) in &self.attrs {
-            html.push_str(&format!(" {}=\"{}\"", k, v));
+            html.push_str(&format!(" {}=\"{}\"", k, html_escape::encode_double_quoted_attribute(v)));
         }
         html.push('>');
 
         if !self.text.is_empty() {
-            html.push_str(&self.text);
+            html.push_str(&html_escape::encode_safe(&self.text));
         }
 
         for child in &self.children {
@@ -163,6 +163,7 @@ impl NodeSpec {
 pub type NidMap = HashMap<String, u16>;
 
 /// Résultat de la compilation d'un .nhtml
+#[derive(Clone)]
 pub struct CompileResult {
     pub root         : NodeSpec,
     #[allow(dead_code)]

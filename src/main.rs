@@ -5,7 +5,7 @@ use nhtml_gateway::{MonitoringEvent, cli, supervisor, socket, session, watcher, 
 
 #[derive(Parser)]
 #[command(name = "nhtml-gateway")]
-#[command(about = "NHTML Gateway - NBPS v0.7.0", long_about = None)]
+#[command(about = "NHTML Gateway - NBPS v0.7.1", long_about = None)]
 struct Cli {
     #[command(subcommand)]
     command: Commands,
@@ -109,22 +109,23 @@ async fn main() {
     }
 
     // Channels globaux
-    let (tx_monitor, _) = broadcast::channel::<MonitoringEvent>(100);
-    let (tx_app_broadcast, _) = broadcast::channel::<std::sync::Arc<Vec<u8>>>(1024);
-    let (tx_reload, _) = broadcast::channel::<()>(10);
+    let (tx_monitor, _) = broadcast::channel::<MonitoringEvent>(10000);
+    let (tx_app_broadcast, _) = broadcast::channel::<std::sync::Arc<Vec<u8>>>(5000);
+    let (tx_reload, _) = broadcast::channel::<()>(100);
 
     // Initialisation des métriques Prometheus (v0.7.0)
-    let _ = metrics_exporter_prometheus::PrometheusBuilder::new()
-        .install()
-        .expect("failed to install Prometheus recorder");
-    info!("📊 Metrics: Exportateur Prometheus prêt sur le port standard des métriques.");
+    if let Err(e) = metrics_exporter_prometheus::PrometheusBuilder::new().install() {
+        error!("❌ Impossible d'installer le recorder Prometheus : {}", e);
+    } else {
+        info!("📊 Metrics: Exportateur Prometheus prêt sur le port standard des métriques.");
+    }
 
     match cli.command {
         Commands::New { name } => {
             cli::create_new_project(&name);
         }
         Commands::Start { dev, port, path, entry, php, fpm, db_uri, json: _ } => {
-            println!("🛰️ NHTML Gateway v0.7.0");
+            println!("🛰️ NHTML Gateway v{}", env!("CARGO_PKG_VERSION"));
             println!("📂 Projet : {}", path);
             println!("🌐 Port   : {}", port);
             

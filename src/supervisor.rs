@@ -33,10 +33,12 @@ pub async fn start_php_server(
         abs_str
     };
 
+    let router_path = std::fs::canonicalize("router.php").unwrap_or_else(|_| std::path::PathBuf::from("router.php"));
+    
     let mut child = match Command::new(&php_bin)
         .arg("-S")
         .arg(format!("127.0.0.1:{}", port))
-        .arg("router.php")
+        .arg(router_path)
         .current_dir(clean_abs_path)
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())

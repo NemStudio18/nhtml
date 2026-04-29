@@ -689,7 +689,7 @@ async function switchToWasm() {
 
     try {
         if (!window.PhpWeb) {
-            const module = await import('./php-wasm/PhpWeb.mjs');
+            const module = await import('/assets/js/php-wasm/PhpWeb.mjs');
             window.PhpWeb = module.PhpWeb;
         }
         
@@ -851,7 +851,7 @@ async function sendEvent(id_num, handler, formData) {
         new DataView(signData.buffer).setUint32(5, currentSeq);
         signData.set(buf.slice(payloadOffset), 9);
         
-        const signature = await crypto.subtle.sign("HMAC", window.nhtml_crypto_key, signData);
+        const signature = await crypto.subtle.sign({ name: "HMAC" }, window.nhtml_crypto_key, signData);
         buf.set(new Uint8Array(signature), 9);
     }
 

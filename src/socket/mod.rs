@@ -8,6 +8,7 @@ use tokio::net::TcpStream;
 use tokio::net::UnixStream;
 #[cfg(unix)]
 use tokio_util::either::Either;
+use futures_util::stream::SplitSink;
 use futures_util::{SinkExt, StreamExt};
 use tracing::{info, warn, error};
 use axum::extract::ws::{Message as WsMessage, WebSocket, WebSocketUpgrade};
@@ -22,7 +23,7 @@ use std::collections::{HashMap, HashSet};
 use std::time::Instant;
 
 use crate::compiler::{NhtmlCompiler, CompileResult};
-use crate::compiler::handler_table::{HandlerTable, build_from_tree};
+use crate::compiler::handler_table::HandlerTable;
 use crate::proto;
 use crate::core::SessionState;
 use crate::session::SessionManager;
@@ -32,6 +33,14 @@ use tokio::sync::Mutex;
 use fastcgi_client::conn::KeepAlive;
 
 type HmacSha256 = Hmac<Sha256>;
+
+fn hash_sid(sid: &str) -> String {
+    use std::collections::hash_map::DefaultHasher;
+    use std::hash::{Hasher, Hash};
+    let mut hasher = DefaultHasher::new();
+    sid.hash(&mut hasher);
+    format!("{:x}", hasher.finish())[0..8].to_string()
+}
 #[cfg(unix)]
 type FpmStream = Either<TcpStream, UnixStream>;
 #[cfg(not(unix))]
@@ -123,20 +132,23 @@ pub fn verify_hmac(secret: &[u8], data: &[u8], signature: &[u8]) -> bool {
 pub struct Session {
     pub state: SessionState,
     pub php_script: String,
-    pub handler_table: HandlerTable,
+    pub handler_table: Arc<HandlerTable>,
+    pub table_json: Arc<String>,
     pub sm: Arc<SessionManager>,
     pub fpm_addr: Option<String>,
 }
 
 impl Session {
-    fn new(id: String, result: &CompileResult, php_script: String, sm: Arc<SessionManager>, fpm_addr: Option<String>) -> Self {
-        let handler_table = build_from_tree(&result.root);
-        Self { 
-            state: SessionState::new(id), 
-            php_script, 
-            handler_table,
+    pub fn new(session_id: String, result: &CompileResult, php_script: String, sm: Arc<SessionManager>, fpm_addr: Option<String>) -> Self {
+        let table = Arc::new(crate::compiler::handler_table::build_from_tree(&result.root));
+        let table_json = Arc::new(table.to_json());
+        Self {
+            state: SessionState::new(session_id),
+            php_script,
+            handler_table: table,
+            table_json,
             sm,
-            fpm_addr
+            fpm_addr,
         }
     }
 }
@@ -175,6 +187,7 @@ pub async fn serve(
         tx_app_broadcast,
         tx_reload,
         rate_limiter,
+        compile_cache: Mutex::new(HashMap::new()),
     });
 
     let app = Router::new()
@@ -262,6 +275,7 @@ struct GatewayState {
     tx_app_broadcast: tokio::sync::broadcast::Sender<Arc<Vec<u8>>>,
     tx_reload: tokio::sync::broadcast::Sender<()>,
     rate_limiter: Option<Arc<RateLimiter>>,
+    pub compile_cache: Mutex<HashMap<String, (std::time::SystemTime, Arc<CompileResult>)>>,
 }
 
 /// Simple Rate Limiter Token Bucket
@@ -282,13 +296,17 @@ impl RateLimiter {
         let mut ips = self.ips.lock().await;
         let now = std::time::Instant::now();
         
-        // Anti-leak: Nettoyage agressif si la table devient trop large
-        if ips.len() > 1000 {
+        // Anti-leak: Nettoyage agressif basé sur le temps
+        // On nettoie si la table dépasse 500 entrées OU si la dernière purge remonte à plus de 60s
+        let needs_cleaning = ips.len() > 500;
+        
+        if needs_cleaning {
             ips.retain(|_, (last, _)| now.duration_since(*last).as_secs() < 60);
         }
 
         let entry = ips.entry(ip).or_insert((now, 0));
         
+        // Reset du compteur si plus d'une seconde s'est écoulée
         if now.duration_since(entry.0).as_secs() >= 1 {
             entry.0 = now;
             entry.1 = 1;
@@ -305,25 +323,28 @@ impl RateLimiter {
 }
 
 async fn handle_http_root(
+    headers: header::HeaderMap,
     Query(params): Query<HashMap<String, String>>,
     State(state): State<Arc<GatewayState>>,
     axum::extract::ConnectInfo(addr): axum::extract::ConnectInfo<std::net::SocketAddr>,
     ws: Option<WebSocketUpgrade>,
 ) -> Response {
-    handle_http_inner("".to_string(), params, state, addr.ip().to_string(), ws).await
+    handle_http_inner(headers, "".to_string(), params, state, addr.ip().to_string(), ws).await
 }
 
 async fn handle_http(
+    headers: header::HeaderMap,
     AxPath(path): AxPath<String>,
     Query(params): Query<HashMap<String, String>>,
     State(state): State<Arc<GatewayState>>,
     axum::extract::ConnectInfo(addr): axum::extract::ConnectInfo<std::net::SocketAddr>,
     ws: Option<WebSocketUpgrade>,
 ) -> Response {
-    handle_http_inner(path, params, state, addr.ip().to_string(), ws).await
+    handle_http_inner(headers, path, params, state, addr.ip().to_string(), ws).await
 }
 
 async fn handle_http_inner(
+    headers: header::HeaderMap,
     path: String,
     params: HashMap<String, String>,
     state: Arc<GatewayState>,
@@ -332,6 +353,18 @@ async fn handle_http_inner(
 ) -> Response {
     // 1. Si c'est une requête WebSocket, on upgrade
     if let Some(ws) = ws {
+        // 🛡️ Protection CORS/Origin (Point 9 de l'audit)
+        if let Some(origin) = headers.get(header::ORIGIN) {
+            let origin_str = origin.to_str().unwrap_or("");
+            let host = headers.get(header::HOST).and_then(|h| h.to_str().ok()).unwrap_or("");
+            
+            // On autorise si l'origine correspond au host ou si c'est local
+            if !origin_str.is_empty() && !origin_str.contains(host) && !origin_str.contains("localhost") && !origin_str.contains("127.0.0.1") {
+                warn!("[SECURITY] Rejet d'une tentative de WebSocket Cross-Origin ! Origin: {} Host: {}", origin_str, host);
+                return (StatusCode::FORBIDDEN, "Accès Cross-Origin non autorisé").into_response();
+            }
+        }
+
         let sid = params.get("sid").cloned().unwrap_or_else(|| "AUTO".to_string());
         let path_param = params.get("path").cloned().unwrap_or_else(|| path.clone());
         let state_clone = state.clone();
@@ -340,36 +373,41 @@ async fn handle_http_inner(
     }
 
     // 2. Résolution sécurisée du chemin (Anti-Path Traversal)
-    let safe_path = path.replace("..", "");
     let mut full_path = std::path::PathBuf::from(&state.root);
-    full_path.push(safe_path.trim_start_matches('/'));
-
-    let path_obj = full_path.as_path();
+    full_path.push(path.trim_start_matches('/'));
 
     // Si c'est un dossier, on cherche index.nhtml
-    let mut final_path = full_path.clone();
-    if path_obj.is_dir() {
-        let index = if final_path.to_string_lossy().ends_with('/') { "index.nhtml" } else { "index.nhtml" }; // PathBuf::push handles separators
-        final_path.push(index);
+    if full_path.is_dir() {
+        full_path.push("index.nhtml");
     }
-    
-    let final_path_obj = final_path.as_path();
-    info!("[HTTP] Request: {} -> Resolved: {}", path, final_path.display());
 
-    if !final_path_obj.exists() {
-        warn!("[HTTP] 404 - Not Found: {}", final_path.display());
-        return (StatusCode::NOT_FOUND, format!("Fichier non trouvé: {}", path)).into_response();
+    // Canonicalisation pour éviter les ".." et symlinks malveillants
+    let final_path_obj = match std::fs::canonicalize(&full_path) {
+        Ok(p) => p,
+        Err(_) => {
+            warn!("[HTTP] 404 - Not Found: {}", full_path.display());
+            return (StatusCode::NOT_FOUND, "Fichier non trouvé").into_response();
+        }
+    };
+    
+    let root_canonical = std::fs::canonicalize(&state.root).unwrap_or_else(|_| std::path::PathBuf::from(&state.root));
+    
+    if !final_path_obj.starts_with(&root_canonical) {
+        warn!("[SECURITY] Tentative de Path Traversal détectée ! IP: {} Path: {}", ip, path);
+        return (StatusCode::FORBIDDEN, "Accès interdit").into_response();
     }
+
+    info!("[HTTP] Request: {} -> Resolved: {}", path, final_path_obj.display());
 
     let content = match std::fs::read(&final_path_obj) {
         Ok(c) => c,
         Err(_) => { return (StatusCode::INTERNAL_SERVER_ERROR, "Erreur de lecture").into_response(); }
     };
 
-    let mime_str = if final_path.ends_with(".nhtml") {
+    let mime_str = if final_path_obj.to_string_lossy().ends_with(".nhtml") {
         "text/html; charset=utf-8".to_string()
     } else {
-        let mime = mime_guess::from_path(final_path_obj).first_or_octet_stream();
+        let mime = mime_guess::from_path(&final_path_obj).first_or_octet_stream();
         let mut m = mime.to_string();
         if m.contains("text/") || m.contains("javascript") {
             if !m.contains("charset") {
@@ -379,7 +417,7 @@ async fn handle_http_inner(
         m
     };
 
-    if final_path.ends_with(".nhtml") {
+    if final_path_obj.to_string_lossy().ends_with(".nhtml") {
         let mut html = if let Ok(source) = std::fs::read_to_string(&final_path_obj) {
             let result = crate::compiler::NhtmlCompiler::compile(&source);
             result.html
@@ -453,16 +491,44 @@ async fn handle_connection_axum(
 
     info!("[WS] Handshake Resolution: {} -> {}", nhtml_rel_path, nhtml_abs_path);
 
-    let source = match std::fs::read_to_string(&nhtml_abs_path) {
-        Ok(s) => s,
-        Err(e) => {
-            error!("Impossible de lire {} : {}", nhtml_abs_path, e);
-            return;
+    // ─── Compilation & Cache ─────────────────────────────────────────────
+    let cached_res = {
+        let mut cache = state.compile_cache.lock().await;
+        let mtime = std::fs::metadata(&nhtml_abs_path)
+            .and_then(|m| m.modified())
+            .unwrap_or(std::time::SystemTime::now());
+
+        if let Some((cached_time, res)) = cache.get(&nhtml_abs_path) {
+            if *cached_time == mtime {
+                res.clone()
+            } else {
+                let source = match std::fs::read_to_string(&nhtml_abs_path) {
+                    Ok(s) => s,
+                    Err(e) => {
+                        error!("Impossible de lire {} : {}", nhtml_abs_path, e);
+                        return;
+                    }
+                };
+                let res = Arc::new(NhtmlCompiler::compile(&source));
+                cache.insert(nhtml_abs_path.clone(), (mtime, res.clone()));
+                res
+            }
+        } else {
+            let source = match std::fs::read_to_string(&nhtml_abs_path) {
+                Ok(s) => s,
+                Err(e) => {
+                    error!("Impossible de lire {} : {}", nhtml_abs_path, e);
+                    return;
+                }
+            };
+            let res = Arc::new(NhtmlCompiler::compile(&source));
+            cache.insert(nhtml_abs_path.clone(), (mtime, res.clone()));
+            res
         }
     };
-
-    // Compilation à la volée
-    let mut result = NhtmlCompiler::compile(&source);
+    
+    // On clone pour pouvoir modifier les états (restauration SQLite) sans toucher au cache
+    let mut result = (*cached_res).clone();
 
     // ─── Restauration de session (SID) ───────────────────────────────────
     let session_id = if requested_sid == "AUTO" || requested_sid.is_empty() {
@@ -471,10 +537,10 @@ async fn handle_connection_axum(
         requested_sid
     };
 
-    let secret = match sm.register_session(session_id.clone(), requested_path.clone()).await {
+    let session_secret = match sm.register_session(session_id.clone(), requested_path.clone()).await {
         Ok(s) => s,
         Err(e) => {
-            error!("[{}] Impossible d'enregistrer la session en DB : {}", session_id, e);
+            error!("[{}] Impossible d'enregistrer la session en DB : {}", hash_sid(&session_id), e);
             return;
         }
     };
@@ -487,7 +553,7 @@ async fn handle_connection_axum(
     }
     if let Ok(db_nodes) = sm.get_all_nodes(session_id.clone()).await {
         if !db_nodes.is_empty() {
-            info!("[{}] Restauration de {} nœuds depuis SQLite", session_id, db_nodes.len());
+            info!("[{}] Restauration de {} nœuds depuis SQLite", hash_sid(&session_id), db_nodes.len());
             for (db_id, db_ver, db_tag, db_val, is_append) in db_nodes {
                 if is_append {
                     // Si c'est un append, on ne l'inclut PAS dans le B-TREE
@@ -521,20 +587,20 @@ async fn handle_connection_axum(
     // ── Séquence d'initialisation ──────────────────────────────────────────
 
     // 1. HELLO
-    let hello = proto::hello(&session_id, &secret, last_seq);
+    let hello = proto::hello(&session_id, &session_secret, last_seq);
     ws_sender.send(WsMessage::Binary(hello)).await.ok();
 
     // 2. B-TREE
     let (btree_pkt, comp_ratio) = proto::wrap_btree(&result.btree_bytes);
     ws_sender.send(WsMessage::Binary(btree_pkt.clone())).await.ok();
-    info!("[{}] B-TREE envoyé ({} bytes, ratio={:.2})", session_id, result.btree_bytes.len(), comp_ratio);
+    info!("[{}] B-TREE envoyé ({} bytes, ratio={:.2})", hash_sid(&session_id), result.btree_bytes.len(), comp_ratio);
 
     monitor_pkt(&state.tx_monitor, "OUT", proto::PKT_BTREE, btree_pkt.len(), &session_id, Some("BTREE".to_string()), Some("Full DOM Initial State".to_string()), None).await;
 
     // 2.5 Patches d'append restaurés
     if !append_patches.is_empty() {
         ws_sender.send(WsMessage::Binary(proto::patch(&append_patches))).await.ok();
-        info!("[{}] {} patches d'append restaurés envoyés", session_id, append_patches.len());
+        info!("[{}] {} patches d'append restaurés envoyés", hash_sid(&session_id), append_patches.len());
     }
 
     // ─── Hydratation initiale (Appel PHP Init) ───────────────────────────
@@ -546,6 +612,7 @@ async fn handle_connection_axum(
     let init_res = call_php(
         &session.php_script,
         &session.handler_table,
+        &session.table_json,
         0, 0, "init", &[], 
         &session_id, 0,
         sm.clone(),
@@ -555,7 +622,7 @@ async fn handle_connection_axum(
     let (init_patches, _, init_join, init_leave) = match init_res {
         Ok(p) => p,
         Err(e) => {
-            error!("[{}] PHP Init Error: {}", session_id, e);
+            error!("[{}] PHP Init Error: {}", hash_sid(&session_id), e);
             (Vec::new(), None, Vec::new(), Vec::new())
         }
     };
@@ -599,15 +666,15 @@ async fn handle_connection_axum(
             }
             final_patches.push(op);
         }
-        info!("[{}] Envoi de {} patches d'hydratation initiale", session_id, final_patches.len());
-        ws_sender.send(WsMessage::Binary(proto::patch(&final_patches))).await.ok();
+        info!("[{}] Envoi de {} patches d'hydratation initiale", hash_sid(&session_id), final_patches.len());
+        send_signed_binary(&mut ws_sender, proto::patch(&final_patches), &session_secret).await.ok();
     }
 
     // 3. BIND × N
     for bind_pkt in &result.bind_packets {
-        ws_sender.send(WsMessage::Binary(bind_pkt.clone())).await.ok();
+        send_signed_binary(&mut ws_sender, bind_pkt.clone(), &session_secret).await.ok();
     }
-    info!("[{}] {} paquets BIND envoyés", session_id, result.bind_packets.len());
+    info!("[{}] {} paquets BIND envoyés", hash_sid(&session_id), result.bind_packets.len());
 
     // ── Boucle de messages ─────────────────────────────────────────────────
     let mut app_rx = state.tx_app_broadcast.subscribe();
@@ -616,9 +683,9 @@ async fn handle_connection_axum(
         tokio::select! {
             // ─── Hot Reload ───
             Ok(_) = reload_rx.recv() => {
-                info!("[{}] Envoi du signal de Hot Reload...", session_id);
+                info!("[{}] Envoi du signal de Hot Reload...", hash_sid(&session_id));
                 let reload_pkt = crate::proto::log_msg(0x11, "RELOAD");
-                let _ = ws_sender.send(WsMessage::Binary(reload_pkt)).await;
+                let _ = send_signed_binary(&mut ws_sender, reload_pkt, &session_secret).await;
             }
             // ─── Écouteur de Broadcast Applicatif (Multi-utilisateur) ───────
             Ok(msg_arc) = app_rx.recv() => {
@@ -660,7 +727,7 @@ async fn handle_connection_axum(
                             };
                             
                             if should_send && !final_pkt.is_empty() {
-                                let _ = ws_sender.send(WsMessage::Binary(final_pkt)).await;
+                                let _ = send_signed_binary(&mut ws_sender, final_pkt, &session_secret).await;
                             }
                         }
                     }
@@ -670,7 +737,7 @@ async fn handle_connection_axum(
                 let msg = match msg_opt {
                     Some(m) => m,
                     None => {
-                        info!("[{}] Connexion terminée", session_id);
+                        info!("[{}] Connexion terminée", hash_sid(&session_id));
                         metrics::gauge!("nhtml_active_clients").decrement(1.0);
                         break;
                     }
@@ -687,7 +754,7 @@ async fn handle_connection_axum(
                             // RATE LIMIT CHECK
                             if let Some(rl) = &state.rate_limiter {
                                 if !rl.check(ip.clone()).await {
-                                    warn!("[{}] Rate Limit dépassé pour IP: {}", session_id, ip);
+                                    warn!("[{}] Rate Limit dépassé pour IP: {}", hash_sid(&session_id), ip);
                                     continue;
                                 }
                             }
@@ -703,7 +770,7 @@ async fn handle_connection_axum(
                                 ws_sender.send(WsMessage::Binary(patch_pkt)).await.ok();
                             }
                         } else if type_byte == 0x01 { // HELLO (Client → Server)
-                            info!("[{}] HELLO reçu du client", session_id);
+                            info!("[{}] HELLO reçu du client", hash_sid(&session_id));
                             monitor_pkt(&state.tx_monitor, "IN", 0x01, data.len(), &session_id, None, Some("Session Handshake".to_string()), None).await;
                         } 
                         
@@ -743,7 +810,7 @@ async fn handle_connection_axum(
                                     0x0D   // FOCUS
                                     => true,
                                     _ => {
-                                        warn!("[{}] PUSH_PATCH rejeté : Opcode non autorisé ({:#02x})", session_id, op_type);
+                                        warn!("[{}] PUSH_PATCH rejeté : Opcode non autorisé ({:#02x})", hash_sid(&session_id), op_type);
                                         false
                                     }
                                 };
@@ -759,7 +826,7 @@ async fn handle_connection_axum(
                             }
 
                             if !validated_ops.is_empty() {
-                                info!("[{}] PUSH_PATCH : {} opérations validées", session_id, validated_ops.len());
+                                info!("[{}] PUSH_PATCH : {} opérations validées", hash_sid(&session_id), validated_ops.len());
                                 
                                 // 3. Persister en SQLite
                                 for op in &validated_ops {
@@ -777,10 +844,10 @@ async fn handle_connection_axum(
                                 
                                 let mut msg = Vec::new();
                                 msg.push(proto::SCOPE_OTHERS);
-                                msg.push(state.gateway_id.len() as u8);
-                                msg.extend_from_slice(state.gateway_id.as_bytes());
-                                msg.push(session_id.len() as u8);
-                                msg.extend_from_slice(session_id.as_bytes());
+                                msg.push(state.gateway_id.len().min(255) as u8);
+                                msg.extend_from_slice(&state.gateway_id.as_bytes()[..state.gateway_id.len().min(255)]);
+                                msg.push(session_id.len().min(255) as u8);
+                                msg.extend_from_slice(&session_id.as_bytes()[..session_id.len().min(255)]);
                                 msg.extend_from_slice(&broadcast_pkt);
                                 
                                 let _ = state.tx_app_broadcast.send(std::sync::Arc::new(msg));
@@ -794,15 +861,15 @@ async fn handle_connection_axum(
                             monitor_pkt(&state.tx_monitor, "IN", 0x09, data.len(), &session_id, None, Some("Keep-alive".to_string()), None).await;
                         }
                         else {
-                            warn!("[{}] Paquet inattendu type=0x{:02X}", session_id, type_byte);
+                            warn!("[{}] Paquet inattendu type=0x{:02X}", hash_sid(&session_id), type_byte);
                         }
                     }
                     Ok(WsMessage::Close(_)) => {
-                        info!("[{}] Connexion fermée proprement", session_id);
+                        info!("[{}] Connexion fermée proprement", hash_sid(&session_id));
                         break;
                     }
                     Err(e) => {
-                        error!("[{}] Erreur WebSocket: {}", session_id, e);
+                        error!("[{}] Erreur WebSocket: {}", hash_sid(&session_id), e);
                         break;
                     }
                     _ => {}
@@ -833,39 +900,49 @@ async fn handle_event(
             (seq_id, signature, node_id, handler, payload)
         }
         _ => {
-            warn!("[{}] Paquet EVENT invalide ou mal formé", session.state.session_id);
+            warn!("[{}] Paquet EVENT invalide ou mal formé", hash_sid(&session.state.session_id));
             return result;
         }
     };
 
     // 2. Vérification de la Séquence (Anti-Replay)
     if let Ok(Some((secret, last_seq))) = session.sm.get_session_security(session.state.session_id.clone()).await {
+        // A. Vérification rapide
         if seq_id <= last_seq {
-            warn!("[{}] REJET: Attaque par rejeu détectée (SeqID {} <= {})", session.state.session_id, seq_id, last_seq);
+            warn!("[{}] REJET: Attaque par rejeu détectée (SeqID {} <= {})", hash_sid(&session.state.session_id), seq_id, last_seq);
             return result;
         }
 
         // 3. Vérification HMAC (Authenticité)
-        // Le paquet doit faire au moins 41 octets (Type:1 + Len:4 + Seq:4 + Sig:32)
         if data.len() < 41 {
-            error!("[{}] REJET: Paquet EVENT trop court ({})", session.state.session_id, data.len());
+            error!("[{}] REJET: Paquet EVENT trop court ({})", hash_sid(&session.state.session_id), data.len());
             return result;
         }
 
-        let mut sign_data = Vec::new();
+        let mut sign_data = Vec::with_capacity(5 + 4 + (data.len() - 41));
         sign_data.push(0x02); // Type
         let total_len = u32::from_be_bytes([data[1], data[2], data[3], data[4]]);
         sign_data.extend_from_slice(&total_len.to_be_bytes());
         sign_data.extend_from_slice(&seq_id.to_be_bytes());
-        
-        // On ajoute tout le payload APRES la signature (offset 41)
         sign_data.extend_from_slice(&data[41..]);
 
         if !verify_hmac(&secret, &sign_data, &signature) {
-            error!("[{}] REJET: Signature HMAC invalide ! Payload détourné ?", session.state.session_id);
+            error!("[{}] REJET: Signature HMAC invalide ! Payload détourné ?", hash_sid(&session.state.session_id));
             return result;
         }
-        let _ = session.sm.update_seq_id(session.state.session_id.clone(), seq_id).await;
+
+        // B. Mise à jour atomique (Point 4 de l'audit - Anti Race Condition)
+        match session.sm.update_seq_id(session.state.session_id.clone(), seq_id).await {
+            Ok(true) => { /* OK */ },
+            Ok(false) => {
+                warn!("[{}] REJET: Race condition évitée sur SeqID {} (déjà traité)", hash_sid(&session.state.session_id), seq_id);
+                return result;
+            },
+            Err(e) => {
+                error!("[{}] Erreur DB update SeqID: {}", hash_sid(&session.state.session_id), e);
+                return result;
+            }
+        }
     }
 
     let handler = if !handler_name.is_empty() {
@@ -878,7 +955,7 @@ async fn handle_event(
 
     let payload = payload_str.as_bytes();
     info!("[{}] EVENT validé (Seq:{}) node={} handler='{}'", 
-        session.state.session_id, seq_id, node_id, handler);
+        hash_sid(&session.state.session_id), seq_id, node_id, handler);
 
     monitor_pkt(&state.tx_monitor, "IN", proto::PKT_EVENT, data.len(), &session.state.session_id, Some(handler.clone()), Some(format!("Payload: {} bytes", payload.len())), None).await;
 
@@ -900,6 +977,7 @@ async fn handle_event(
     let php_res = call_php(
         &session.php_script,
         &session.handler_table,
+        &session.table_json,
         node_id as u16,
         0, &handler, payload,
         &session.state.session_id,
@@ -907,6 +985,15 @@ async fn handle_event(
         session.sm.clone(),
         state.clone()
     ).await;
+
+    // 2.3 Validation de Séquence (Anti-Race Condition)
+    // On vérifie que la séquence n'a pas avancé pendant l'appel PHP
+    if let Ok(Some((_, current_last_seq))) = session.sm.get_session_security(session.state.session_id.clone()).await {
+        if current_last_seq > seq_id {
+            warn!("[{}] REJET: Réponse PHP obsolète (SeqID {} < {}) - Race condition évitée.", session.state.session_id, seq_id, current_last_seq);
+            return result;
+        }
+    }
 
     let (patches, broadcast_instr, join_rooms, leave_rooms) = match php_res {
         Ok(p) => p,
@@ -936,6 +1023,11 @@ async fn handle_event(
     if !patches.is_empty() {
         let mut final_patches = Vec::new();
         for (mut op, _) in patches {
+            // 🛡️ Validation de l'OpCode (Point 7 de l'audit)
+            if op.op_type == 0 || op.op_type > 0x0D {
+                warn!("[{}] REJET: OpCode Patch invalide reçu du backend PHP: 0x{:02X}", session.state.session_id, op.op_type);
+                continue;
+            }
             let nid = session.handler_table.by_id.get(&(op.target_id)).and_then(|e| e.n_id.clone()).unwrap_or_default();
             if !nid.is_empty() {
                 let val = match op.op_type {
@@ -989,10 +1081,10 @@ async fn handle_event(
         };
         
         msg.push(scope_type);
-        msg.push(state.gateway_id.len() as u8);
-        msg.extend_from_slice(state.gateway_id.as_bytes());
-        msg.push(session.state.session_id.len() as u8);
-        msg.extend_from_slice(session.state.session_id.as_bytes());
+        msg.push(state.gateway_id.len().min(255) as u8);
+        msg.extend_from_slice(&state.gateway_id.as_bytes()[..state.gateway_id.len().min(255)]);
+        msg.push(session.state.session_id.len().min(255) as u8);
+        msg.extend_from_slice(&session.state.session_id.as_bytes()[..session.state.session_id.len().min(255)]);
         
         if scope_type == proto::SCOPE_ROOM {
             let rid = bc.room_id.unwrap_or_else(|| "global".to_string());
@@ -1042,6 +1134,7 @@ async fn monitor_pkt(
 async fn call_php(
     php_script    : &str,
     handler_table : &HandlerTable,
+    table_json    : &str,
     source_id     : u16,
     _event_type   : u8,
     handler       : &str,
@@ -1079,7 +1172,7 @@ async fn call_php(
         "session_id": session_id,
         "payload": String::from_utf8_lossy(payload),
         "last_version": last_version,
-        "handler_table": handler_table.to_json(),
+        "handler_table": table_json,
         "nid_map": handler_table.nid_map,
         "nodes": nodes_map, 
     });
@@ -1351,3 +1444,22 @@ fn parse_single_op(op: &serde_json::Value, handler_table: &HandlerTable) -> Opti
 
     Some(patch)
 }
+
+async fn send_signed_binary(
+    ws_sender: &mut SplitSink<WebSocket, WsMessage>,
+    data: Vec<u8>,
+    secret: &[u8]
+) -> Result<(), axum::Error> {
+    if let Ok(mut mac) = HmacSha256::new_from_slice(secret) {
+        mac.update(&data);
+        let sig = mac.finalize().into_bytes();
+        let mut signed_pkt = data;
+        signed_pkt.extend_from_slice(&sig);
+        ws_sender.send(WsMessage::Binary(signed_pkt)).await
+    } else {
+        error!("HMAC: Erreur lors de la création du contexte de signature sortante");
+        ws_sender.send(WsMessage::Binary(data)).await
+    }
+}
+
+

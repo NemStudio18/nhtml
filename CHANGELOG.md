@@ -1,6 +1,19 @@
 # 📜 Changelog NHTML
 
-## v0.7.0 (Avril 2026) — "Industrial Scale" (FINALISÉ)
+## v0.7.1 (Avril 2026) — "Industrial Hardening" (ACTUEL)
+### Added
+- **Compilation Caching**: Cache global des `CompileResult` via `Arc`. Latence réduite à ~1ms lors des reconnexions.
+- **Atomic Session Integrity**: Mises à jour sécurisées du `last_seq` via SQLite pour prévenir les *Race Conditions*.
+- **Origin Validation**: Protection contre le *Cross-Site WebSocket Hijacking* (CSWH) via contrôle de l'en-tête Origin.
+- **Memory Optimization**: Migration vers `Arc<HandlerTable>` et pré-sérialisation JSON pour réduire drastiquement l'empreinte mémoire par session.
+
+### Fixed
+- **Zero-Panic Compliance**: Suppression totale des `unwrap()` et `expect()` dans le runtime (Supervisor, Watcher, CLI, Socket).
+- **Binary Hardening**: Ajout de `bounds checks` rigoureux sur tous les buffers entrants (NBPS v0.7.0).
+- **PHP Path Security**: Canonicalisation forcée des chemins pour neutraliser les injections de commandes.
+- **Log Privacy**: Hachage systématique des Session IDs (`hash_sid`) dans les logs système.
+
+## v0.7.0 (Avril 2026) — "Industrial Scale"
 ### Added
 - **Redis Gateway Clustering**: Support natif pour le déploiement multi-nœuds avec synchronisation des sessions via Redis.
 - **Filtering Multi-Gateway**: Prévention des boucles de broadcast via filtrage par `gateway_id` unique.
@@ -8,13 +21,6 @@
 - **Prometheus Export**: Exportation des métriques système (Clients actifs, Débit paquets) vers Prometheus/Grafana.
 - **Structured JSON Logging**: Flag `--json` pour intégration avec ELK et Datadog.
 - **Triple-License Model**: MIT (SDKs), AGPLv3 (Gateway Core), et Licence Commerciale.
-
-### Fixed
-- **Security Hardening**: Correction des failles Path Traversal dans le serveur HTTP.
-- **HMAC Reliability**: Correction de l'offset de signature et couverture totale du payload.
-- **Performance**: Gestion robuste du Rate Limiting et nettoyage heuristique des IPs (Zéro-Leaking).
-- **Stabilité**: Politique "Zero-Panic" et superviseur PHP auto-réparateur.
-- **DevTools**: Refonte totale de l'interface en v0.7.0 avec Pedagogical Flow Analysis.
 
 ---
 

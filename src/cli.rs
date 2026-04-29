@@ -1,7 +1,9 @@
 use std::fs;
 use std::path::Path;
+use std::collections::HashMap;
 use crate::decoder;
 use axum::http::header;
+use axum::response::IntoResponse;
 
 pub fn create_new_project(name: &str) {
     let project_dir = Path::new(name);
@@ -29,7 +31,7 @@ pub fn create_new_project(name: &str) {
     </style>
 </head>
 <body>
-    <h1>Projet NHTML v0.7.0</h1>
+    <h1>Projet NHTML v0.7.1</h1>
     <div class="counter" n-id="counter_value">0</div>
     <button n-id="btn_increment" n-click="increment">ACTION</button>
 </body>
@@ -172,26 +174,36 @@ use axum::{
 pub async fn run_devtools(tx_monitor: broadcast::Sender<crate::MonitoringEvent>, host: String, port: u16, token: Option<String>) {
     println!("⏱️ Initialisation des DevTools NHTML...");
     
-    let token_clone = token.clone();
+    let token_for_root = token.clone();
+    let token_for_ws = token.clone();
+    let tx_for_ws = tx_monitor.clone();
+    
     let app = Router::new()
-        .route("/", get(move |req: axum::extract::Request| async move { 
-            if let Some(ref t) = token_clone {
-                let query = req.uri().query().unwrap_or("");
-                if !query.contains(&format!("token={}", t)) {
-                    return Html("<h1>403 Forbidden</h1><p>Token d'authentification invalide ou manquant.</p>".to_string());
+        .route("/", get(move |params: axum::extract::Query<HashMap<String, String>>| async move { 
+            if let Some(ref t) = token_for_root {
+                if params.get("token") != Some(t) {
+                    return Html("<h1>403 Forbidden</h1><p>Accès refusé : Token invalide ou manquant.</p>".to_string());
                 }
             }
             Html(include_str!("../static/devtools.nhtml").to_string()) 
         }))
         .route("/_nhtml/bridge.js", get(|| async {
-            axum::response::Response::builder()
-                .header(header::CONTENT_TYPE, "application/javascript; charset=utf-8")
-                .body(axum::body::Body::from(include_str!("../assets/js/bridge.js")))
-                .unwrap()
+            (
+                [(header::CONTENT_TYPE, "application/javascript; charset=utf-8")],
+                include_str!("../assets/js/bridge.js")
+            )
         }))
-        .route("/ws", get(move |ws: WebSocketUpgrade| {
-            let tx = tx_monitor.clone();
-            async move { ws.on_upgrade(move |socket| handle_devtools_ws(socket, tx)) }
+        .route("/ws", get(move |ws: WebSocketUpgrade, params: axum::extract::Query<HashMap<String, String>>| {
+            let tx = tx_for_ws.clone();
+            let t_ws = token_for_ws.clone();
+            async move { 
+                if let Some(ref t) = t_ws {
+                    if params.get("token") != Some(t) {
+                        return (axum::http::StatusCode::FORBIDDEN, "Accès refusé").into_response();
+                    }
+                }
+                ws.on_upgrade(move |socket| handle_devtools_ws(socket, tx))
+            }
         }));
 
     let addr = format!("{}:{}", host, port);
@@ -692,7 +704,7 @@ async fn handle_devtools_ws(socket: WebSocket, tx_monitor: broadcast::Sender<cra
 
 
 pub fn run_benchmark(path: &str) {
-    println!("🧪 NHTML Industrial Benchmark Tool v0.7.0");
+    println!("🧪 NHTML Industrial Benchmark Tool v0.7.1");
     println!("--------------------------------------------------");
     
     let (html_content, label) = if let Ok(content) = std::fs::read_to_string(path) {
@@ -734,7 +746,7 @@ pub fn run_benchmark(path: &str) {
     println!("🧠 Charge CPU Sérialesation      : {:.2} CPU-ops/pkt", cpu_load);
     
     println!("--------------------------------------------------");
-    println!("✅ Benchmark terminé. NHTML v0.7.0 est prêt pour la production.");
+    println!("✅ Benchmark terminé. NHTML v0.7.1 est prêt pour la production.");
 }
 
 pub fn run_share(port: u16) {

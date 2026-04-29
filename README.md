@@ -5,11 +5,10 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/Version-v0.7.0-ff007f?style=flat-square" />
+  <img src="https://img.shields.io/badge/Version-v0.7.1-ff007f?style=flat-square" />
   <img src="https://img.shields.io/badge/Gateway-Rust-orange?style=flat-square&logo=rust" />
-  <img src="https://img.shields.io/badge/Backend-PHP_8.x-777bb4?style=flat-square&logo=php" />
+  <img src="https://img.shields.io/badge/Status-Industrial_Hardened-success?style=flat-square" />
   <img src="https://img.shields.io/badge/Transport-Binary_NBPS-blue?style=flat-square" />
-  <img src="https://img.shields.io/badge/JS_métier-Zéro-success?style=flat-square" />
 </p>
 
 [English](#-english-version) | [Français](#-version-française)
@@ -21,6 +20,8 @@
 ### ⚡ Reactive web. Without writing JavaScript.
 
 **NHTML is a Server-Driven UI protocol and runtime.** You write augmented HTML and PHP. The Rust Gateway handles the rest — binary transport, atomic DOM mutations, and native real-time.
+
+**v0.7.1 Highlights**: Industrial Hardening, Zero-Panic Runtime, and Ultra-Fast Compilation Caching (~1ms overhead).
 
 Zero React. Zero Vue. Zero build step. Zero business JS to write.
 
@@ -142,6 +143,8 @@ NHTML uses a **Triple-License** model to support both the community and commerci
 ### ⚡ Le web réactif. Sans écrire de JavaScript.
 
 **NHTML est un protocole et runtime Server-Driven UI.** Vous écrivez du HTML augmenté et du PHP. Le Gateway Rust s'occupe du reste — transport binaire, mutations DOM atomiques, temps réel natif.
+
+**Points forts v0.7.1** : Durcissement Industriel, Runtime "Zero-Panic", et Cache de Compilation Ultra-Rapide (~1ms d'overhead).
 
 Zéro React. Zéro Vue. Zéro build step. Zéro JS métier à écrire.
 

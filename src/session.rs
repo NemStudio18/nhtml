@@ -129,13 +129,13 @@ impl SessionManager {
         }).await
     }
 
-    pub async fn update_seq_id(&self, session_id: String, seq: u32) -> tokio_rusqlite::Result<()> {
+    pub async fn update_seq_id(&self, session_id: String, seq: u32) -> tokio_rusqlite::Result<bool> {
         self.conn.call(move |conn| {
-            conn.execute(
-                "UPDATE session_security SET last_seq = ?1 WHERE session_id = ?2",
+            let affected = conn.execute(
+                "UPDATE session_security SET last_seq = ?1 WHERE session_id = ?2 AND last_seq < ?1",
                 rusqlite::params![seq, session_id],
             )?;
-            Ok(())
+            Ok(affected > 0)
         }).await
     }
 
