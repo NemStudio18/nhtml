@@ -23,7 +23,7 @@ tokio-tungstenite = "0.24"
 reqwest = { version = "0.11", features = ["json"] }
 clap = { version = "4.4", features = ["derive"] }
 notify = "6.1.1"
-sqlx = { version = "0.7", features = ["runtime-tokio", "tls-rustls", "sqlite", "mysql", "postgres", "macros", "chrono", "uuid"] }
+sqlx = { version = "0.8", features = ["runtime-tokio", "tls-rustls", "sqlite", "mysql", "postgres", "macros", "chrono", "uuid"] }
 zstd = "0.13"
 crc32fast = "1.3"
 hex = "0.4"
@@ -44,4 +44,4 @@ redis = { version = "1.2", features = ["tokio-comp"] }
 metrics = "0.22"
 metrics-exporter-prometheus = "0.12"
 html-escape = "0.2"
-lru = "0.12"
+lru = "0.16"
