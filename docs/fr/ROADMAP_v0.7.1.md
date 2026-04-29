@@ -52,7 +52,10 @@ Cette roadmap définit les prochaines étapes pour passer à l'échelle supérie
 - [x] **Note** : Tous les SDK sont désormais alignés sur NBPS v0.7.1 avec support Scoped Broadcasting.
 
 ### 2. Schema Validation & Types
-- [x] **Action** : Introduction d'un schéma de validation binaire pour les événements afin d'assurer l'intégrité des types entre le client et le serveur. (Basique implémenté via Gateway + Docs).
+- [x] Correction des chemins absolus (404) pour le déploiement statique (GitHub Pages)
+- [x] Stabilisation de l'hydratation WASM et chargement dynamique du SDK
+- [x] Alignement de la logique de navigation (MVC) entre le client et le serveur
+- [x] Introduction d'un schéma de validation binaire pour les événements afin d'assurer l'intégrité des types entre le client et le serveur. (Basique implémenté via Gateway + Docs).
 
 ---
 
