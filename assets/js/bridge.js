@@ -12,7 +12,7 @@ const MAX_BACKOFF = 30000;
 const bridgeScript = document.currentScript || Array.from(document.scripts).find(s => s.src.includes('bridge.js'));
 const bridgeUrl = bridgeScript ? new URL(bridgeScript.src, window.location.href) : null;
 const bridgeDir = bridgeUrl ? bridgeUrl.pathname.replace(/\/[^\/]*$/, '/') : '/assets/js/';
-const projectRoot = bridgeDir.replace(/assets\/js\/$/, '');
+const projectRoot = bridgeDir.endsWith('assets/js/') ? bridgeDir.slice(0, -10) : '/';
 
 window.nhtml_stats = { pkts: 0, size: 0 };
 window.nhtml_node_map = {};
@@ -730,7 +730,7 @@ async function switchToWasm() {
 
         const sdkFiles = [projectRoot + 'sdk/php/src/Nhtml.php', projectRoot + 'sdk/php/src/Protocol.php'];
         for (const f of sdkFiles) {
-            const res = await fetch(basePath + f + cacheBust);
+            const res = await fetch(f + cacheBust);
             if (res.ok) {
                 const sdkCode = await res.text();
                 const parts = f.split('/');
