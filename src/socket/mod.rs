@@ -1118,7 +1118,11 @@ async fn handle_event(
     }
 
     let (patches, broadcast_instr, join_rooms, leave_rooms) = match php_res {
-        Ok(p) => p,
+        Ok(p) => {
+            let latency = start.elapsed().as_millis() as u64;
+            monitor_pkt(&state.tx_monitor, "OUT", proto::PKT_PATCH, 0, &session.state.session_id, Some(handler.clone()), Some(format!("PHP Response received")), Some(latency)).await;
+            p
+        },
         Err(e) => {
             error!("[{}] PHP Error: {}", session.state.session_id, e);
             let err_msg = format!("PHP Backend Error: {}", e);

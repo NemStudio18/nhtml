@@ -61,7 +61,7 @@ Cette roadmap définit les prochaines étapes pour passer à l'échelle supérie
 
 ### 1. DevTools Avancés
 - [x] **Action** : Time-Travel Debugging : Possibilité de rejouer une séquence de patches binaire pour reproduire un bug. (Implémenté dans CLI + DevTools).
-- [ ] **Action** : Analyseur de performance en temps réel (CPU/Mémoire) par nœud DOM.
+- [x] **Action** : Analyseur de performance en temps réel (CPU/Mémoire) par nœud DOM. (Latence PHP & Complexité patchs implémentés).
 
 ### 2. Monitoring & Alerting
 - [x] **Action** : Exportation des métriques vers Prometheus / Grafana.
