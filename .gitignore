@@ -13,6 +13,6 @@ ai_build/
 *.pdb
 
 # Internal Documentation
-docs/**/ROADMAP*
-docs/**/DETAILED_ROADMAP*
+# docs/**/ROADMAP*
+# docs/**/DETAILED_ROADMAP*
 *.txt
