@@ -36,7 +36,7 @@ Cette roadmap définit les prochaines étapes pour passer à l'échelle supérie
 - [x] **Action** : Déportation totale de l'état des sessions vers SQLite, MySQL ou PostgreSQL via un driver agnostique (sqlx).
 
 ### 2. Load Balancing Natif
-- [ ] **Action** : Algorithme de Round-Robin ou Least-Connections intégré pour dispatcher vers plusieurs pools FPM.
+- [x] **Action** : Algorithme de Round-Robin ou Least-Connections intégré pour dispatcher vers plusieurs pools FPM.
 - [ ] **Action** : Healthchecks avancés des backends avec mise en quarantaine automatique.
 
 ---
