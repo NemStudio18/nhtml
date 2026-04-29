@@ -46,8 +46,13 @@ impl SessionManager {
         
         sqlx::query("CREATE TABLE IF NOT EXISTS sessions (
             session_id VARCHAR(255) PRIMARY KEY,
-            app_path TEXT
+            app_path TEXT,
+            last_seen INTEGER DEFAULT 0
         )").execute(&pool).await?;
+
+        // Migration in case table already exists without last_seen
+        sqlx::query("ALTER TABLE sessions ADD COLUMN last_seen INTEGER DEFAULT 0")
+            .execute(&pool).await.ok();
 
         sqlx::query("CREATE TABLE IF NOT EXISTS nodes (
             session_id VARCHAR(255),
@@ -96,10 +101,12 @@ impl SessionManager {
         // sqlx doesn't have a direct "INSERT OR REPLACE" for all drivers.
         // We do a manual check or try-catch style.
         
-        sqlx::query("INSERT INTO sessions (session_id, app_path) VALUES (?, ?) 
-                     ON CONFLICT(session_id) DO UPDATE SET app_path = excluded.app_path")
+        let now = chrono::Utc::now().timestamp();
+        sqlx::query("INSERT INTO sessions (session_id, app_path, last_seen) VALUES (?, ?, ?) 
+                     ON CONFLICT(session_id) DO UPDATE SET app_path = excluded.app_path, last_seen = excluded.last_seen")
             .bind(&session_id)
             .bind(&app_path)
+            .bind(now)
             .execute(&self.pool).await.ok();
 
         // Récupérer ou créer le secret
@@ -231,5 +238,32 @@ impl SessionManager {
             .bind(room_id)
             .fetch_all(&self.pool).await?;
         Ok(rows.into_iter().map(|r| r.get(0)).collect())
+    }
+
+    pub async fn cleanup_expired_sessions(&self, ttl_seconds: i64) -> Result<u64, sqlx::Error> {
+        let threshold = chrono::Utc::now().timestamp() - ttl_seconds;
+        
+        let expired: Vec<String> = sqlx::query("SELECT session_id FROM sessions WHERE last_seen > 0 AND last_seen < ?")
+            .bind(threshold)
+            .fetch_all(&self.pool).await?
+            .into_iter()
+            .map(|r| r.get(0))
+            .collect();
+
+        if expired.is_empty() { return Ok(0); }
+
+        let mut count = 0;
+        for sid in expired {
+            sqlx::query("DELETE FROM nodes WHERE session_id = ?").bind(&sid).execute(&self.pool).await.ok();
+            sqlx::query("DELETE FROM patch_history WHERE session_id = ?").bind(&sid).execute(&self.pool).await.ok();
+            sqlx::query("DELETE FROM session_security WHERE session_id = ?").bind(&sid).execute(&self.pool).await.ok();
+            sqlx::query("DELETE FROM session_rooms WHERE session_id = ?").bind(&sid).execute(&self.pool).await.ok();
+            sqlx::query("DELETE FROM event_log WHERE session_id = ?").bind(&sid).execute(&self.pool).await.ok();
+            
+            if let Ok(res) = sqlx::query("DELETE FROM sessions WHERE session_id = ?").bind(&sid).execute(&self.pool).await {
+                if res.rows_affected() > 0 { count += 1; }
+            }
+        }
+        Ok(count)
     }
 }

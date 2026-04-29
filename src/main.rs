@@ -41,10 +41,6 @@ enum Commands {
         #[arg(long)]
         fpm: Option<String>,
         
-        /// URI de la base de données (ex: mysql://user:pass@host/db)
-        #[arg(long)]
-        db_uri: Option<String>,
-
         /// Active les logs au format JSON (pour ELK/Datadog)
         #[arg(long)]
         json: bool,
@@ -124,12 +120,13 @@ async fn main() {
         Commands::New { name } => {
             cli::create_new_project(&name);
         }
-        Commands::Start { dev, port, path, entry, php, fpm, db_uri, json: _ } => {
+        Commands::Start { dev, port, path, entry, php, fpm, json: _ } => {
             println!("🛰️ NHTML Gateway v{}", env!("CARGO_PKG_VERSION"));
             println!("📂 Projet : {}", path);
             println!("🌐 Port   : {}", port);
             
-            let final_db_uri = db_uri.or(config.database.as_ref().and_then(|d| d.uri.clone()));
+            let final_db_uri = std::env::var("NHTML_DB_URI").ok()
+                .or(config.database.as_ref().and_then(|d| d.uri.clone()));
             if let Some(ref uri) = final_db_uri {
                 println!("🗄️ Database : {} (Driver détecté)", uri);
             } else {

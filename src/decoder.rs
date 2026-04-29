@@ -68,7 +68,8 @@ pub fn decode(data: &[u8]) -> DecodedMessage {
                     let status = data[5];
                     let sid_len = data[6] as usize;
                     if data.len() >= 7 + sid_len {
-                        let session_id = String::from_utf8_lossy(&data[7..7+sid_len]).to_string();
+                        let session_id = std::str::from_utf8(&data[7..7+sid_len])
+                            .unwrap_or("INVALID_UTF8").to_string();
                         let mut secret = Vec::new();
                         let mut last_seq = 0;
                         let mut cursor = 7 + sid_len;
@@ -107,14 +108,16 @@ pub fn decode(data: &[u8]) -> DecodedMessage {
                         cursor += 1;
                         
                         if data.len() >= cursor + h_len + 2 {
-                            let handler = String::from_utf8_lossy(&data[cursor..cursor+h_len]).to_string();
+                            let handler = std::str::from_utf8(&data[cursor..cursor+h_len])
+                                .unwrap_or("INVALID_UTF8").to_string();
                             cursor += h_len;
                             
                             let p_len = u16::from_be_bytes([data[cursor], data[cursor+1]]) as usize;
                             cursor += 2;
                             
                             let payload = if data.len() >= cursor + p_len {
-                                String::from_utf8_lossy(&data[cursor..cursor+p_len]).to_string()
+                                std::str::from_utf8(&data[cursor..cursor+p_len])
+                                    .unwrap_or("INVALID_UTF8").to_string()
                             } else {
                                 "".to_string()
                             };
@@ -163,7 +166,8 @@ pub fn decode(data: &[u8]) -> DecodedMessage {
                     }.to_string();
 
                     if d_len > 0 && cursor + d_len <= data.len() {
-                        value = String::from_utf8_lossy(&data[cursor..cursor+d_len]).to_string();
+                        value = std::str::from_utf8(&data[cursor..cursor+d_len])
+                            .unwrap_or("INVALID_UTF8").to_string();
                         cursor += d_len;
                     }
 
@@ -205,7 +209,8 @@ pub fn decode(data: &[u8]) -> DecodedMessage {
                 let severity = data[5];
                 let msg_len = u16::from_be_bytes([data[6], data[7]]) as usize;
                 if data.len() >= 8 + msg_len {
-                    let message = String::from_utf8_lossy(&data[8..8+msg_len]).to_string();
+                    let message = std::str::from_utf8(&data[8..8+msg_len])
+                        .unwrap_or("INVALID_UTF8").to_string();
                     DecodedMessage::Log { severity, message }
                 } else {
                     DecodedMessage::Unknown { opcode, len: data.len() }
