@@ -137,17 +137,18 @@ async fn main() {
             }
 
             // Priorité : Argument CLI > Fichier Config
-            let fpm_addr = fpm.or(config.fastcgi.as_ref().and_then(|f| {
-                if f.address.as_ref().map(|s| s.is_empty()).unwrap_or(true) {
-                    None
-                } else {
-                    f.address.clone()
-                }
-            }));
-            let fpm_timeout = config.fastcgi.as_ref().and_then(|f| f.timeout_ms).unwrap_or(5000);
+            let mut fcgi_config = config.fastcgi.clone().unwrap_or(crate::config::FastCgiConfig {
+                address: None,
+                addresses: None,
+                strategy: None,
+                timeout_ms: Some(5000),
+            });
             
-            if let Some(ref addr) = fpm_addr {
-                println!("🚀 Mode Performance : PHP-FPM via {} (timeout: {}ms)", addr, fpm_timeout);
+            if let Some(ref addr) = fpm {
+                fcgi_config.address = Some(addr.clone());
+                println!("🚀 Mode Performance (CLI) : PHP-FPM via {} (timeout: {}ms)", addr, fcgi_config.timeout_ms.unwrap_or(5000));
+            } else if let Some(ref addr) = fcgi_config.address {
+                println!("🚀 Mode Performance (Config) : PHP-FPM via {} (timeout: {}ms)", addr, fcgi_config.timeout_ms.unwrap_or(5000));
             }
             
             // Lancement du superviseur PHP avec Auto-Restart
@@ -210,7 +211,7 @@ async fn main() {
                     return;
                 }
             };
-            socket::serve(gid, port, path, entry, php, fpm_addr, fpm_timeout, std::sync::Arc::new(sm), tx_monitor, tx_app_broadcast, tx_reload, config.security.clone()).await;
+            socket::serve(gid, port, path, entry, php, Some(fcgi_config), std::sync::Arc::new(sm), tx_monitor, tx_app_broadcast, tx_reload, config.security.clone()).await;
         }
         Commands::Devtools => {
             let devtools_port = config.ports.as_ref().and_then(|p| p.devtools).unwrap_or(8081);

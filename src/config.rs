@@ -42,9 +42,11 @@ pub struct RateLimitConfig {
     pub events_per_sec: Option<u32>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Clone)]
 pub struct FastCgiConfig {
     pub address: Option<String>,
+    pub addresses: Option<Vec<String>>,
+    pub strategy: Option<String>, // "round-robin", "least-conn"
     pub timeout_ms: Option<u64>,
 }
 

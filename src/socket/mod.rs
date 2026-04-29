@@ -50,10 +50,49 @@ type FpmClient = fastcgi_client::Client<fastcgi_client::io::TokioCompat<FpmStrea
 
 /// Pool de connexions FastCGI pour la réutilisation des sockets.
 pub struct FpmPool {
-    addr: String,
+    pub addr: String,
     clients: Mutex<Vec<FpmClient>>,
     max_size: usize,
-    current_size: std::sync::Arc<std::sync::atomic::AtomicUsize>,
+    pub current_size: std::sync::Arc<std::sync::atomic::AtomicUsize>,
+}
+
+/// Équilibreur de charge pour distribuer les requêtes vers plusieurs backends FPM.
+pub struct FpmLoadBalancer {
+    pools: Vec<Arc<FpmPool>>,
+    strategy: String,
+    next: std::sync::atomic::AtomicUsize,
+}
+
+impl FpmLoadBalancer {
+    pub fn new(addresses: Vec<String>, strategy: String) -> Self {
+        let pools = addresses.into_iter()
+            .map(|addr| Arc::new(FpmPool::new(addr)))
+            .collect();
+        Self {
+            pools,
+            strategy,
+            next: std::sync::atomic::AtomicUsize::new(0),
+        }
+    }
+
+    pub fn acquire_pool(&self) -> Option<Arc<FpmPool>> {
+        if self.pools.is_empty() {
+             return None;
+        }
+        
+        match self.strategy.as_str() {
+            "least-conn" => {
+                // Choisit le pool avec le moins de connexions actives
+                self.pools.iter()
+                    .min_by_key(|p| p.current_size.load(std::sync::atomic::Ordering::SeqCst))
+                    .cloned()
+            }
+            _ => { // Round-robin par défaut
+                let idx = self.next.fetch_add(1, std::sync::atomic::Ordering::SeqCst) % self.pools.len();
+                Some(self.pools[idx].clone())
+            }
+        }
+    }
 }
 
 impl FpmPool {
@@ -161,15 +200,48 @@ pub async fn serve(
     root: String, 
     _entry: String, 
     _php: String, 
-    fpm_addr: Option<String>,
-    fpm_timeout: u64,
+    fcgi_config: Option<crate::config::FastCgiConfig>,
     sm: Arc<SessionManager>, 
     tx_monitor: tokio::sync::broadcast::Sender<crate::MonitoringEvent>, 
     tx_app_broadcast: tokio::sync::broadcast::Sender<Arc<Vec<u8>>>,
     tx_reload: tokio::sync::broadcast::Sender<()>,
     security: Option<crate::config::SecurityConfig>,
 ) {
-    let fpm_pool = fpm_addr.as_ref().map(|addr| Arc::new(FpmPool::new(addr.clone())));
+    let mut addresses = Vec::new();
+    let mut strategy = "round-robin".to_string();
+    let mut fpm_timeout = 5000;
+    let mut fpm_addr_main = None;
+
+    if let Some(ref conf) = fcgi_config {
+        if let Some(ref addr) = conf.address {
+            if !addr.is_empty() {
+                addresses.push(addr.clone());
+                fpm_addr_main = Some(addr.clone());
+            }
+        }
+        if let Some(ref addrs) = conf.addresses {
+            for a in addrs {
+                if !addresses.contains(a) {
+                    addresses.push(a.clone());
+                }
+            }
+        }
+        if let Some(ref s) = conf.strategy {
+            strategy = s.clone();
+        }
+        if let Some(t) = conf.timeout_ms {
+            fpm_timeout = t;
+        }
+    }
+
+    let fpm_lb = if !addresses.is_empty() {
+        if fpm_addr_main.is_none() {
+            fpm_addr_main = Some(addresses[0].clone());
+        }
+        Some(Arc::new(FpmLoadBalancer::new(addresses, strategy)))
+    } else {
+        None
+    };
     
     let rate_limiter = security.as_ref()
         .and_then(|s| s.rate_limit.as_ref())
@@ -180,8 +252,8 @@ pub async fn serve(
         gateway_id,
         root: root.clone(),
         sm: sm.clone(),
-        fpm_addr,
-        fpm_pool,
+        fpm_addr: fpm_addr_main,
+        fpm_lb,
         fpm_timeout,
         tx_monitor,
         tx_app_broadcast,
@@ -269,7 +341,7 @@ struct GatewayState {
     root: String,
     sm: Arc<SessionManager>,
     fpm_addr: Option<String>,
-    fpm_pool: Option<Arc<FpmPool>>,
+    fpm_lb: Option<Arc<FpmLoadBalancer>>,
     fpm_timeout: u64,
     tx_monitor: tokio::sync::broadcast::Sender<crate::MonitoringEvent>,
     tx_app_broadcast: tokio::sync::broadcast::Sender<Arc<Vec<u8>>>,
@@ -1181,8 +1253,12 @@ async fn call_php(
         "nodes": nodes_map, 
     });
 
-    if let Some(ref pool) = state.fpm_pool {
-        call_php_fpm(pool, php_script, &context, handler_table, state.fpm_timeout).await
+    if let Some(ref lb) = state.fpm_lb {
+        if let Some(pool) = lb.acquire_pool() {
+            call_php_fpm(&pool, php_script, &context, handler_table, state.fpm_timeout).await
+        } else {
+            call_php_process(php_script, &context, handler_table).await
+        }
     } else {
         call_php_process(php_script, &context, handler_table).await
     }
