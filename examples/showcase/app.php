@@ -153,8 +153,8 @@ if ($handler === 'init') {
     }
 
     // --- NAVIGATION ---
-    if (strpos($handler, 'goto_') === 0) {
-        $view = str_replace('goto_', '', $handler);
+    if (strpos($handler, 'view:') === 0) {
+        $view = str_replace('view:', '', $handler);
         switch_view($view);
         $titles = ['dashboard' => '📊 Dashboard', 'messenger' => '💬 Messenger', 'inventory' => '📦 Stocks', 'settings'  => '⚙️ Profil'];
         patch('page_title', 'set_text', $titles[$view] ?? 'NHTML');
