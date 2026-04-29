@@ -68,30 +68,18 @@ jobs:
           path: artifacts
           merge-multiple: true
 
+      - name: Extract Changelog
+        shell: bash
+        run: |
+          VERSION=${GITHUB_REF_NAME#v}
+          sed -n "/## v$VERSION/,/##/p" CHANGELOG.md | sed '1d;$d' > RELEASE_NOTES.md
+
       - name: Create Release
         id: create_release
         uses: softprops/action-gh-release@v1
         with:
           name: NHTML Gateway v${{ github.ref_name }}
-          body: |
-            ## 🛡️ NHTML Gateway v${{ github.ref_name }} — "Industrial Hardening"
-            
-            This release achieves an **industrial-grade production state** for the NHTML ecosystem, focusing on reliability, security, and high-performance caching.
-            
-            ### ✨ Philosophy
-            - **Zero-Panic Policy**: Every critical code path is now panic-free (no more `unwrap()`).
-            - **Industrial Stability**: Atomic session management and robust error recovery.
-            - **Security First**: Strict Origin validation and mandatory HMAC signatures.
-            
-            ### 🛠️ v0.7.1 Features
-            - **Global Compilation Cache**: Initial session latency reduced to ~1ms through Arc-based caching.
-            - **NBPS v0.7.1 Hardening**: Strict binary bounds checking for all incoming/outgoing packets.
-            - **Atomic Persistence**: Thread-safe session sequence tracking via SQLite/Atomic logic.
-            - **CORS/Origin Security**: Native protection against Cross-Site WebSocket Hijacking (CSWH).
-            - **Multi-Mode Validation**: Certified compatibility for Dedicated, Shared, and Zero-Server (WASM) modes.
-            
-            ### 📦 Deployment
-            Download the binary for your platform and run `./nhtml start --dev` to explore. Use `--fpm 127.0.0.1:9000` for high-performance production mode.
+          body_path: RELEASE_NOTES.md
           files: |
             artifacts/nhtml-linux
             artifacts/nhtml-windows.exe
