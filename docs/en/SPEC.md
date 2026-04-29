@@ -1,5 +1,5 @@
-# 🛰️ NHTML/// proto.rs — Binary serialization for Nhtml v0.7.1
-**Performance & Collaboration Edition**
+# 🛰️ NHTML Protocol Specification (NBPS) v0.7.3
+**Security & Stability Edition**
 
 ## 1. Universal Packet Structure
 Each binary packet starts with a **5-byte Header**:
@@ -11,17 +11,40 @@ Each binary packet starts with a **5-byte Header**:
 
 | Code | Name | Direction | Description |
 |:---|:---|:---|:---|
-| `0x01` | **HELLO** | Bi-directional | Handshake, Secret & SeqID sync. |
-| `0x02` | **EVENT** | Client -> Srv | HMAC-SHA256 signed interaction. |
-| `0x03` | **PATCH** | Srv -> Client | Atomic DOM mutation instructions. |
-| `0x04` | **BIND** | Srv -> Client | Local Actions registration. |
+| `0x01` | **HELLO** | Bi-directional | Handshake, HMAC Secret & SeqID synchronization. |
+| `0x02` | **EVENT** | Client -> Srv | User interaction (e.g. click, input) signed via HMAC-SHA256. |
+| `0x03` | **PATCH** | Srv -> Client | Atomic DOM mutation instructions (add, modify, delete). |
 | `0x07` | **B-TREE** | Srv -> Client | Full DOM Snapshot (Zstd Compressed). |
-| `0x08` | **PUSH_PATCH**| Client -> Srv | Local Patch relay (Zero-Server Mode). |
-| `0x09` | **PING/PONG** | Bi-directional | Keep-Alive & Heartbeat. |
+| `0x08` | **PUSH_PATCH**| Client -> Srv | Local Patch relay (Zero-Server Mode / Real-time collaboration). |
+| `0x09` | **PING/PONG** | Bi-directional | Keep-Alive & Heartbeat mechanism. |
+| `0x10` | **LOG** | Srv -> Client | System logs broadcasted to client DevTools. |
 
 ---
 
-##[command(about = "NHTML Gateway - NBPS v0.7.0", long_about = None)]
+## 3. Payload Details
+
+### 0x01 - HELLO
+`[Type:1][Len:4][Status:1][SidLen:1][SessionId...][Secret:32][LastSeq:4]`
+
+### 0x02 - EVENT
+`[Type:1][Len:4][SeqId:4][Signature:32][NodeID:4][HLen:1][Handler:str][PLen:2][Payload:json]`
+
+### 0x03 - PATCH
+`[Type:1][Len:4][OpCount:2]` followed by operation list:
+`[TargetID:2][OpTypeCode:1][Version:4][DataLen:2][Value...]`
+
+### 0x07 - B-TREE
+`[Type:1][Len:4][Compression:1][OrigLen:4][Checksum:4][NodeCount:2][ZstdData...]`
+
+### 0x08 - PUSH_PATCH
+Identical to PATCH (`0x03`) but emitted by the client, limited to a maximum of 64 operations per message to prevent render thread overload.
+
+### 0x10 - LOG
+`[Type:1][Len:4][Severity:1][MsgLen:2][Message...]`
+
+---
+
+## 4. Gateway ↔ Backend (PHP) Interface Contract
 
 The Gateway communicates with PHP via **CGI (Standard)** or **FastCGI (Performance)**.
 
@@ -42,11 +65,12 @@ The PHP SDK can return a simple array of patches or a structured object to inclu
 }
 ```
 
-*   **scope**: `all` (everyone), `others` (everyone except sender), `group:X` (future).
+*   **scope**: `all` (everyone), `others` (everyone except sender), `room:X` (localized group), `direct:X` (private message).
 
 ---
 
-## 5. Performance & Transport
-- **FastCGI Client**: The Gateway implements a native FastCGI client to talk to PHP-FPM pools (Default Port 9000).
+## 5. Performance, Security & Transport
+- **CSWH Security**: Strict origin validation via whitelist (`allowed_origins` in `nhtml.config.toml`).
+- **Rate Limiting**: O(1) LRU-based cache per IP address (Default limit: 30 events/sec to mitigate DoS).
 - **Zstd Compression**: Dictionary-based Zstd usage for massive B-TREE snapshots.
-- **Binary Stream**: All communications are binary (except the internal Gateway <-> PHP dialogue which uses JSON streamed over stdin/stdout).
+- **Binary Stream**: All communications are binary, using strict UTF-8 decoding for string integrity.
