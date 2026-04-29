@@ -3,20 +3,24 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>NHTML — Native-HTML Binary Framework v0.7.1</title>
+    <title>NHTML — The Industrial Server-Driven DOM Protocol v0.7.1</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
     <style>
         :root {
-            --bg-dark: #0f172a;
+            --bg-dark: #020617;
             --primary: #38bdf8;
+            --primary-glow: rgba(56, 189, 248, 0.3);
             --accent: #818cf8;
-            --card-bg: rgba(30, 41, 59, 0.7);
+            --accent-glow: rgba(129, 140, 248, 0.3);
+            --card-bg: rgba(15, 23, 42, 0.6);
             --text: #f8fafc;
             --text-dim: #94a3b8;
-            --border: rgba(255, 255, 255, 0.08);
+            --border: rgba(255, 255, 255, 0.06);
             --success: #22c55e;
+            --warning: #facc15;
+            --error: #ef4444;
         }
 
         * {
@@ -25,32 +29,43 @@
             box-sizing: border-box;
         }
 
+        html { scroll-behavior: smooth; }
+
         body {
             font-family: 'Outfit', sans-serif;
             background-color: var(--bg-dark);
-            background-image: radial-gradient(circle at 50% 50%, #1e293b 0%, #0f172a 100%);
+            background-image: 
+                radial-gradient(circle at 0% 0%, rgba(56, 189, 248, 0.08) 0%, transparent 40%),
+                radial-gradient(circle at 100% 100%, rgba(129, 140, 248, 0.08) 0%, transparent 40%),
+                linear-gradient(to bottom, #020617, #0f172a);
+            background-attachment: fixed;
             color: var(--text);
             line-height: 1.6;
             overflow-x: hidden;
         }
 
         .container {
-            max-width: 1100px;
+            max-width: 1200px;
             margin: 0 auto;
-            padding: 0 2rem;
+            padding: 0 1.5rem;
         }
 
-        /* --- Header --- */
+        /* --- Navigation --- */
         nav {
             display: flex;
             justify-content: space-between;
             align-items: center;
-            padding: 2.5rem 0;
+            padding: 2rem 0;
+            position: sticky;
+            top: 0;
+            z-index: 1000;
+            backdrop-filter: blur(10px);
+            border-bottom: 1px solid var(--border);
         }
 
         .logo {
             font-weight: 900;
-            font-size: 2rem;
+            font-size: 1.8rem;
             letter-spacing: -1px;
             display: flex;
             align-items: center;
@@ -58,50 +73,95 @@
             background: linear-gradient(to right, var(--primary), var(--accent));
             -webkit-background-clip: text;
             -webkit-text-fill-color: transparent;
+            text-decoration: none;
         }
 
         .nav-links {
             display: flex;
-            gap: 2.5rem;
+            gap: 2rem;
+            align-items: center;
         }
 
         .nav-links a {
             color: var(--text-dim);
             text-decoration: none;
             font-weight: 500;
-            font-size: 0.95rem;
-            transition: color 0.3s;
+            font-size: 0.9rem;
+            transition: all 0.3s;
         }
 
         .nav-links a:hover {
             color: var(--primary);
+            text-shadow: 0 0 10px var(--primary-glow);
+        }
+
+        .lang-toggle {
+            display: flex;
+            background: rgba(255,255,255,0.05);
+            padding: 4px;
+            border-radius: 8px;
+            border: 1px solid var(--border);
+        }
+
+        .lang-btn {
+            padding: 4px 10px;
+            border-radius: 6px;
+            font-size: 0.75rem;
+            font-weight: 700;
+            cursor: pointer;
+            transition: all 0.2s;
+            border: none;
+            background: transparent;
+            color: var(--text-dim);
+        }
+
+        .lang-btn.active {
+            background: var(--primary);
+            color: #000;
         }
 
         /* --- Hero --- */
         .hero {
-            padding: 6rem 0 4rem;
+            padding: 8rem 0 6rem;
             text-align: center;
+            position: relative;
         }
 
-        .badge {
-            display: inline-block;
+        .hero::before {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 600px;
+            height: 600px;
+            background: radial-gradient(circle, var(--primary-glow) 0%, transparent 70%);
+            z-index: -1;
+            filter: blur(60px);
+            opacity: 0.5;
+        }
+
+        .badge-v {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
             padding: 6px 16px;
-            border-radius: 30px;
+            border-radius: 100px;
             background: rgba(56, 189, 248, 0.1);
             border: 1px solid rgba(56, 189, 248, 0.2);
             color: var(--primary);
-            font-size: 0.85rem;
+            font-size: 0.8rem;
             font-weight: 700;
-            margin-bottom: 2rem;
+            margin-bottom: 2.5rem;
             text-transform: uppercase;
             letter-spacing: 1px;
         }
 
         .hero h1 {
-            font-size: 4.5rem;
+            font-size: 5rem;
             font-weight: 800;
-            line-height: 1.1;
-            margin-bottom: 1.5rem;
+            line-height: 0.95;
+            margin-bottom: 2rem;
             letter-spacing: -3px;
         }
 
@@ -113,10 +173,10 @@
         }
 
         .hero p {
-            font-size: 1.3rem;
+            font-size: 1.4rem;
             color: var(--text-dim);
-            max-width: 750px;
-            margin: 0 auto 3.5rem;
+            max-width: 800px;
+            margin: 0 auto 4rem;
             font-weight: 300;
         }
 
@@ -128,229 +188,212 @@
         }
 
         .btn {
-            padding: 1rem 2.5rem;
-            border-radius: 12px;
+            padding: 1.1rem 2.8rem;
+            border-radius: 14px;
             font-weight: 700;
             text-decoration: none;
             font-size: 1.1rem;
-            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
             cursor: pointer;
             display: flex;
             align-items: center;
-            gap: 10px;
+            gap: 12px;
         }
 
         .btn-primary {
             background: linear-gradient(135deg, var(--primary), var(--accent));
-            color: white;
-            box-shadow: 0 10px 30px rgba(56, 189, 248, 0.25);
-            border: 1px solid rgba(255,255,255,0.1);
+            color: #020617;
+            box-shadow: 0 10px 40px var(--primary-glow);
+            border: 1px solid rgba(255,255,255,0.2);
         }
 
         .btn-primary:hover {
-            transform: translateY(-3px) scale(1.02);
-            box-shadow: 0 15px 40px rgba(56, 189, 248, 0.4);
+            transform: translateY(-5px) scale(1.05);
+            box-shadow: 0 20px 60px var(--primary-glow);
         }
 
         .btn-secondary {
-            background-color: rgba(255, 255, 255, 0.05);
+            background-color: rgba(255, 255, 255, 0.03);
             color: white;
             border: 1px solid var(--border);
             backdrop-filter: blur(10px);
         }
 
         .btn-secondary:hover {
-            background-color: rgba(255, 255, 255, 0.1);
-            transform: translateY(-3px);
+            background-color: rgba(255, 255, 255, 0.08);
+            transform: translateY(-5px);
+            border-color: var(--primary);
         }
+
+        /* --- Two-Pane Code Preview --- */
+        .code-showcase {
+            margin: 6rem 0;
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 2rem;
+        }
+
+        .code-window {
+            background: #020617;
+            border-radius: 20px;
+            border: 1px solid var(--border);
+            overflow: hidden;
+            box-shadow: 0 30px 60px rgba(0,0,0,0.4);
+        }
+
+        .window-head {
+            background: rgba(255,255,255,0.03);
+            padding: 12px 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .window-dots { display: flex; gap: 6px; }
+        .window-dots span { width: 8px; height: 8px; border-radius: 50%; background: #334155; }
+        .window-title { font-family: 'JetBrains Mono', monospace; font-size: 0.75rem; color: var(--text-dim); }
+
+        .code-content {
+            padding: 24px;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.9rem;
+            line-height: 1.6;
+            overflow-x: auto;
+        }
+
+        .keyword { color: var(--accent); }
+        .function { color: #facc15; }
+        .string { color: #22c55e; }
+        .comment { color: #475569; font-style: italic; }
+        .attr { color: var(--primary); }
 
         /* --- Sections --- */
-        section {
-            padding: 5rem 0;
-        }
-
-        .section-title {
-            text-align: center;
-            margin-bottom: 4rem;
-        }
-
-        .section-title h2 {
-            font-size: 2.5rem;
-            font-weight: 800;
-            margin-bottom: 1rem;
-            letter-spacing: -1px;
-        }
-
-        .section-title p {
-            color: var(--text-dim);
-            font-size: 1.1rem;
-            max-width: 600px;
-            margin: 0 auto;
-        }
+        section { padding: 6rem 0; }
+        .section-tag { color: var(--primary); font-weight: 800; font-size: 0.8rem; text-transform: uppercase; letter-spacing: 2px; margin-bottom: 1rem; display: block; text-align: center; }
+        .section-title { text-align: center; font-size: 3rem; font-weight: 800; margin-bottom: 4rem; letter-spacing: -1.5px; }
 
         /* --- Features Grid --- */
-        .features-grid {
+        .features {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
             gap: 2rem;
         }
 
-        .feature-card {
+        .f-card {
             background: var(--card-bg);
+            border: 1px solid var(--border);
+            padding: 3rem;
+            border-radius: 32px;
+            transition: all 0.4s;
+        }
+
+        .f-card:hover {
+            border-color: var(--primary);
+            transform: translateY(-10px);
+            background: rgba(30, 41, 59, 0.4);
+            box-shadow: 0 20px 40px rgba(0,0,0,0.3);
+        }
+
+        .f-icon {
+            width: 50px;
+            height: 50px;
+            background: rgba(56, 189, 248, 0.1);
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.5rem;
+            margin-bottom: 2rem;
+            color: var(--primary);
+        }
+
+        .f-card h3 { font-size: 1.4rem; margin-bottom: 1rem; }
+        .f-card p { color: var(--text-dim); font-size: 1rem; }
+
+        /* --- Architecture Diagram --- */
+        .arch-section {
+            background: rgba(255,255,255,0.02);
+            border-radius: 48px;
+            padding: 6rem 2rem;
+            border: 1px solid var(--border);
+            margin: 4rem 0;
+            text-align: center;
+        }
+
+        .arch-diagram {
+            display: flex;
+            justify-content: space-around;
+            align-items: center;
+            margin-top: 4rem;
+            flex-wrap: wrap;
+            gap: 2rem;
+        }
+
+        .arch-node {
+            background: var(--card-bg);
+            border: 1px solid var(--border);
+            padding: 2rem;
+            border-radius: 24px;
+            min-width: 200px;
+            position: relative;
+        }
+
+        .arch-node.highlight { border-color: var(--primary); box-shadow: 0 0 20px var(--primary-glow); }
+        .arch-node h4 { margin-bottom: 0.5rem; color: var(--primary); }
+        .arch-node p { font-size: 0.85rem; color: var(--text-dim); }
+
+        .arch-arrow {
+            font-size: 2rem;
+            color: var(--border);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 4px;
+        }
+        .arrow-label { font-size: 0.7rem; font-family: 'JetBrains Mono', monospace; color: var(--text-dim); }
+
+        /* --- Deployment Modes --- */
+        .modes-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 2rem;
+            margin-top: 4rem;
+        }
+
+        .mode-card {
+            background: rgba(255,255,255,0.03);
             border: 1px solid var(--border);
             padding: 2.5rem;
             border-radius: 24px;
-            backdrop-filter: blur(12px);
-            transition: all 0.3s;
-            position: relative;
-            overflow: hidden;
-        }
-
-        .feature-card:hover {
-            border-color: var(--primary);
-            transform: translateY(-5px);
-            background: rgba(30, 41, 59, 0.9);
-        }
-
-        .feature-card i {
-            font-size: 2.5rem;
-            margin-bottom: 1.5rem;
-            display: block;
-        }
-
-        .feature-card h3 {
-            font-size: 1.3rem;
-            margin-bottom: 1rem;
-            color: white;
-            display: flex;
-            align-items: center;
-            gap: 12px;
-        }
-
-        .feature-card h3 .icon-box {
-            width: 32px;
-            height: 32px;
-            background: rgba(56, 189, 248, 0.1);
-            border-radius: 8px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            color: var(--primary);
-            font-size: 1rem;
-        }
-
-        .feature-card p {
-            color: var(--text-dim);
-            font-size: 0.95rem;
-            line-height: 1.6;
-        }
-
-        /* --- Stats/Industrial Section --- */
-        .industrial-specs {
-            background: rgba(0,0,0,0.2);
-            border-radius: 32px;
-            padding: 4rem;
-            border: 1px solid var(--border);
-            margin: 4rem 0;
-        }
-
-        .specs-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-            gap: 3rem;
             text-align: center;
         }
 
-        .spec-item .value {
-            font-size: 2.5rem;
-            font-weight: 800;
-            color: var(--primary);
-            display: block;
-            margin-bottom: 0.5rem;
-        }
+        .mode-card h4 { font-size: 1.2rem; margin-bottom: 1rem; color: #fff; }
+        .mode-card .tag { font-size: 0.7rem; color: var(--primary); font-weight: 800; background: rgba(56, 189, 248, 0.1); padding: 4px 10px; border-radius: 4px; }
 
-        .spec-item .label {
-            color: var(--text-dim);
-            font-size: 0.9rem;
-            text-transform: uppercase;
-            letter-spacing: 1px;
-            font-weight: 600;
-        }
-
-        /* --- Code Preview --- */
-        .preview-container {
-            background: #020617;
-            border-radius: 24px;
-            padding: 2rem;
-            border: 1px solid var(--border);
-            box-shadow: 0 40px 80px rgba(0,0,0,0.5);
-            margin-top: 2rem;
-        }
-
-        .preview-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 1.5rem;
-            padding-bottom: 1rem;
-            border-bottom: 1px solid rgba(255,255,255,0.05);
-        }
-
-        .window-controls { display: flex; gap: 8px; }
-        .dot { width: 10px; height: 10px; border-radius: 50%; }
-        .dot-r { background: #ff5f56; }
-        .dot-y { background: #ffbd2e; }
-        .dot-g { background: #27c93f; }
-
-        .file-name { font-family: 'JetBrains Mono', monospace; font-size: 0.8rem; color: var(--text-dim); }
-
-        pre {
-            font-family: 'JetBrains Mono', monospace;
-            font-size: 0.95rem;
-            color: #94a3b8;
-            overflow-x: auto;
-            line-height: 1.7;
-        }
-
-        .code-accent { color: var(--primary); font-weight: 600; }
-        .code-comment { color: #475569; font-style: italic; }
-        .code-string { color: var(--accent); }
-        .code-func { color: #facc15; }
-
-        /* --- CTA Footer --- */
-        .final-cta {
-            background: linear-gradient(135deg, rgba(56, 189, 248, 0.1), rgba(129, 140, 248, 0.1));
-            border-radius: 32px;
-            padding: 5rem 2rem;
-            text-align: center;
-            border: 1px solid rgba(56, 189, 248, 0.2);
-            margin-bottom: 6rem;
-        }
-
-        .final-cta h2 { font-size: 3rem; margin-bottom: 1.5rem; letter-spacing: -1px; }
-
+        /* --- Footer --- */
         footer {
-            padding: 4rem 0;
+            padding: 6rem 0 4rem;
             border-top: 1px solid var(--border);
             text-align: center;
-            color: var(--text-dim);
         }
 
-        .footer-links {
-            display: flex;
-            justify-content: center;
-            gap: 2rem;
-            margin-bottom: 2rem;
-        }
-
-        .footer-links a { color: var(--text-dim); text-decoration: none; font-size: 0.9rem; transition: color 0.3s; }
+        .footer-logo { font-size: 1.5rem; font-weight: 900; margin-bottom: 2rem; display: block; color: #fff; text-decoration: none; }
+        .footer-links { display: flex; justify-content: center; gap: 3rem; margin-bottom: 3rem; }
+        .footer-links a { color: var(--text-dim); text-decoration: none; font-size: 0.9rem; }
         .footer-links a:hover { color: var(--primary); }
+        .copyright { color: #475569; font-size: 0.85rem; }
 
-        @media (max-width: 768px) {
-            .hero h1 { font-size: 3rem; }
-            .hero p { font-size: 1.1rem; }
-            .industrial-specs { padding: 2rem; }
-            .nav-links { display: none; }
+        /* --- Localization --- */
+        [lang="fr"] { display: none; }
+        body.fr-active [lang="en"] { display: none; }
+        body.fr-active [lang="fr"] { display: block; }
+
+        @media (max-width: 992px) {
+            .code-showcase { grid-template-columns: 1fr; }
+            .hero h1 { font-size: 3.5rem; }
+            .modes-grid { grid-template-columns: 1fr; }
         }
     </style>
 </head>
@@ -358,129 +401,188 @@
 
     <div class="container">
         <nav>
-            <div class="logo">🛰️ NHTML</div>
+            <a href="#" class="logo">🛰️ NHTML</a>
             <div class="nav-links">
-                <a href="#features">Features</a>
-                <a href="#industrial">Industrial Hardening</a>
-                <a href="https://github.com/NemStudio18/nhtml/blob/main/docs/fr/GUIDE_DEMARRAGE.md">Documentation</a>
-                <a href="https://github.com/NemStudio18/nhtml">GitHub</a>
+                <a href="#features" data-en="Features" data-fr="Fonctions">Features</a>
+                <a href="#architecture" data-en="How it works" data-fr="Fonctionnement">How it works</a>
+                <a href="https://github.com/NemStudio18/nhtml" data-en="GitHub" data-fr="GitHub">GitHub</a>
+                <div class="lang-toggle">
+                    <button class="lang-btn active" onclick="setLang('en')">EN</button>
+                    <button class="lang-btn" onclick="setLang('fr')">FR</button>
+                </div>
             </div>
         </nav>
 
         <section class="hero">
-            <div class="badge">Industrial Release v0.7.1</div>
-            <h1>The Ultra-Fast <span>Binary Web Framework</span></h1>
-            <p>NHTML is a server-driven binary framework designed for extreme performance. Shift your business logic to the backend and let the browser strictly follow orders via NBPS protocol.</p>
+            <div class="badge-v">
+                <span class="status-dot"></span>
+                Industrial Release v0.7.1
+            </div>
+            <h1 lang="en">The Ultra-Fast <span>Binary Web Protocol</span></h1>
+            <h1 lang="fr">Le Protocole Web <span>Binaire Ultra-Rapide</span></h1>
+            
+            <p lang="en">Shift your business logic to the backend. Let the browser strictly follow orders via atomic binary patches. Zero JS to write. Zero build steps.</p>
+            <p lang="fr">Déportez votre logique métier sur le serveur. Laissez le navigateur suivre les ordres via des patchs binaires atomiques. Zéro JS à écrire. Zéro étape de build.</p>
+            
             <div class="btn-group">
                 <a href="./examples/showcase/index.html" class="btn btn-primary">
-                    <span>🚀 Launch Showcase</span>
+                    <span lang="en">🚀 Launch Showcase</span>
+                    <span lang="fr">🚀 Lancer la Démo</span>
                 </a>
                 <a href="https://github.com/NemStudio18/nhtml/blob/main/INSTALL.md" class="btn btn-secondary">
-                    <span>📦 Install Now</span>
+                    <span lang="en">📦 Install Now</span>
+                    <span lang="fr">📦 Installer</span>
                 </a>
             </div>
         </section>
 
+        <div class="code-showcase">
+            <div class="code-window">
+                <div class="window-head">
+                    <div class="window-dots"><span></span><span></span><span></span></div>
+                    <div class="window-title">index.nhtml</div>
+                </div>
+                <div class="code-content">
+                    <span class="comment">&lt;!-- Augmented HTML --&gt;</span><br>
+                    &lt;h1 <span class="attr">n-id</span>=<span class="string">"title"</span>&gt;Hello&lt;/h1&gt;<br><br>
+                    &lt;p&gt;<br>
+                    &nbsp;&nbsp;Clicks: &lt;strong <span class="attr">n-id</span>=<span class="string">"counter"</span>&gt;0&lt;/strong&gt;<br>
+                    &lt;/p&gt;<br><br>
+                    &lt;button <span class="attr">n-click</span>=<span class="string">"page.increment"</span>&gt;Click me&lt;/button&gt;
+                </div>
+            </div>
+            <div class="code-window">
+                <div class="window-head">
+                    <div class="window-dots"><span></span><span></span><span></span></div>
+                    <div class="window-title">app.php</div>
+                </div>
+                <div class="code-content">
+                    <span class="comment">// Pure Backend Logic</span><br>
+                    <span class="keyword">function</span> <span class="function">page_increment</span>($event) {<br>
+                    &nbsp;&nbsp;<span class="keyword">$count</span> = ++<span class="keyword">$_SESSION</span>[<span class="string">'clicks'</span>];<br><br>
+                    &nbsp;&nbsp;<span class="keyword">return</span> [<br>
+                    &nbsp;&nbsp;&nbsp;&nbsp;Patch::<span class="function">setText</span>(<span class="string">'counter'</span>, <span class="keyword">$count</span>),<br>
+                    &nbsp;&nbsp;&nbsp;&nbsp;Patch::<span class="function">addClass</span>(<span class="string">'title'</span>, <span class="string">'pulse'</span>)<br>
+                    &nbsp;&nbsp;];<br>
+                    }
+                </div>
+            </div>
+        </div>
+
         <section id="features">
-            <div class="section-title">
-                <h2>Built for the Modern Web</h2>
-                <p>NHTML eliminates frontend complexity by synchronizing the DOM through a high-performance binary pipeline.</p>
-            </div>
+            <span class="section-tag" lang="en">Why NHTML?</span>
+            <span class="section-tag" lang="fr">Pourquoi NHTML ?</span>
+            <h2 class="section-title" lang="en">Engineered for Performance</h2>
+            <h2 class="section-title" lang="fr">Conçu pour la Performance</h2>
 
-            <div class="features-grid">
-                <div class="feature-card">
-                    <h3><div class="icon-box">⚡</div> Binary Speed</h3>
-                    <p>Uses Native Binary Packet Specification (NBPS) with Zstd compression for ultra-low bandwidth and sub-millisecond updates.</p>
+            <div class="features">
+                <div class="f-card">
+                    <div class="f-icon">⚡</div>
+                    <h3 lang="en">Binary Speed</h3>
+                    <h3 lang="fr">Vitesse Binaire</h3>
+                    <p lang="en">NBPS v0.7.1 protocol with Zstd compression. Sub-millisecond DOM synchronization over WebSockets.</p>
+                    <p lang="fr">Protocole NBPS v0.7.1 avec compression Zstd. Synchronisation DOM en moins d'une milliseconde.</p>
                 </div>
-                <div class="feature-card">
-                    <h3><div class="icon-box">🐘</div> Server-Driven</h3>
-                    <p>No more state management on the client. Your PHP or Rust backend is the single source of truth for the entire DOM tree.</p>
+                <div class="f-card">
+                    <div class="f-icon">🛡️</div>
+                    <h3 lang="en">Military Security</h3>
+                    <h3 lang="fr">Sécurité Renforcée</h3>
+                    <p lang="en">HMAC-SHA256 signed events. Anti-replay sequence IDs. Native CSRF & CSWH protection.</p>
+                    <p lang="fr">Événements signés HMAC-SHA256. IDs de séquence anti-rejeu. Protection CSRF et CSWH native.</p>
                 </div>
-                <div class="feature-card">
-                    <h3><div class="icon-box">🛡️</div> Secure by Design</h3>
-                    <p>Mandatory HMAC-SHA256 signatures, sequence tracking, and strict Origin validation protect your app from XSS and hijacking.</p>
-                </div>
-                <div class="feature-card">
-                    <h3><div class="icon-box">🌐</div> Multi-Mode</h3>
-                    <p>Deploy as a Dedicated Rust Gateway, Shared PHP server, or Zero-Server static host via WebAssembly (PHP-WASM).</p>
-                </div>
-                <div class="feature-card">
-                    <h3><div class="icon-box">🔥</div> Hot Reload</h3>
-                    <p>Native file system watching with instant binary hydration. Edit your backend code and see the DOM patch in real-time.</p>
-                </div>
-                <div class="feature-card">
-                    <h3><div class="icon-box">🧩</div> Tiny Footprint</h3>
-                    <p>A 40KB JS bridge is all you need. No heavy framework bundles. No complex build steps for the frontend.</p>
+                <div class="f-card">
+                    <div class="f-icon">🏗️</div>
+                    <h3 lang="en">Zero Frontend JS</h3>
+                    <h3 lang="fr">Zéro JS Frontend</h3>
+                    <p lang="en">No React, no Vue, no business logic in the browser. Your backend is the single source of truth.</p>
+                    <p lang="fr">Pas de React, pas de Vue, pas de logique métier dans le navigateur. Le backend est la seule source de vérité.</p>
                 </div>
             </div>
         </section>
 
-        <section id="industrial" class="industrial-specs">
-            <div class="section-title">
-                <h2>Industrial Grade v0.7.1</h2>
-                <p>Engineered for production environments where reliability and performance are non-negotiable.</p>
-            </div>
-            
-            <div class="specs-grid">
-                <div class="spec-item">
-                    <span class="value">~1ms</span>
-                    <span class="label">Session Latency</span>
-                </div>
-                <div class="spec-item">
-                    <span class="value">0%</span>
-                    <span class="label">Panic Rate</span>
-                </div>
-                <div class="spec-item">
-                    <span class="value">100+</span>
-                    <span class="label">Concurrent Sessions</span>
-                </div>
-                <div class="spec-item">
-                    <span class="value">32-bit</span>
-                    <span class="label">HMAC Security</span>
-                </div>
-            </div>
+        <section id="architecture" class="arch-section">
+            <h2 lang="en">Modern Architecture</h2>
+            <h2 lang="fr">Architecture Moderne</h2>
+            <p lang="en">A high-performance bridge between your backend and the user interface.</p>
+            <p lang="fr">Un pont haute-performance entre votre backend et l'interface utilisateur.</p>
 
-            <div class="preview-container">
-                <div class="preview-header">
-                    <div class="window-controls">
-                        <div class="dot dot-r"></div>
-                        <div class="dot dot-y"></div>
-                        <div class="dot dot-g"></div>
-                    </div>
-                    <div class="file-name">app/controllers/CounterController.php</div>
+            <div class="arch-diagram">
+                <div class="arch-node">
+                    <h4>Browser</h4>
+                    <p>bridge.js (~40KB)</p>
                 </div>
-                <pre>
-<span class="code-comment">// NHTML Server-Side Logic</span>
-<span class="code-accent">public function</span> <span class="code-func">onIncrement</span>($event) {
-    <span class="code-accent">$this</span>->state->count++;
-    
-    <span class="code-comment">// Patch only the needed node via binary delta</span>
-    Nhtml::<span class="code-func">patch</span>()
-        -><span class="code-func">setText</span>(<span class="code-string">'counter_val'</span>, <span class="code-accent">$this</span>->state->count)
-        -><span class="code-func">addClass</span>(<span class="code-string">'counter_val'</span>, <span class="code-string">'pulse'</span>)
-        -><span class="code-func">broadcast</span>(SCOPE_ALL);
-}</pre>
+                <div class="arch-arrow">
+                    <span class="arrow-label">EVENT</span>
+                    <span>──▶</span>
+                </div>
+                <div class="arch-node highlight">
+                    <h4>Rust Gateway</h4>
+                    <p>Clustering & Security</p>
+                </div>
+                <div class="arch-arrow">
+                    <span>◀──</span>
+                    <span class="arrow-label">BINARY PATCH</span>
+                </div>
+                <div class="arch-node">
+                    <h4>Backend</h4>
+                    <p>PHP / Python / Node</p>
+                </div>
             </div>
         </section>
 
-        <section class="final-cta">
-            <h2>Ready to go Binary?</h2>
-            <p style="color: var(--text-dim); margin-bottom: 3rem; font-size: 1.2rem;">Join the future of high-performance web development with NHTML.</p>
-            <div class="btn-group">
-                <a href="https://github.com/NemStudio18/nhtml" class="btn btn-primary">⭐ Star on GitHub</a>
-                <a href="./examples/index.nhtml" class="btn btn-secondary">Explore Examples</a>
+        <section id="deployment">
+            <h2 class="section-title" lang="en">Flexible Deployment</h2>
+            <h2 class="section-title" lang="fr">Déploiement Flexible</h2>
+            <div class="modes-grid">
+                <div class="mode-card">
+                    <span class="tag">DEDICATED</span>
+                    <h4 lang="en">Rust Gateway</h4>
+                    <h4 lang="fr">Gateway Rust</h4>
+                    <p lang="en">The standard for high performance. Handles WebSockets and binary logic natively.</p>
+                    <p lang="fr">Le standard pour la haute performance. Gère les WebSockets et la logique binaire nativement.</p>
+                </div>
+                <div class="mode-card">
+                    <span class="tag">SHARED</span>
+                    <h4 lang="en">Standard PHP</h4>
+                    <h4 lang="fr">PHP Standard</h4>
+                    <p lang="en">Compatible with any shared hosting. Uses HTTP fallback for reactive updates.</p>
+                    <p lang="fr">Compatible avec n'importe quel hébergement mutualisé. Utilise un fallback HTTP réactif.</p>
+                </div>
+                <div class="mode-card">
+                    <span class="tag">ZERO-SERVER</span>
+                    <h4 lang="en">PHP-WASM</h4>
+                    <h4 lang="fr">PHP-WASM</h4>
+                    <p lang="en">Perfect for static sites. Your entire backend logic runs in the browser.</p>
+                    <p lang="fr">Idéal pour les sites statiques. Toute votre logique backend tourne dans le navigateur.</p>
+                </div>
             </div>
         </section>
 
-        <footer>
+        <footer id="contact">
+            <a href="#" class="footer-logo">🛰️ NHTML</a>
             <div class="footer-links">
-                <a href="https://github.com/NemStudio18/nhtml/blob/main/docs/fr/ROADMAP_v0.7.1.md">Roadmap</a>
-                <a href="https://github.com/NemStudio18/nhtml/blob/main/LICENSE_COMMERCIAL.md">Licensing</a>
+                <a href="https://github.com/NemStudio18/nhtml/blob/main/docs/fr/ROADMAP_v0.7.1.md" lang="en">Roadmap</a>
+                <a href="https://github.com/NemStudio18/nhtml/blob/main/docs/fr/ROADMAP_v0.7.1.md" lang="fr">Feuille de route</a>
+                <a href="https://github.com/NemStudio18/nhtml/blob/main/docs/fr/SPEC.md" lang="en">Protocol</a>
+                <a href="https://github.com/NemStudio18/nhtml/blob/main/docs/fr/SPEC.md" lang="fr">Protocole</a>
                 <a href="https://github.com/NemStudio18/nhtml/issues">Support</a>
             </div>
-            <p>© 2027 NemStudio — NHTML is Licensed under AGPL-3.0 for Open Source use.</p>
+            <p class="copyright">© 2026-2027 NemStudio — NHTML is Licensed under AGPL-3.0 for Open Source use.</p>
         </footer>
     </div>
 
+    <script>
+        function setLang(lang) {
+            document.body.className = (lang === 'fr' ? 'fr-active' : '');
+            document.querySelectorAll('.lang-btn').forEach(btn => {
+                btn.classList.toggle('active', btn.innerText.toLowerCase() === lang);
+            });
+            localStorage.setItem('nhtml_lang', lang);
+        }
+
+        // Auto-detect lang
+        const savedLang = localStorage.getItem('nhtml_lang') || (navigator.language.startsWith('fr') ? 'fr' : 'en');
+        setLang(savedLang);
+    </script>
 </body>
 </html>

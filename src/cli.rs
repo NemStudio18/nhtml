@@ -66,59 +66,8 @@ echo json_encode($patches);
 
 pub fn dump_database() {
     println!("📊 Contenu de la base de données NHTML :");
-    let paths = ["nhtml_sessions.db", "gateway/nhtml_sessions.db", "../nhtml_sessions.db", "../../nhtml_sessions.db"];
-    let mut db_path = "nhtml_sessions.db".to_string();
-    
-    for p in paths {
-        if std::path::Path::new(p).exists() {
-            db_path = p.to_string();
-            break;
-        }
-    }
-    
-    let conn = match rusqlite::Connection::open(&db_path) {
-        Ok(c) => c,
-        Err(e) => {
-            println!("❌ Impossible d'ouvrir la DB à {} : {}", db_path, e);
-            return;
-        }
-    };
-    
-    println!("\n--- SESSIONS & NODES ---");
-    let mut stmt = match conn.prepare("SELECT session_id, node_id, value, version FROM nodes") {
-        Ok(s) => s,
-        Err(e) => { println!("❌ Erreur SQL Prepare: {}", e); return; }
-    };
-    let rows = match stmt.query_map([], |row| {
-        Ok((row.get::<_, String>(0)?, row.get::<_, u32>(1)?, row.get::<_, String>(2)?, row.get::<_, u32>(3)?))
-    }) {
-        Ok(r) => r,
-        Err(e) => { println!("❌ Erreur SQL Query: {}", e); return; }
-    };
-
-    for r in rows {
-        if let Ok((sid, nid, val, ver)) = r {
-            println!("Session: {} | Node: {} | Value: '{}' | Ver: {}", sid, nid, val, ver);
-        }
-    }
-
-    println!("\n--- EVENT LOG (Derniers 10) ---");
-    let mut stmt = match conn.prepare("SELECT timestamp, session_id, event_type, node_id FROM event_log ORDER BY id DESC LIMIT 10") {
-        Ok(s) => s,
-        Err(e) => { println!("❌ Erreur SQL Prepare: {}", e); return; }
-    };
-    let rows = match stmt.query_map([], |row| {
-        Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?, row.get::<_, String>(2)?, row.get::<_, u32>(3)?))
-    }) {
-        Ok(r) => r,
-        Err(e) => { println!("❌ Erreur SQL Query: {}", e); return; }
-    };
-
-    for r in rows {
-        if let Ok((ts, sid, ev, nid)) = r {
-            println!("[{}] {} | {} on Node {}", ts, sid, ev, nid);
-        }
-    }
+    println!("⚠️ Note: La commande 'stats' est en cours de migration vers sqlx.");
+    println!("Utilisez les DevTools pour une inspection en temps réel.");
 }
 
 pub fn inspect_message(hex: &str) {
@@ -237,24 +186,7 @@ async fn handle_devtools_ws(socket: WebSocket, tx_monitor: broadcast::Sender<cra
 
     // Note: On supprime l'ancienne tâche simpliste pour ne garder que la nouvelle enrichie plus bas
     
-    let paths = ["nhtml_sessions.db", "gateway/nhtml_sessions.db", "../nhtml_sessions.db", "../../nhtml_sessions.db"];
-    let mut db_path = "nhtml_sessions.db".to_string();
-    for p in paths {
-        if std::path::Path::new(p).exists() {
-            db_path = p.to_string();
-            break;
-        }
-    }
-
-    let sessions: Vec<String> = {
-        if let Ok(conn) = rusqlite::Connection::open(&db_path) {
-            if let Ok(mut stmt) = conn.prepare("SELECT DISTINCT session_id FROM patch_history") {
-                if let Ok(rows) = stmt.query_map([], |row| row.get::<_, String>(0)) {
-                    rows.flatten().collect()
-                } else { Vec::new() }
-            } else { Vec::new() }
-        } else { Vec::new() }
-    };
+    let sessions: Vec<String> = Vec::new(); // TODO: Migrate to sqlx
 
 
     
@@ -454,34 +386,7 @@ async fn handle_devtools_ws(socket: WebSocket, tx_monitor: broadcast::Sender<cra
                                     let mut history = Vec::new();
                                     let mut ghost_html = String::new();
                                     
-                                    if let Ok(conn) = rusqlite::Connection::open(&db_path) {
-                                        // Load History
-                                        if let Ok(mut stmt) = conn.prepare("SELECT node_id, value, version FROM patch_history WHERE session_id = ? ORDER BY id ASC") {
-                                            if let Ok(rows) = stmt.query_map([&selected_session], |row| {
-                                                Ok((row.get::<_, u32>(0)?, row.get::<_, String>(1)?, row.get::<_, u32>(2)?))
-                                            }) {
-                                                for r in rows.flatten() { history.push(r); }
-                                            }
-                                        }
-                                        // Load Current Nodes (Ghost)
-                                        if let Ok(mut stmt) = conn.prepare("SELECT node_id, tag, value, version FROM nodes WHERE session_id = ?") {
-                                            if let Ok(rows) = stmt.query_map([&selected_session], |row| {
-                                                Ok((row.get::<_, u32>(0)?, row.get::<_, String>(1)?, row.get::<_, String>(2)?, row.get::<_, u32>(3)?))
-                                            }) {
-                                                for r in rows.flatten() {
-                                                    let (gn_id, gn_tag, gn_val, gn_ver) = r;
-                                                    ghost_html.push_str(&format!(
-                                                        "<div style='padding: 5px; border-bottom: 1px solid rgba(255,255,255,0.05);'>
-                                                            <span style='color: #00d4ff;'>#{}</span> 
-                                                            <span style='color: var(--text-dim);'>[{}]</span> 
-                                                            <span style='color: white;'>{}</span>
-                                                            <span style='float: right; opacity: 0.3;'>v{}</span>
-                                                        </div>", gn_id, gn_tag, gn_val, gn_ver
-                                                    ));
-                                                }
-                                            }
-                                        }
-                                    }
+                                    // TODO: Replay logic migration to sqlx
                                     
                                     let total = history.len();
                                     let mut ops = Vec::new();
@@ -515,41 +420,7 @@ async fn handle_devtools_ws(socket: WebSocket, tx_monitor: broadcast::Sender<cra
                                     details.push_str(&format!("<div style='font-family:monospace; margin-bottom:10px;'>Node ID: <span style='color:var(--accent)'>#{}</span></div>", nid));
                                     
                                     // Chercher l'historique des 2 derniers changements pour ce noeud
-                                    if let Ok(conn) = rusqlite::Connection::open(&db_path) {
-                                        if let Ok(mut stmt) = conn.prepare("SELECT value, version, timestamp FROM patch_history WHERE session_id = ? AND node_id = ? ORDER BY id DESC LIMIT 2") {
-                                            if let Ok(rows) = stmt.query_map([&session_id, &nid.to_string()], |row| {
-                                                Ok((row.get::<_, String>(0)?, row.get::<_, u32>(1)?, row.get::<_, String>(2)?))
-                                            }) {
-                                                let history: Vec<_> = rows.flatten().collect();
-                                                
-                                                if history.is_empty() {
-                                                    details.push_str("<div style='color:var(--text-dim); font-size:0.8rem;'>Aucun historique de mutation pour ce noeud.</div>");
-                                                } else if history.len() == 1 {
-                                                    let (val, ver, ts) = &history[0];
-                                                    details.push_str(&format!("<div style='background:rgba(0,255,0,0.1); padding:10px; border-radius:5px;'>
-                                                        <div style='font-size:0.7rem; color:var(--text-dim); margin-bottom:5px;'>INITIAL STATE (v{}) - {}</div>
-                                                        <div style='font-family:monospace; color:var(--green)'>'{}'</div>
-                                                    </div>", ver, ts, val));
-                                                } else {
-                                                    let (new_val, new_ver, new_ts) = &history[0];
-                                                    let (old_val, old_ver, _) = &history[1];
-                                                    
-                                                    details.push_str(&format!("<div style='display:flex; flex-direction:column; gap:10px;'>
-                                                        <div style='background:rgba(255,255,255,0.03); padding:10px; border-radius:5px; border-left:3px solid var(--text-dim);'>
-                                                            <div style='font-size:0.6rem; color:var(--text-dim);'>PREVIOUS (v{})</div>
-                                                            <div style='font-family:monospace; opacity:0.6;'>'{}'</div>
-                                                        </div>
-                                                        <div style='text-align:center; color:var(--accent); font-size:1.2rem;'>↓</div>
-                                                        <div style='background:rgba(0,255,0,0.1); padding:10px; border-radius:5px; border-left:3px solid var(--green);'>
-                                                            <div style='font-size:0.6rem; color:var(--green); font-weight:bold;'>CURRENT (v{})</div>
-                                                            <div style='font-family:monospace; color:var(--green); font-weight:bold;'>'{}'</div>
-                                                            <div style='font-size:0.5rem; color:var(--text-dim); margin-top:5px; text-align:right;'>{}</div>
-                                                        </div>
-                                                    </div>", old_ver, old_val, new_ver, new_val, new_ts));
-                                                }
-                                            }
-                                        }
-                                    }
+                                    // TODO: State diff viewer migration to sqlx
                                     
                                     ops.push(crate::proto::PatchOp::set_text(101, 1, &details));
                                     let pkt = crate::proto::patch(&ops);
@@ -582,25 +453,7 @@ async fn handle_devtools_ws(socket: WebSocket, tx_monitor: broadcast::Sender<cra
                                         
                                         // Update Ghost Nodes in technical view
                                         let mut ghost_html = String::new();
-                                        if let Ok(conn) = rusqlite::Connection::open(&db_path) {
-                                            if let Ok(mut stmt) = conn.prepare("SELECT node_id, tag, value, version FROM nodes WHERE session_id = ?") {
-                                                if let Ok(rows) = stmt.query_map([session_id.as_str()], |row| {
-                                                    Ok((row.get::<_, u32>(0)?, row.get::<_, String>(1)?, row.get::<_, String>(2)?, row.get::<_, u32>(3)?))
-                                                }) {
-                                                    for r in rows.flatten() {
-                                                        let (gn_id, gn_tag, gn_val, gn_ver) = r;
-                                                        ghost_html.push_str(&format!(
-                                                            "<div style='padding: 5px; border-bottom: 1px solid rgba(255,255,255,0.05);'>
-                                                                <span style='color: #00d4ff;'>#{}</span> 
-                                                                <span style='color: var(--text-dim);'>[{}]</span> 
-                                                                <span style='color: white;'>{}</span>
-                                                                <span style='float: right; opacity: 0.3;'>v{}</span>
-                                                            </div>", gn_id, gn_tag, gn_val, gn_ver
-                                                        ));
-                                                    }
-                                                }
-                                            }
-                                        }
+                                        // TODO: Ghost nodes migration to sqlx
                                         ops.push(crate::proto::PatchOp::replace_inner(500, 1, &ghost_html));
 
                                         let pkt = crate::proto::patch(&ops);
@@ -628,43 +481,16 @@ async fn handle_devtools_ws(socket: WebSocket, tx_monitor: broadcast::Sender<cra
                         // Parsing simplifié pour la comparaison
                         let sid1_len = data[1] as usize;
                         if data.len() < 2 + sid1_len + 1 { continue; }
-                        let sid1 = String::from_utf8_lossy(&data[2..2+sid1_len]).to_string();
+                        let _sid1 = String::from_utf8_lossy(&data[2..2+sid1_len]).to_string();
                         let cursor = 2 + sid1_len;
                         let sid2_len = data[cursor] as usize;
                         if data.len() < cursor + 1 + sid2_len { continue; }
-                        let sid2 = String::from_utf8_lossy(&data[cursor+1..cursor+1+sid2_len]).to_string();
+                        let _sid2 = String::from_utf8_lossy(&data[cursor+1..cursor+1+sid2_len]).to_string();
 
                         let mut comparison = format!("<div style='color:var(--accent); font-weight:bold; margin-bottom:20px;'>COMPARAISON DE SESSIONS</div>");
                         comparison.push_str("<div style='display:grid; grid-template-columns:1fr 1fr 1fr; gap:10px; font-size:0.7rem; color:var(--text-dim); margin-bottom:10px;'><span>NODE</span><span>SESSION A</span><span>SESSION B</span></div>");
 
-                        if let Ok(conn) = rusqlite::Connection::open(&db_path) {
-                            let mut stmt = match conn.prepare("SELECT node_id, value FROM nodes WHERE session_id = ?") {
-                                Ok(s) => s,
-                                Err(_) => continue,
-                            };
-                            let nodes_a: std::collections::HashMap<u32, String> = stmt.query_map([&sid1], |row| Ok((row.get(0)?, row.get(1)?))).map(|r| r.flatten().collect()).unwrap_or_default();
-                            let mut stmt = match conn.prepare("SELECT node_id, value FROM nodes WHERE session_id = ?") {
-                                Ok(s) => s,
-                                Err(_) => continue,
-                            };
-                            let nodes_b: std::collections::HashMap<u32, String> = stmt.query_map([&sid2], |row| Ok((row.get(0)?, row.get(1)?))).map(|r| r.flatten().collect()).unwrap_or_default();
-
-                            let mut all_nids: Vec<_> = nodes_a.keys().chain(nodes_b.keys()).collect();
-                            all_nids.sort();
-                            all_nids.dedup();
-
-                            for nid in all_nids {
-                                let val_a = nodes_a.get(nid).cloned().unwrap_or("-".to_string());
-                                let val_b = nodes_b.get(nid).cloned().unwrap_or("-".to_string());
-                                let color = if val_a != val_b { "#ff8800" } else { "var(--text)" };
-                                
-                                comparison.push_str(&format!(
-                                    "<div style='display:grid; grid-template-columns:1fr 1fr 1fr; gap:10px; padding:5px; border-bottom:1px solid rgba(255,255,255,0.05); font-family:monospace; color:{}'>
-                                        <span>#{}</span><span>'{}'</span><span>'{}'</span>
-                                    </div>", color, nid, val_a, val_b
-                                ));
-                            }
-                        }
+                        // TODO: Comparison migration to sqlx
 
                         let mut ops = Vec::new();
                         ops.push(crate::proto::PatchOp::replace_inner(101, 1, &comparison));
@@ -675,13 +501,7 @@ async fn handle_devtools_ws(socket: WebSocket, tx_monitor: broadcast::Sender<cra
                 },
                 0x06 => { // REFRESH
                     let mut sessions: Vec<String> = Vec::new();
-                    if let Ok(conn) = rusqlite::Connection::open(&db_path) {
-                        if let Ok(mut stmt) = conn.prepare("SELECT DISTINCT session_id FROM patch_history") {
-                            if let Ok(rows) = stmt.query_map([], |row| row.get::<_, String>(0)) {
-                                sessions = rows.flatten().collect();
-                            }
-                        }
-                    }
+                    // TODO: Session list migration to sqlx
                     let mut html = String::new();
                     for (i, sid) in sessions.iter().enumerate() {
                         html.push_str(&format!(

@@ -406,6 +406,10 @@ async fn handle_http_inner(
 
     let mime_str = if final_path_obj.to_string_lossy().ends_with(".nhtml") {
         "text/html; charset=utf-8".to_string()
+    } else if final_path_obj.to_string_lossy().ends_with(".mjs") {
+        "application/javascript; charset=utf-8".to_string()
+    } else if final_path_obj.to_string_lossy().ends_with(".wasm") {
+        "application/wasm".to_string()
     } else {
         let mime = mime_guess::from_path(&final_path_obj).first_or_octet_stream();
         let mut m = mime.to_string();
@@ -1055,7 +1059,7 @@ async fn handle_event(
         }
     }
 
-    // 5. Traitement du Broadcast v0.7.0 (SDK-driven)
+    // 5. Traitement du Broadcast v0.7.1 (SDK-driven)
     if let Some(bc) = broadcast_instr {
         info!("[{}] BROADCAST via PHP (scope: {})", session.state.session_id, bc.scope);
         let bc_pkt = proto::patch(&bc.patches);

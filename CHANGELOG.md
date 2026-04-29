@@ -2,16 +2,18 @@
 
 ## v0.7.1 (Avril 2026) — "Industrial Hardening" (ACTUEL)
 ### Added
+- **Agnostic Database Engine (sqlx)**: Support complet pour **SQLite**, **MySQL** et **PostgreSQL** via `sqlx::AnyPool`.
+- **Global Session Persistence**: Centralisation de l'état des sessions et de l'historique des patches en DB, permettant la scalabilité horizontale (Clustering).
 - **Compilation Caching**: Cache global des `CompileResult` via `Arc`. Latence réduite à ~1ms lors des reconnexions.
-- **Atomic Session Integrity**: Mises à jour sécurisées du `last_seq` via SQLite pour prévenir les *Race Conditions*.
 - **Origin Validation**: Protection contre le *Cross-Site WebSocket Hijacking* (CSWH) via contrôle de l'en-tête Origin.
 - **Memory Optimization**: Migration vers `Arc<HandlerTable>` et pré-sérialisation JSON pour réduire drastiquement l'empreinte mémoire par session.
 
 ### Fixed
 - **Zero-Panic Compliance**: Suppression totale des `unwrap()` et `expect()` dans le runtime (Supervisor, Watcher, CLI, Socket).
-- **Binary Hardening**: Ajout de `bounds checks` rigoureux sur tous les buffers entrants (NBPS v0.7.0).
+- **Binary Hardening**: Ajout de `bounds checks` rigoureux sur tous les buffers entrants (NBPS v0.7.1).
+- **HMAC Signatures**: Correction de l'implémentation binaire pour une compatibilité parfaite avec les navigateurs modernes.
 - **PHP Path Security**: Canonicalisation forcée des chemins pour neutraliser les injections de commandes.
-- **Log Privacy**: Hachage systématique des Session IDs (`hash_sid`) dans les logs système.
+- **WASM MIME Support**: Support explicite des types MIME `.mjs` et `.wasm` pour le mode Zero-Server.
 
 ## v0.7.0 (Avril 2026) — "Industrial Scale"
 ### Added

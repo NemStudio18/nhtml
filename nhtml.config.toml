@@ -8,8 +8,8 @@ http = 3000
 # Port pour le serveur PHP en arrière-plan (défaut: 8000)
 php = 8000
 
-# Port pour le Dashboard DevTools (défaut: 8081)
-devtools = 8081
+# Port pour le Dashboard DevTools (défaut: 8082)
+devtools = 8082
 
 [dev]
 # Activer le live-reload par défaut sans taper --dev (défaut: false)

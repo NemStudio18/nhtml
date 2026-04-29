@@ -1,5 +1,5 @@
 /**
- * NHTML SDK Node.js v0.7.0
+ * NHTML SDK Node.js v0.7.1
  */
 
 class Patch {

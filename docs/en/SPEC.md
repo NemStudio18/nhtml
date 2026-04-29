@@ -1,4 +1,4 @@
-# 🛰️ NHTML/// proto.rs — Binary serialization for Nhtml v0.7.0
+# 🛰️ NHTML/// proto.rs — Binary serialization for Nhtml v0.7.1
 **Performance & Collaboration Edition**
 
 ## 1. Universal Packet Structure

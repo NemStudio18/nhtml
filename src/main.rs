@@ -113,7 +113,7 @@ async fn main() {
     let (tx_app_broadcast, _) = broadcast::channel::<std::sync::Arc<Vec<u8>>>(5000);
     let (tx_reload, _) = broadcast::channel::<()>(100);
 
-    // Initialisation des métriques Prometheus (v0.7.0)
+    // Initialisation des métriques Prometheus (v0.7.1)
     if let Err(e) = metrics_exporter_prometheus::PrometheusBuilder::new().install() {
         error!("❌ Impossible d'installer le recorder Prometheus : {}", e);
     } else {
@@ -202,10 +202,11 @@ async fn main() {
             }
 
             info!("🚀 NHTML Gateway starting...");
-            let sm = match crate::session::SessionManager::new().await {
+            let db_uri_str = final_db_uri.unwrap_or_else(|| "sqlite://nhtml_sessions.db".to_string());
+            let sm = match crate::session::SessionManager::new(&db_uri_str).await {
                 Ok(s) => s,
                 Err(e) => {
-                    error!("❌ Fatal: Impossible d'initialiser le SessionManager : {}", e);
+                    error!("❌ Fatal: Impossible d'initialiser le SessionManager ({}) : {}", db_uri_str, e);
                     return;
                 }
             };

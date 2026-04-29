@@ -71,7 +71,7 @@ function page_increment(NhtmlEvent $event): array
 
 ### 🛠️ Built-in DevTools
 
-NHTML includes a complete control station accessible locally at `http://127.0.0.1:8081`:
+NHTML includes a complete control station accessible locally at `http://127.0.0.1:8082`:
 
 ![NHTML DevTools Preview](assets/devtools_preview.png)
 
@@ -194,7 +194,7 @@ function page_incrementer(NhtmlEvent $event): array
 
 ### 🛠️ DevTools intégrés
 
-NHTML inclut une station de contrôle complète accessible localement sur `http://127.0.0.1:8081` :
+NHTML inclut une station de contrôle complète accessible localement sur `http://127.0.0.1:8082` :
 
 ![NHTML DevTools Preview](assets/devtools_preview.png)
 

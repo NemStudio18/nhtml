@@ -2,7 +2,7 @@ if (window.nhtml_initialized) {
     console.warn("🛰️ NHTML Bridge already initialized.");
 } else {
 window.nhtml_initialized = true;
-console.log("🛰️ NHTML v0.7.0 Bridge Loading...");
+console.log("🛰️ NHTML v0.7.1 Bridge Loading...");
 
 let socket = null;
 window.nhtml_transport_mode = "INIT";
@@ -104,7 +104,7 @@ function injectHud() {
     hud.innerHTML = `
         <div class="hud-content">
             <div class="hud-header">
-                <span class="hud-title">NHTML v0.7.0</span>
+                <span class="hud-title">NHTML v0.7.1</span>
                 <span style="opacity: 0.3; font-size: 9px;">GLOBAL CONNECT</span>
             </div>
             <div class="hud-row"><span>Transport</span><span id="nhtml-hud-mode" class="hud-val">WS</span></div>
