@@ -1,9 +1,10 @@
 # 🗺️ Roadmap NHTML v0.7.1 "Industrial Hardening"
 
 <p align="center">
-  <img src="https://img.shields.io/badge/Version-v0.7.1-ff007f?style=flat-square" />
-  <img src="https://img.shields.io/badge/Status-En_développement-yellow?style=flat-square" />
-  <img src="https://img.shields.io/badge/License-Commercial-blue?style=flat-square" />
+  <img src="https://img.shields.io/badge/Version-v0.7.3--alpha-ff007f?style=flat-square" />
+  <img src="https://img.shields.io/badge/Status-Working-yellow?style=flat-square" />
+  <img src="https://img.shields.io/badge/DevTools-Integrated-success?style=flat-square" />
+  <img src="https://img.shields.io/badge/License-AGPLv3-red?style=flat-square" />
 </p>
 
 Cette roadmap définit les prochaines étapes pour passer à l'échelle supérieure avec NHTML.
