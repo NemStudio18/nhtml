@@ -14,6 +14,8 @@
 - **HMAC Signatures**: Correction de l'implémentation binaire pour une compatibilité parfaite avec les navigateurs modernes.
 - **PHP Path Security**: Canonicalisation forcée des chemins pour neutraliser les injections de commandes.
 - **WASM MIME Support**: Support explicite des types MIME `.mjs` et `.wasm` pour le mode Zero-Server.
+- **SDK Standardisation**: Alignement complet des SDK Python, Node.js et Go sur le modèle PHP (Broadcast Scopes, Parsing NBPS v0.7).
+- **UI Industrialization**: Remplacement de tous les emojis par des icônes Font Awesome professionnelles et intégration du nouveau logo premium.
 
 ## v0.7.0 (Avril 2026) — "Industrial Scale"
 ### Added

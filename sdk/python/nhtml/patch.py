@@ -15,6 +15,11 @@ class Patch:
         self.ops.append({'op': 'set_text', 'nid': nid, 'val': text})
         return self
 
+    def broadcast(self, b: bool = True) -> 'Patch':
+        if self.ops:
+            self.ops[-1]['broadcast'] = b
+        return self
+
     def add_class(self, nid: str, class_name: str) -> 'Patch':
         self.ops.append({'op': 'add_class', 'nid': nid, 'val': class_name})
         return self
@@ -73,6 +78,10 @@ class Patch:
 
     def broadcast_in_room(self, room_id: str, ops: List[Dict[str, Any]]) -> 'Patch':
         self.broadcast_instr = {'scope': 'room', 'room_id': room_id, 'patch': ops}
+        return self
+
+    def broadcast_to_session(self, session_id: str, ops: List[Dict[str, Any]]) -> 'Patch':
+        self.broadcast_instr = {'scope': 'direct', 'target_sid': session_id, 'patch': ops}
         return self
 
     def to_dict(self) -> Dict[str, Any]:

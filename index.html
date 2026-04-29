@@ -7,6 +7,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
         :root {
             --bg-dark: #020617;
@@ -401,7 +402,10 @@
 
     <div class="container">
         <nav>
-            <a href="#" class="logo">🛰️ NHTML</a>
+            <a href="#" class="logo">
+                <img src="assets/logo.png" alt="NHTML Logo" style="height: 32px; width: auto;">
+                NHTML
+            </a>
             <div class="nav-links">
                 <a href="#features" data-en="Features" data-fr="Fonctions">Features</a>
                 <a href="#architecture" data-en="How it works" data-fr="Fonctionnement">How it works</a>
@@ -426,12 +430,12 @@
             
             <div class="btn-group">
                 <a href="./examples/showcase/index.html" class="btn btn-primary">
-                    <span lang="en">🚀 Launch Showcase</span>
-                    <span lang="fr">🚀 Lancer la Démo</span>
+                    <span lang="en"><i class="fas fa-rocket"></i> Launch Showcase</span>
+                    <span lang="fr"><i class="fas fa-rocket"></i> Lancer la Démo</span>
                 </a>
                 <a href="https://github.com/NemStudio18/nhtml/blob/main/INSTALL.md" class="btn btn-secondary">
-                    <span lang="en">📦 Install Now</span>
-                    <span lang="fr">📦 Installer</span>
+                    <span lang="en"><i class="fas fa-box"></i> Install Now</span>
+                    <span lang="fr"><i class="fas fa-box"></i> Installer</span>
                 </a>
             </div>
         </section>
@@ -477,21 +481,21 @@
 
             <div class="features">
                 <div class="f-card">
-                    <div class="f-icon">⚡</div>
+                    <div class="f-icon"><i class="fas fa-bolt"></i></div>
                     <h3 lang="en">Binary Speed</h3>
                     <h3 lang="fr">Vitesse Binaire</h3>
                     <p lang="en">NBPS v0.7.1 protocol with Zstd compression. Sub-millisecond DOM synchronization over WebSockets.</p>
                     <p lang="fr">Protocole NBPS v0.7.1 avec compression Zstd. Synchronisation DOM en moins d'une milliseconde.</p>
                 </div>
                 <div class="f-card">
-                    <div class="f-icon">🛡️</div>
+                    <div class="f-icon"><i class="fas fa-shield-halved"></i></div>
                     <h3 lang="en">Military Security</h3>
                     <h3 lang="fr">Sécurité Renforcée</h3>
                     <p lang="en">HMAC-SHA256 signed events. Anti-replay sequence IDs. Native CSRF & CSWH protection.</p>
                     <p lang="fr">Événements signés HMAC-SHA256. IDs de séquence anti-rejeu. Protection CSRF et CSWH native.</p>
                 </div>
                 <div class="f-card">
-                    <div class="f-icon">🏗️</div>
+                    <div class="f-icon"><i class="fas fa-microchip"></i></div>
                     <h3 lang="en">Zero Frontend JS</h3>
                     <h3 lang="fr">Zéro JS Frontend</h3>
                     <p lang="en">No React, no Vue, no business logic in the browser. Your backend is the single source of truth.</p>
@@ -559,8 +563,10 @@
         </section>
 
         <footer id="contact">
-            <a href="#" class="footer-logo">🛰️ NHTML</a>
-            <div class="footer-links">
+            <a href="#" class="footer-logo">
+                <img src="assets/logo.png" alt="NHTML Logo" style="height: 24px; width: auto; opacity: 0.8; vertical-align: middle; margin-right: 8px;">
+                NHTML
+            </a>
                 <a href="https://github.com/NemStudio18/nhtml/blob/main/docs/fr/ROADMAP_v0.7.1.md" lang="en">Roadmap</a>
                 <a href="https://github.com/NemStudio18/nhtml/blob/main/docs/fr/ROADMAP_v0.7.1.md" lang="fr">Feuille de route</a>
                 <a href="https://github.com/NemStudio18/nhtml/blob/main/docs/fr/SPEC.md" lang="en">Protocol</a>

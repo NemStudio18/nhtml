@@ -12,10 +12,20 @@ def parse_event(request_data: dict):
     """
     Extrait l'événement NHTML depuis les données JSON de la requête.
     """
+    payload = request_data.get('payload', '')
+    data = {}
+    try:
+        import json
+        data = json.loads(payload)
+    except:
+        pass
+
     return {
-        'node_id': request_data.get('n-id'),
-        'handler': request_data.get('n-handler'),
-        'value': request_data.get('n-value'),
-        'type': request_data.get('n-type'),
-        'session_id': request_data.get('n-session-id')
+        'handler': request_data.get('handler'),
+        'source_id': request_data.get('source_id'),
+        'session_id': request_data.get('session_id'),
+        'payload': payload,
+        'data': data,
+        'last_version': request_data.get('last_version'),
+        'nodes': request_data.get('nodes', {})
     }

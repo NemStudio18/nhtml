@@ -11,10 +11,20 @@ def parse_event(request_json: dict):
     """
     Extrait l'événement NHTML depuis les données JSON de la requête Flask.
     """
+    payload = request_json.get('payload', '')
+    data = {}
+    try:
+        import json
+        data = json.loads(payload)
+    except:
+        pass
+
     return {
-        'node_id': request_json.get('n-id'),
-        'handler': request_json.get('n-handler'),
-        'value': request_json.get('n-value'),
-        'type': request_json.get('n-type'),
-        'session_id': request_json.get('n-session-id')
+        'handler': request_json.get('handler'),
+        'source_id': request_json.get('source_id'),
+        'session_id': request_json.get('session_id'),
+        'payload': payload,
+        'data': data,
+        'last_version': request_json.get('last_version'),
+        'nodes': request_json.get('nodes', {})
     }

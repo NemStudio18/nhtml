@@ -29,6 +29,13 @@ func (p *Patch) SetText(nid string, text string) *Patch {
 	return p
 }
 
+func (p *Patch) Broadcast(b bool) *Patch {
+	if len(p.Ops) > 0 {
+		p.Ops[len(p.Ops)-1]["broadcast"] = b
+	}
+	return p
+}
+
 func (p *Patch) AddClass(nid string, className string) *Patch {
 	p.Ops = append(p.Ops, PatchOp{"op": "add_class", "nid": nid, "val": className})
 	return p
@@ -101,5 +108,10 @@ func (p *Patch) BroadcastToOthers(ops []PatchOp) *Patch {
 
 func (p *Patch) BroadcastInRoom(roomID string, ops []PatchOp) *Patch {
 	p.BroadcastInstr = &BroadcastInstruction{Scope: "room", RoomID: roomID, Patch: ops}
+	return p
+}
+
+func (p *Patch) BroadcastToSession(sessionID string, ops []PatchOp) *Patch {
+	p.BroadcastInstr = &BroadcastInstruction{Scope: "direct", TargetSID: sessionID, Patch: ops}
 	return p
 }

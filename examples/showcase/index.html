@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>NHTML v0.7.1 | Ultimate Showcase MVC</title>
     <link rel="stylesheet" href="assets/css/modern.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
         :root {
             --sidebar-w: 260px;
@@ -269,15 +270,25 @@
     <div class="menu-overlay" id="menuOverlay" onclick="toggleMenu()"></div>
 
     <div class="app-container">
-        <aside class="sidebar">
-            <div class="logo">🛰️ NHTML</div>
-            <nav class="nav-list">
-                <div n-id="nav_dashboard" n-click="goto_dashboard" class="nav-item active"><span>📊</span> Dashboard</div>
-                <div n-id="nav_messenger" n-click="goto_messenger" class="nav-item"><span>💬</span> Messenger</div>
-                <div n-id="nav_inventory" n-click="goto_inventory" class="nav-item"><span>📦</span> Inventory</div>
-                <div n-id="nav_settings" n-click="goto_settings" class="nav-item"><span>⚙️</span> Settings</div>
+        <aside>
+            <div class="logo">
+                <img src="/assets/logo.png" alt="NHTML Logo" style="height: 28px; width: auto;">
+                NHTML
+            </div>
+            <nav>
+                <div n-id="nav_dashboard" class="nav-item active" n-click="view:dashboard">
+                    <i class="fas fa-chart-line"></i> Dashboard
+                </div>
+                <div n-id="nav_messenger" class="nav-item" n-click="view:messenger">
+                    <i class="fas fa-comments"></i> Messenger
+                </div>
+                <div n-id="nav_inventory" class="nav-item" n-click="view:inventory">
+                    <i class="fas fa-box"></i> Inventory
+                </div>
+                <div n-id="nav_settings" class="nav-item" n-click="view:settings">
+                    <i class="fas fa-cog"></i> Settings
+                </div>
             </nav>
-            
             <div style="margin-top: auto;">
                 <div style="background: rgba(255,255,255,0.03); padding: 16px; border-radius: 16px; border: 1px solid rgba(255,255,255,0.05);">
                     <div style="font-size: 0.7rem; color: #64748b; margin-bottom: 4px;">SYSTEM STATUS</div>
@@ -290,24 +301,27 @@
         </aside>
 
         <main class="main-content">
-        <div class="page-header" style="display: flex; justify-content: space-between; align-items: flex-start;">
-            <div>
-                <h1 n-id="page_title">📊 Dashboard de Démo</h1>
-                <p n-id="page_desc">Bienvenue dans l'écosystème NHTML. Explorez la réactivité binaire ultra-rapide.</p>
-            </div>
-            <div class="btn-group" style="margin-top: 0;">
-                <button style="padding: 8px 12px; font-size: 0.8rem;" n-click="set_lang:fr">FR 🇫🇷</button>
-                <button style="padding: 8px 12px; font-size: 0.8rem;" n-click="set_lang:en">EN 🇺🇸</button>
-            </div>
-        </div>
-
         <!-- SECTION: DASHBOARD -->
         <div n-id="view_dashboard" class="view-section active">
-            <div id="wasm_notice_box" n-id="wasm_notice_box" class="wasm-notice"></div>
+            <div class="page-header" style="display: flex; justify-content: space-between; align-items: flex-start;">
+                <div>
+                    <h1 n-id="page_title"><i class="fas fa-tachometer-alt"></i> Dashboard de Démo</h1>
+                    <p n-id="page_desc">Bienvenue dans l'écosystème NHTML. Explorez la réactivité binaire ultra-rapide.</p>
+                </div>
+                <div class="btn-group" style="margin-top: 0;">
+                    <button style="padding: 8px 12px; font-size: 0.8rem;" n-click="set_lang:fr">FR</button>
+                    <button style="padding: 8px 12px; font-size: 0.8rem;" n-click="set_lang:en">EN</button>
+                </div>
+            </div>
+
+            <div class="status-banner" n-id="wasm_banner" style="display: none;">
+                <i class="fas fa-rocket"></i> <strong>Mode Zero-Server Actif</strong> : Vos données sont persistées localement dans votre navigateur.
+            </div>
 
             <div class="grid">
+                <!-- COMPTEUR -->
                 <div class="widget">
-                    <h3><span>🔢</span> Compteur Persistant</h3>
+                    <h3><i class="fas fa-calculator"></i> Compteur Persistant</h3>
                     <div class="counter-container">
                         <div class="counter-val" n-id="counter_val">0</div>
                         <div class="btn-group">
@@ -316,8 +330,9 @@
                         </div>
                     </div>
                 </div>
+                <!-- STYLE LAB -->
                 <div class="widget">
-                    <h3><span>🎨</span> Style Lab</h3>
+                    <h3><i class="fas fa-palette"></i> Style Lab</h3>
                     <div style="padding: 20px 0;">
                         <div id="preview_mini" n-id="preview_mini" style="width:100px; height:100px; background:linear-gradient(45deg, var(--primary), var(--accent)); margin: 0 auto 32px; border-radius:12px; box-shadow: 0 20px 40px rgba(0,0,0,0.3);"></div>
                         <div class="form-group">
@@ -335,8 +350,8 @@
 
         <!-- SECTION: MESSENGER -->
         <div n-id="view_messenger" class="view-section">
-            <div class="widget" style="max-width: 600px; margin: 0 auto;">
-                <h3><span>💬</span> NHTML Messenger</h3>
+            <div class="widget" style="max-width: 800px; margin: 0 auto; display: flex; flex-direction: column; height: 600px;">
+                <h3><i class="fas fa-comments"></i> NHTML Messenger (Global)</h3>
                 <div class="chat-container">
                     <div class="chat-messages" n-id="chat_box">
                         <div class="chat-msg received">Bienvenue sur le chat NHTML ! Posez-moi une question.</div>
@@ -352,7 +367,7 @@
         <!-- SECTION: INVENTORY -->
         <div n-id="view_inventory" class="view-section">
             <div class="widget">
-                <h3><span>📦</span> Gestion des Stocks</h3>
+                <h3><i class="fas fa-boxes-stacked"></i> Gestion des Stocks</h3>
                 <div class="table-card">
                     <table>
                         <thead>
@@ -385,7 +400,7 @@
         <!-- SECTION: SETTINGS -->
         <div n-id="view_settings" class="view-section">
             <div class="widget" style="max-width: 500px; margin: 0 auto;">
-                <h3><span>⚙️</span> Paramètres du Profil</h3>
+                <h3><i class="fas fa-user-gear"></i> Paramètres du Profil</h3>
                 <div class="form-group">
                     <label>Nom d'affichage</label>
                     <input type="text" n-id="set_user" value="NemStudio">

@@ -10,10 +10,13 @@ import (
 const Version = "0.7.1"
 
 type Event struct {
-	Handler   string                 `json:"handler"`
-	Payload   string                 `json:"payload"`
-	Transport string                 `json:"transport"`
-	Data      map[string]interface{} `json:"-"`
+	Handler     string                 `json:"handler"`
+	SourceID    string                 `json:"source_id"`
+	SessionID   string                 `json:"session_id"`
+	Payload     string                 `json:"payload"`
+	LastVersion uint32                 `json:"last_version"`
+	Nodes       map[string]interface{} `json:"nodes"`
+	Data        map[string]interface{} `json:"-"`
 }
 
 func ParseEvent(r *http.Request) (*Event, error) {

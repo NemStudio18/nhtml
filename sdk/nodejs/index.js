@@ -19,6 +19,13 @@ class Patch {
         return this;
     }
 
+    broadcast(b = true) {
+        if (this.ops.length > 0) {
+            this.ops[this.ops.length - 1].broadcast = b;
+        }
+        return this;
+    }
+
     addClass(nid, className) {
         this.ops.push({ op: 'add_class', nid, val: className });
         return this;
@@ -84,6 +91,21 @@ class Patch {
         return this;
     }
 
+    broadcastToOthers(ops) {
+        this.broadcastInstr = { scope: 'others', patch: ops };
+        return this;
+    }
+
+    broadcastInRoom(roomId, ops) {
+        this.broadcastInstr = { scope: 'room', room_id: roomId, patch: ops };
+        return this;
+    }
+
+    broadcastToSession(sessionId, ops) {
+        this.broadcastInstr = { scope: 'direct', target_sid: sessionId, patch: ops };
+        return this;
+    }
+
     toDict() {
         const response = { patch: this.ops };
         if (this.joinRooms.length > 0) response.join_room = this.joinRooms;
@@ -100,11 +122,22 @@ class Patch {
 
 module.exports = {
     Patch,
-    parseEvent: (body) => ({
-        nodeId: body['n-id'],
-        handler: body['n-handler'],
-        value: body['n-value'],
-        type: body['n-type'],
-        sessionId: body['n-session-id']
-    })
+    parseEvent: (body) => {
+        let payload = body.payload;
+        let data = {};
+        try {
+            data = JSON.parse(payload);
+        } catch (e) {
+            // Not JSON or empty
+        }
+        return {
+            handler: body.handler,
+            sourceId: body.source_id,
+            sessionId: body.session_id,
+            payload: payload,
+            data: data,
+            lastVersion: body.last_version,
+            nodes: body.nodes || {}
+        };
+    }
 };
