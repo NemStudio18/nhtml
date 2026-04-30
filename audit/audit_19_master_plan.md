@@ -23,16 +23,16 @@ Ce document regroupe toutes les vulnérabilités identifiées lors de l'audit co
 
 ### 🟡 MOYENNES (Résolution sous 1 à 3 mois)
 > Nuit à la stabilité globale, à l'intégrité des données ou introduit un risque ciblé.
-*   **[MED-01-001] Dépendance vulnérable à "Marvin Attack" (`Cargo.toml`)**
+*   ~~**[MED-01-001] Dépendance vulnérable à "Marvin Attack" (`Cargo.toml`)**~~ ✅ Corrigé (Cargo Update)
     La crate `rsa` via `sqlx` (MySQL/Postgres) est obsolète. 
     **Fix** : Forcer la mise à jour des dépendances via `cargo update` ou mettre à jour la version de `sqlx`.
-*   **[MED-09-001] Incohérence de données lors du TTL (`session.rs`)**
+*   ~~**[MED-09-001] Incohérence de données lors du TTL (`session.rs`)**~~ ✅ Corrigé (Block transactionnel AnyPool)
     Le processus de nettoyage des sessions expirées ne gère pas de transactions (risque de requêtes orphelines en cas de coupure). 
     **Fix** : Envelopper les `DELETE` dans un bloc `BEGIN ... COMMIT` ou ajouter `ON DELETE CASCADE` aux tables.
-*   **[MED-16-001] Troncature silencieuse de la taille du B-TREE (`btree_builder.rs` / `proto.rs`)**
+*   ~~**[MED-16-001] Troncature silencieuse de la taille du B-TREE (`btree_builder.rs` / `proto.rs`)**~~ ✅ Corrigé (Safe boundary limit 65Ko)
     Un attribut ou du texte trop long (>65Ko) corrompra le flux réseau à cause du cast aveugle `as u16`.
     **Fix** : Limiter la longueur avant l'encodage binaire ou basculer les paquets sur un `DataLen` en `u32` (4 Go).
-*   **[MED-08-001] Déni de Service du Pool FPM (`socket/mod.rs`)**
+*   ~~**[MED-08-001] Déni de Service du Pool FPM (`socket/mod.rs`)**~~ ✅ Corrigé (tokio::sync::Semaphore)
     Si le backend PHP sature, le serveur ferme purement la connexion (`FpmPool saturé`) au lieu de la mettre en file d'attente asynchrone.
     **Fix** : Utiliser `tokio::sync::Semaphore` avec timeout pour créer une vraie file d'attente non-bloquante.
 *   **[MED-02-001] Manque de limites et Headers par défaut (`nhtml.config.toml`)**

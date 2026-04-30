@@ -101,8 +101,16 @@ fn push_str8(buf: &mut Vec<u8>, s: &str) {
 
 #[inline]
 fn push_str16(buf: &mut Vec<u8>, s: &str) {
-    push_u16(buf, s.len() as u16);
-    buf.extend_from_slice(s.as_bytes());
+    let mut safe_len = s.len();
+    if safe_len > 65535 {
+        safe_len = 65535;
+        while !s.is_char_boundary(safe_len) && safe_len > 0 {
+            safe_len -= 1;
+        }
+    }
+    let safe_bytes = s[..safe_len].as_bytes();
+    push_u16(buf, safe_bytes.len() as u16);
+    buf.extend_from_slice(safe_bytes);
 }
 
 fn wrap_packet(pkt_type: u8, payload: Vec<u8>) -> Vec<u8> {
@@ -271,8 +279,11 @@ pub fn patch(ops: &[PatchOp]) -> Vec<u8> {
         push_u16(&mut payload, op.target_id); // TargetID (u16)
         payload.push(op.op_type);             // OpType (u8)
         push_u32(&mut payload, op.version);   // NodeVersion (u32)
-        push_u16(&mut payload, op.data.len() as u16); // DataLen (u16) - AJOUTÉ
-        payload.extend_from_slice(&op.data);
+        
+        let mut safe_len = op.data.len();
+        if safe_len > 65535 { safe_len = 65535; }
+        push_u16(&mut payload, safe_len as u16); // DataLen (u16)
+        payload.extend_from_slice(&op.data[..safe_len]);
     }
     wrap_packet(PKT_PATCH, payload)
 }

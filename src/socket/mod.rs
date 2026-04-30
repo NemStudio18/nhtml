@@ -55,6 +55,7 @@ pub struct FpmPool {
     max_size: usize,
     pub current_size: std::sync::Arc<std::sync::atomic::AtomicUsize>,
     pub is_healthy: std::sync::Arc<std::sync::atomic::AtomicBool>,
+    pub semaphore: Arc<tokio::sync::Semaphore>,
 }
 
 /// Équilibreur de charge pour distribuer les requêtes vers plusieurs backends FPM.
@@ -122,6 +123,7 @@ impl FpmPool {
             max_size: 100, // Limite par défaut à 100 connexions
             current_size: std::sync::Arc::new(std::sync::atomic::AtomicUsize::new(0)),
             is_healthy: std::sync::Arc::new(std::sync::atomic::AtomicBool::new(true)),
+            semaphore: Arc::new(tokio::sync::Semaphore::new(100)),
         }
     }
 
@@ -150,17 +152,17 @@ impl FpmPool {
     }
 
     pub async fn acquire(&self) -> crate::core::Result<FpmClient> {
+        let permit = match tokio::time::timeout(std::time::Duration::from_secs(10), self.semaphore.acquire()).await {
+            Ok(Ok(p)) => p,
+            _ => return Err(crate::core::GatewayError::SocketError(format!("FpmPool saturé ({} connexions) - Timeout dans la file d'attente", self.max_size))),
+        };
+        permit.forget(); // Permis relâché manuellement dans release()
+
         {
             let mut clients = self.clients.lock().await;
             if let Some(client) = clients.pop() {
                 return Ok(client);
             }
-        }
-        
-        // Vérifier si on peut encore créer une connexion
-        let curr = self.current_size.load(std::sync::atomic::Ordering::SeqCst);
-        if curr >= self.max_size {
-            return Err(crate::core::GatewayError::SocketError(format!("FpmPool saturé ({} connexions)", self.max_size)));
         }
         
         self.current_size.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
@@ -172,20 +174,31 @@ impl FpmPool {
             if is_unix {
                 let clean_addr = self.addr.strip_prefix("unix:").unwrap_or(&self.addr);
                 info!("[FPM] Connexion via Unix Socket: {}", clean_addr);
-                let stream = UnixStream::connect(clean_addr).await
-                    .map_err(|e| crate::core::GatewayError::SocketError(format!("Connexion FPM Unix échouée sur {} : {}", clean_addr, e)))?;
+                let stream = match UnixStream::connect(clean_addr).await {
+                    Ok(s) => s,
+                    Err(e) => {
+                        self.semaphore.add_permits(1);
+                        return Err(crate::core::GatewayError::SocketError(format!("Connexion FPM Unix échouée sur {} : {}", clean_addr, e)));
+                    }
+                };
                 return Ok(fastcgi_client::Client::new_keep_alive_tokio(Either::Right(stream)));
             }
         }
 
         #[cfg(not(unix))]
         if is_unix {
+            self.semaphore.add_permits(1);
             return Err(crate::core::GatewayError::SocketError("Les sockets Unix ne sont pas supportés sur cette plateforme.".to_string()));
         }
 
         // Mode TCP (Commun à tous ou fallback)
-        let stream = TcpStream::connect(&self.addr).await
-            .map_err(|e| crate::core::GatewayError::SocketError(format!("Connexion FPM TCP échouée sur {} : {}", self.addr, e)))?;
+        let stream = match TcpStream::connect(&self.addr).await {
+            Ok(s) => s,
+            Err(e) => {
+                self.semaphore.add_permits(1);
+                return Err(crate::core::GatewayError::SocketError(format!("Connexion FPM TCP échouée sur {} : {}", self.addr, e)));
+            }
+        };
         
         #[cfg(unix)]
         return Ok(fastcgi_client::Client::new_keep_alive_tokio(Either::Left(stream)));
@@ -197,6 +210,7 @@ impl FpmPool {
     pub async fn release(&self, client: FpmClient) {
         let mut clients = self.clients.lock().await;
         clients.push(client);
+        self.semaphore.add_permits(1);
     }
 }
 

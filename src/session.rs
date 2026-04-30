@@ -254,14 +254,18 @@ impl SessionManager {
 
         let mut count = 0;
         for sid in expired {
-            sqlx::query("DELETE FROM nodes WHERE session_id = ?").bind(&sid).execute(&self.pool).await.ok();
-            sqlx::query("DELETE FROM patch_history WHERE session_id = ?").bind(&sid).execute(&self.pool).await.ok();
-            sqlx::query("DELETE FROM session_security WHERE session_id = ?").bind(&sid).execute(&self.pool).await.ok();
-            sqlx::query("DELETE FROM session_rooms WHERE session_id = ?").bind(&sid).execute(&self.pool).await.ok();
-            sqlx::query("DELETE FROM event_log WHERE session_id = ?").bind(&sid).execute(&self.pool).await.ok();
-            
-            if let Ok(res) = sqlx::query("DELETE FROM sessions WHERE session_id = ?").bind(&sid).execute(&self.pool).await {
-                if res.rows_affected() > 0 { count += 1; }
+            if let Ok(mut tx) = self.pool.begin().await {
+                let _ = sqlx::query("DELETE FROM nodes WHERE session_id = ?").bind(&sid).execute(&mut *tx).await;
+                let _ = sqlx::query("DELETE FROM patch_history WHERE session_id = ?").bind(&sid).execute(&mut *tx).await;
+                let _ = sqlx::query("DELETE FROM session_security WHERE session_id = ?").bind(&sid).execute(&mut *tx).await;
+                let _ = sqlx::query("DELETE FROM session_rooms WHERE session_id = ?").bind(&sid).execute(&mut *tx).await;
+                let _ = sqlx::query("DELETE FROM event_log WHERE session_id = ?").bind(&sid).execute(&mut *tx).await;
+                
+                if let Ok(res) = sqlx::query("DELETE FROM sessions WHERE session_id = ?").bind(&sid).execute(&mut *tx).await {
+                    if res.rows_affected() > 0 { count += 1; }
+                }
+                
+                let _ = tx.commit().await;
             }
         }
         Ok(count)

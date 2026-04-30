@@ -28,6 +28,16 @@
 - **CLI Scaffolding**: Correction du template `app.php` généré par `nhtml new` pour supporter le format JSON via `php://stdin`.
 - **Router Hardening**: `router.php` n'inclut désormais explicitement que des fichiers nommés `app.php` et masque son arborescence système (404 générique).
 - **CSWH Protection**: Comparaison stricte des Origins WebSocket pour empêcher le Cross-Site WebSocket Hijacking.
+- **Configuration Safety**: Le Gateway s'arrête avec une erreur fatale propre (exit 1) si `nhtml.config.toml` est invalide au lieu d'utiliser un fallback silencieux.
+- **Port Cascading**: L'argument CLI `--port` prend désormais correctement le pas sur la configuration du fichier.
+- **DevTools Access**: Accès restreint uniquement au mode développement (`--dev`) et protégé par un Token UUID aléatoire à chaque lancement.
+- **Credential Masking**: Masquage automatique des mots de passe (`***`) pour la variable `NHTML_DB_URI` dans les logs terminaux.
+- **Cross-Platform CLI**: Remplacement de l'appel système `xcopy` par une fonction récursive `copy_dir_all` 100% native Rust.
+- **CLI Security**: Ajout d'une confirmation interactive (`[y/N]`) avant d'exécuter `npx localtunnel` (Supply Chain).
+- **Transaction Safety**: Sécurisation transactionnelle (`BEGIN/COMMIT`) du nettoyage TTL des sessions en DB (`session.rs`).
+- **B-TREE Integrity**: Limitation sécurisée à 64Ko avec préservation des frontières de caractères UTF-8 pour éviter le crash client sur des nœuds immenses.
+- **Queue System (DoS Prevention)**: Implémentation d'une file d'attente non-bloquante (`tokio::sync::Semaphore`) pour le Pool FPM afin d'éviter la fermeture prématurée des requêtes en charge forte.
+- **Dependency Update**: Résolution de la faille de sécurité "Marvin Attack" via mise à jour du graphe de dépendances (`sqlx` / `rsa`).
 
 ## v0.7.0 (Avril 2026) — "Industrial Scale"
 ### Added
