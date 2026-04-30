@@ -333,7 +333,7 @@ async function processMessageInternal(msg) {
     try {
         let chunk = new Uint8Array(msg);
         
-        // 🛡️ Vérification HMAC-SHA256 (v0.7.1 Security)
+        // 🛡️ Vérification HMAC-SHA256 (v0.7.3 Security)
         // Tous les paquets Gateway -> Client sont signés si la clé est prête
         if (window.nhtml_crypto_key && chunk.length > 32) {
             const dataToVerify = chunk.slice(0, chunk.length - 32);

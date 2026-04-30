@@ -14,7 +14,7 @@ impl SessionManager {
 
         // Robustesse pour SQLite sur Windows/Relative paths
         if uri.starts_with("sqlite:") && !uri.starts_with("sqlite::memory:") {
-            max_conns = 1; // SQLite n'aime pas le multi-connexion AnyPool sans WAL
+            max_conns = 10; // On peut augmenter maintenant avec WAL mode (Phase 7.4)
             let mut path_part = if uri.starts_with("sqlite://") {
                 &uri[9..]
             } else {
@@ -39,6 +39,13 @@ impl SessionManager {
         let pool = AnyPoolOptions::new()
             .max_connections(max_conns)
             .connect(&final_uri).await?;
+        
+        // Optimisation spécifique SQLite (Phase 7.4)
+        if final_uri.starts_with("sqlite:") && !final_uri.contains(":memory:") {
+            sqlx::query("PRAGMA journal_mode=WAL;").execute(&pool).await.ok();
+            sqlx::query("PRAGMA synchronous=NORMAL;").execute(&pool).await.ok();
+            println!("🛰️ NHTML Persistence: SQLite WAL Mode Enabled.");
+        }
         
         // Initialisation des tables (Syntaxe compatible SQLite/MySQL/PG autant que possible)
         // Note: AUTOINCREMENT vs SERIAL vs AUTO_INCREMENT est un challenge.

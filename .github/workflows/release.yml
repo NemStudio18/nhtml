@@ -79,19 +79,36 @@ jobs:
       - name: Extract Changelog
         shell: bash
         run: |
+          # Extraire la version sans le 'v' initial
           VERSION=${GITHUB_REF_NAME#v}
-          sed -n "/## v$VERSION/,/##/p" CHANGELOG.md | sed '1d;$d' > RELEASE_NOTES.md
+          # Rechercher la section correspondante jusqu'à la prochaine section ##
+          sed -n "/## v$VERSION/,/## v/p" CHANGELOG.md | sed '1d;$d' > RELEASE_NOTES.md
+
+      - name: Create Distribution Packages (ZIP)
+        shell: bash
+        run: |
+          VERSION=${GITHUB_REF_NAME}
+          # Package Shared Mode
+          zip -r "nhtml-shared-${VERSION}.zip" assets/ sdk/ router.php nhtml.config.toml README.md LICENSE -x "assets/logo.png"
+          # Package WASM Mode
+          zip -r "nhtml-wasm-${VERSION}.zip" assets/js/bridge.js assets/js/php-wasm/ assets/js/fzstd.min.js README.md
+          
+          # Move to artifacts dir for release
+          mkdir -p dist_pkgs
+          mv "nhtml-shared-${VERSION}.zip" dist_pkgs/
+          mv "nhtml-wasm-${VERSION}.zip" dist_pkgs/
 
       - name: Create Release
         id: create_release
         uses: softprops/action-gh-release@c95fe1489396fe8a9eb87c0abf8aa5b2ef267fda # v2.0.8
         with:
-          name: NHTML Gateway v${{ github.ref_name }}
+          name: NHTML Gateway ${{ github.ref_name }}
           body_path: RELEASE_NOTES.md
           files: |
             artifacts/nhtml-linux
             artifacts/nhtml-windows.exe
             artifacts/nhtml-macos
+            dist_pkgs/*.zip
           draft: false
           prerelease: false
         env:

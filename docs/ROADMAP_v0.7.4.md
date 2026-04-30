@@ -3,7 +3,7 @@
 This document outlines the planned improvements for the next minor release cycle.
 
 ## 🏗️ Core Architecture & Infrastructure
-- [ ] **SQLite WAL Mode**: Move session database to WAL (Write-Ahead Logging) for better concurrent performance.
+- [x] **SQLite WAL Mode**: Move session database to WAL (Write-Ahead Logging) for better concurrent performance.
 - [ ] **Circuit Breaker for FPM**: Implement a circuit breaker in `socket/mod.rs` to stop trying FPM if the backend is persistently failing.
 - [ ] **Exponential Backoff**: Better reconnection strategy in `bridge.js` with exponential backoff and jitter.
 - [ ] **nhtml check command**: A new pre-deployment command that verifies all routes and config security before going live.

@@ -30,6 +30,7 @@ use crate::session::SessionManager;
 use hmac::{Hmac, Mac};
 use sha2::Sha256;
 use tokio::sync::Mutex;
+use std::sync::Mutex as StdMutex;
 use fastcgi_client::conn::KeepAlive;
 
 type HmacSha256 = Hmac<Sha256>;
@@ -323,6 +324,7 @@ pub async fn serve(
         rate_limiter,
         allowed_origins,
         compile_cache: Mutex::new(HashMap::new()),
+        fpm_circuit_breaker: Arc::new(CircuitBreaker::new(10, std::time::Duration::from_secs(10))),
     });
 
     // Session TTL Cleanup Loop (background)
@@ -447,6 +449,65 @@ struct GatewayState {
     rate_limiter: Option<Arc<RateLimiter>>,
     allowed_origins: Option<Vec<String>>,
     pub compile_cache: Mutex<HashMap<String, (std::time::SystemTime, Arc<CompileResult>)>>,
+    pub fpm_circuit_breaker: Arc<CircuitBreaker>,
+}
+
+pub struct CircuitBreaker {
+    pub failures: std::sync::atomic::AtomicU32,
+    pub threshold: u32,
+    pub reset_timeout: std::time::Duration,
+    pub state: StdMutex<CBState>,
+}
+
+#[derive(Clone, Copy, PartialEq)]
+pub enum CBState {
+    Closed,
+    Open(std::time::Instant),
+}
+
+impl CircuitBreaker {
+    pub fn new(threshold: u32, reset_timeout: std::time::Duration) -> Self {
+        Self {
+            failures: std::sync::atomic::AtomicU32::new(0),
+            threshold,
+            reset_timeout,
+            state: StdMutex::new(CBState::Closed),
+        }
+    }
+
+    pub fn is_allowed(&self) -> bool {
+        let mut state = self.state.lock().unwrap();
+        match *state {
+            CBState::Closed => true,
+            CBState::Open(opened_at) => {
+                if opened_at.elapsed() >= self.reset_timeout {
+                    *state = CBState::Closed;
+                    self.failures.store(0, std::sync::atomic::Ordering::SeqCst);
+                    true
+                } else {
+                    false
+                }
+            }
+        }
+    }
+
+    pub fn record_failure(&self) {
+        let f = self.failures.fetch_add(1, std::sync::atomic::Ordering::SeqCst) + 1;
+        if f >= self.threshold {
+            let mut state = self.state.lock().unwrap();
+            *state = CBState::Open(std::time::Instant::now());
+            error!("🚨 CIRCUIT BREAKER OPEN: PHP-FPM threshold reached ({} failures). Rejected traffic for {:?}.", f, self.reset_timeout);
+        }
+    }
+
+    pub fn record_success(&self) {
+        self.failures.store(0, std::sync::atomic::Ordering::SeqCst);
+        let mut state = self.state.lock().unwrap();
+        if let CBState::Open(_) = *state {
+             *state = CBState::Closed;
+             info!("✅ CIRCUIT BREAKER CLOSED: PHP-FPM recovered.");
+        }
+    }
 }
 
 /// Rate Limiter with true O(1) LRU eviction via `lru::LruCache`.
@@ -1112,7 +1173,13 @@ async fn handle_event(
         }
     };
 
-    // 2. Vérification de la Séquence (Anti-Replay)
+    // 2. Vérification du Circuit Breaker (Phase 7.4)
+    if !state.fpm_circuit_breaker.is_allowed() {
+        warn!("[{}] CIRCUIT BREAKER : Requête rejetée pour protéger le backend (FPM saturé ou instable).", hash_sid(&session.state.session_id));
+        return result;
+    }
+
+    // 3. Vérification de la Séquence (Anti-Replay)
     if let Ok(Some((secret, last_seq))) = session.sm.get_session_security(session.state.session_id.clone()).await {
         // A. Vérification rapide
         if seq_id <= last_seq {
@@ -1390,7 +1457,7 @@ async fn call_php(
         "nodes": nodes_map, 
     });
 
-    if let Some(ref lb) = state.fpm_lb {
+    let res = if let Some(ref lb) = state.fpm_lb {
         if let Some(pool) = lb.acquire_pool() {
             call_php_fpm(&pool, php_script, &context, handler_table, state.fpm_timeout).await
         } else {
@@ -1398,7 +1465,16 @@ async fn call_php(
         }
     } else {
         call_php_process(php_script, &context, handler_table).await
+    };
+
+    // Mise à jour du Circuit Breaker (Phase 7.4)
+    if res.is_ok() {
+        state.fpm_circuit_breaker.record_success();
+    } else {
+        state.fpm_circuit_breaker.record_failure();
     }
+
+    res
 }
 
 async fn call_php_process(
