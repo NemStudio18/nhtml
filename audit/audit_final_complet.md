@@ -43,7 +43,7 @@
 
 ## 🔴 VULNÉRABILITÉS CRITIQUES (2)
 
-### CRIT-01 — XSS via `innerHTML` sans sanitisation
+### ~~CRIT-01 — XSS via `innerHTML` sans sanitisation~~ ✅ Corrigé
 **Fichier** : `assets/js/bridge.js`  
 **Lignes** : L.462, L.466, L.580, L.582, L.~430 (`applyJsonPatch`)
 
@@ -80,7 +80,7 @@ case 0x0B:
 
 ---
 
-### CRIT-02 — XSS Stocké dans les DevTools via handler non échappé
+### ~~CRIT-02 — XSS Stocké dans les DevTools via handler non échappé~~ ✅ Corrigé
 **Fichier** : `src/cli.rs`  
 **Lignes** : L.~200, L.~220 (`handle_devtools_ws`)
 
@@ -110,7 +110,7 @@ let flow_html = format!("...EVENT: {safe_handler}...{safe_details}...");
 
 ## 🟠 VULNÉRABILITÉS HAUTES (7)
 
-### HIGH-01 — Path Traversal & Inclusion PHP arbitraire
+### ~~HIGH-01 — Path Traversal & Inclusion PHP arbitraire~~ ✅ Corrigé
 **Fichier** : `router.php`  
 **Lignes** : L.9–10 (protection), L.21–25 (inclusion)
 
@@ -137,7 +137,7 @@ include $app_php;
 
 ---
 
-### HIGH-02 — Information Disclosure chemin absolu dans 404
+### ~~HIGH-02 — Information Disclosure chemin absolu dans 404~~ ✅ Corrigé
 **Fichier** : `router.php`  
 **Ligne** : L.27
 
@@ -151,7 +151,7 @@ echo json_encode(["error" => "Not found"]);
 
 ---
 
-### HIGH-03 — CSWH (Cross-Site WebSocket Hijacking) via `.contains()`
+### ~~HIGH-03 — CSWH (Cross-Site WebSocket Hijacking) via `.contains()`~~ ✅ Corrigé
 **Fichier** : `src/socket/mod.rs` (branche dev-0.7.3 — non lu en raw mais confirmé par l'audit initial)  
 **Ligne** : ~L.513
 
