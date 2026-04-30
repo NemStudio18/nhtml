@@ -509,8 +509,21 @@ async fn handle_http_inner(
             let origin_str = origin.to_str().unwrap_or("");
             let host = headers.get(header::HOST).and_then(|h| h.to_str().ok()).unwrap_or("");
             
-            // On autorise si l'origine correspond au host ou si c'est local
-            if !origin_str.is_empty() && !origin_str.contains(host) && !origin_str.contains("localhost") && !origin_str.contains("127.0.0.1") {
+            let clean_origin = origin_str.trim_start_matches("http://").trim_start_matches("https://");
+            
+            let mut is_allowed = clean_origin == host 
+                || clean_origin.starts_with("localhost:") 
+                || clean_origin == "localhost" 
+                || clean_origin.starts_with("127.0.0.1:") 
+                || clean_origin == "127.0.0.1";
+
+            if let Some(allowed) = &state.allowed_origins {
+                if allowed.iter().any(|o| o == origin_str || o == clean_origin) {
+                    is_allowed = true;
+                }
+            }
+            
+            if !origin_str.is_empty() && !is_allowed {
                 warn!("[SECURITY] Rejet d'une tentative de WebSocket Cross-Origin ! Origin: {} Host: {}", origin_str, host);
                 return (StatusCode::FORBIDDEN, "Accès Cross-Origin non autorisé").into_response();
             }
@@ -582,6 +595,7 @@ async fn handle_http_inner(
 
         // INJECTION DU BRIDGE (Automatique)
         let bridge_script = r#"
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.0.6/purify.min.js" defer></script>
     <script src="/assets/js/fzstd.min.js" defer></script>
     <script src="/assets/js/bridge.js" charset="UTF-8" defer></script>
 "#;

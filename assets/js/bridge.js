@@ -152,6 +152,32 @@ function readStr16(view, chunk, offset) {
     return new TextDecoder().decode(chunk.slice(offset + 2, offset + 2 + len));
 }
 
+// --- Security: Safe HTML Injection ---
+function safeHTML(html) {
+    if (window.DOMPurify) return window.DOMPurify.sanitize(html);
+    
+    // Fallback basic sanitizer
+    const template = document.createElement('template');
+    template.innerHTML = html;
+    const scripts = template.content.querySelectorAll('script');
+    scripts.forEach(s => s.remove());
+    
+    const all = template.content.querySelectorAll('*');
+    all.forEach(el => {
+        const attrs = el.attributes;
+        for (let i = attrs.length - 1; i >= 0; i--) {
+            const attr = attrs[i];
+            if (attr.name.toLowerCase().startsWith('on') || 
+                (attr.name.toLowerCase() === 'href' && attr.value.toLowerCase().trim().startsWith('javascript:'))) {
+                el.removeAttribute(attr.name);
+            }
+        }
+    });
+    const div = document.createElement('div');
+    div.appendChild(template.content);
+    return div.innerHTML;
+}
+
 // ── Local Actions Architecture ──
 window.nhtml_global_actions = { scroll: [], mousemove: [] };
 window.nhtml_global_listeners_attached = false;
@@ -438,11 +464,11 @@ function processMessage(msg) {
                             break;
                         case 0x06: // INSERT_BEFORE
                             opName = "INSERT_BEFORE";
-                            el.insertAdjacentHTML('beforebegin', new TextDecoder().decode(data.slice(2)));
+                            el.insertAdjacentHTML('beforebegin', safeHTML(new TextDecoder().decode(data.slice(2))));
                             break;
                         case 0x07: // INSERT_AFTER
                             opName = "INSERT_AFTER";
-                            el.insertAdjacentHTML('afterend', new TextDecoder().decode(data.slice(2)));
+                            el.insertAdjacentHTML('afterend', safeHTML(new TextDecoder().decode(data.slice(2))));
                             break;
                         case 0x08: // REMOVE
                             opName = "REMOVE";
@@ -459,11 +485,11 @@ function processMessage(msg) {
                             break;
                         case 0x0A: // REPLACE_INNER
                             opName = "REPLACE_INNER";
-                            el.innerHTML = new TextDecoder().decode(data.slice(2));
+                            el.innerHTML = safeHTML(new TextDecoder().decode(data.slice(2)));
                             break;
                         case 0x0B: // APPEND_HTML
                             opName = "APPEND_HTML";
-                            el.insertAdjacentHTML('beforeend', new TextDecoder().decode(data.slice(2)));
+                            el.insertAdjacentHTML('beforeend', safeHTML(new TextDecoder().decode(data.slice(2))));
                             break;
                         case 0x0C: // SCROLL_TO
                             opName = "SCROLL_TO";
@@ -772,7 +798,7 @@ function applyJsonPatch(ops) {
                 break;
             case 'set_html':
             case 'replace_inner': 
-                el.innerHTML = op.val; 
+                el.innerHTML = safeHTML(op.val); 
                 break;
             case 'add_class': el.classList.add(op.val); break;
             case 'del_class': 
@@ -783,8 +809,7 @@ function applyJsonPatch(ops) {
                 const prop = op.prop || op.key;
                 el.style[prop] = op.val; 
                 break;
-            case 'replace_inner': el.innerHTML = op.val; break;
-            case 'append_html': el.insertAdjacentHTML('beforeend', op.val); break;
+            case 'append_html': el.insertAdjacentHTML('beforeend', safeHTML(op.val)); break;
             case 'remove': el.remove(); break;
             case 'scroll_to': el.scrollIntoView({ behavior: 'smooth', block: 'end' }); break;
             case 'focus': el.focus(); break;
