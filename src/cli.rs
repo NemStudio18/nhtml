@@ -104,8 +104,39 @@ pub fn validate_file(path: &str) {
         decoder::DecodedMessage::Unknown { opcode, .. } => {
             println!("❌ ÉCHEC : Message inconnu ou corrompu (OpCode: 0x{:02x})", opcode);
         },
+        decoder::DecodedMessage::Ping { sequence } => {
+            println!("⚠️  AVERTISSEMENT : Message valide mais vide (PING seq={}). Rien à valider.", sequence);
+        },
+        decoder::DecodedMessage::Event { handler, payload, node_id, .. } => {
+            if handler.is_empty() {
+                println!("❌ ÉCHEC : Event sans handler.");
+            } else if payload.is_empty() {
+                println!("⚠️  AVERTISSEMENT : Event valide (handler={}) mais sans payload.", handler);
+            } else {
+                println!("✅ SUCCÈS : Event valide (handler={}, node_id={}).", handler, node_id);
+            }
+        },
+        decoder::DecodedMessage::Patch { op_count, ops } => {
+            if op_count == 0 || ops.is_empty() {
+                println!("⚠️  AVERTISSEMENT : Patch valide mais ne contient aucune opération.");
+            } else {
+                println!("✅ SUCCÈS : Patch valide contenant {} opérations.", op_count);
+                for (i, op) in ops.iter().enumerate() {
+                    println!("  [{}] Target: {}, Op: {}, Val: {}", i, op.target_id, op.op_type, op.value);
+                }
+            }
+        },
+        decoder::DecodedMessage::Hello { session_id, .. } => {
+            println!("✅ SUCCÈS : Hello valide (session_id={}).", session_id);
+        },
+        decoder::DecodedMessage::BTree { node_count, .. } => {
+            println!("✅ SUCCÈS : BTree valide ({} nœuds).", node_count);
+        },
+        decoder::DecodedMessage::Log { severity, message } => {
+            println!("✅ SUCCÈS : Log valide (sev={}, msg={}).", severity, message);
+        },
         _ => {
-            println!("✅ SUCCÈS : Le message est conforme à la spécification NBPS v0.2.2");
+            println!("✅ SUCCÈS : Le message est conforme à la spécification NBPS v0.5.0");
             println!("{:#?}", decoded);
         }
     }
