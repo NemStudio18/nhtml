@@ -38,7 +38,7 @@ Ce document regroupe toutes les vulnérabilités identifiées lors de l'audit co
 *   **[MED-02-001] Manque de limites et Headers par défaut (`nhtml.config.toml`)**
     Aucun rate_limit (hors mémoire) ni CSP activé de base.
     **Fix** : Ajouter des modèles de headers de sécurité activés par défaut lors du scaffold.
-*   **[MED-13-001] Supply Chain via `npx localtunnel` (`cli.rs`)**
+*   ~~**[MED-13-001] Supply Chain via `npx localtunnel` (`cli.rs`)**~~ ✅ Corrigé (Confirmation interactive)
     La commande `nhtml share` exécute implicitement un package distant Node.
     **Fix** : Ajouter un prompt ou une confirmation de sécurité avant l'exécution.
 
@@ -49,7 +49,7 @@ Ce document regroupe toutes les vulnérabilités identifiées lors de l'audit co
     La compilation `.nhtml` au sein du WebSocket est synchrone. À déléguer via `tokio::task::spawn_blocking`.
 *   **[PERF-04-001] Layout Thrashing (Chute de FPS) (`bridge.js`)**
     Lecture synchrone de `getBoundingClientRect()` sur l'événement très fréquent `mousemove`.
-*   **[QUAL-13-001] Rupture Multi-Plateforme (`cli.rs`)**
+*   ~~**[QUAL-13-001] Rupture Multi-Plateforme (`cli.rs`)**~~ ✅ Corrigé (Fonction `copy_dir_all` 100% Rust native)
     L'appel système à `xcopy` casse la commande `build` sous Linux et macOS.
 
 ---
