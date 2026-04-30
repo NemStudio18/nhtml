@@ -1444,8 +1444,17 @@ async fn call_php_fpm(
     // Acquérir un client du pool
     let mut client = pool.acquire().await?;
 
+    let script_path = std::path::Path::new(php_script);
+    let abs_script_path = std::fs::canonicalize(script_path).unwrap_or_else(|_| script_path.to_path_buf());
+    let abs_str = abs_script_path.to_string_lossy().to_string();
+    let clean_abs_str = if abs_str.starts_with(r"\\?\") {
+        abs_str[4..].to_string()
+    } else {
+        abs_str
+    };
+
     let mut params = Params::default();
-    params.insert("SCRIPT_FILENAME".into(), php_script.into());
+    params.insert("SCRIPT_FILENAME".into(), clean_abs_str.into());
     params.insert("REQUEST_METHOD".into(), "POST".into());
     params.insert("CONTENT_TYPE".into(), "application/json".into());
     params.insert("CONTENT_LENGTH".into(), input.len().to_string().into());
