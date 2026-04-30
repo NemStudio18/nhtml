@@ -43,17 +43,18 @@ pub fn create_new_project(name: &str) {
 
     // 2. Création de app.php
     let php_content = r#"<?php
-$input = file_get_contents('php://input');
-$request = json_decode($input, true);
-$event = $request['nhtml_event'] ?? '';
-$nid = $request['node_id'] ?? '';
+$input = json_decode(file_get_contents('php://stdin'), true);
+$handler = $input['handler'] ?? '';
+$nodes = $input['nodes'] ?? [];
+
+$counter = (int)($nodes['counter_value']['val'] ?? 0);
 
 $patches = [];
-if ($event === 'click' && $nid === 'btn_increment') {
-    $patches[] = ["op" => "set_text", "nid" => "counter_value", "value" => "1"];
+if ($handler === 'increment') {
+    $counter++;
+    $patches[] = ["op" => "set_text", "nid" => "counter_value", "val" => (string)$counter];
 }
 
-header('Content-Type: application/json');
 echo json_encode($patches);
 "#;
     if let Err(e) = fs::write(project_dir.join("app.php"), php_content) {
@@ -257,8 +258,11 @@ async fn handle_devtools_ws(socket: WebSocket, tx_monitor: broadcast::Sender<cra
 
             // 2. PANE CENTRAL: Flow Card (Seulement pour les interactions)
             if event.pkt_type == 0x02 || (event.pkt_type == 0x03 && event.direction == "OUT") {
-                let handler_name = event.handler.clone().unwrap_or_else(|| "unnamed".to_string());
-                let details = event.details.clone().unwrap_or_else(|| "-".to_string());
+                let raw_handler = event.handler.clone().unwrap_or_else(|| "unnamed".to_string());
+                let raw_details = event.details.clone().unwrap_or_else(|| "-".to_string());
+                
+                let handler_name = html_escape::encode_safe(&raw_handler).to_string();
+                let details = html_escape::encode_safe(&raw_details).to_string();
                 
                 let flow_html = format!(
                     "<div class='flow-card'>
@@ -303,12 +307,13 @@ async fn handle_devtools_ws(socket: WebSocket, tx_monitor: broadcast::Sender<cra
 
             // 3. PANE DROIT: Diff (Seulement pour les patches)
             if event.pkt_type == 0x03 && event.direction == "OUT" {
+                let raw_diff = event.details.unwrap_or_default();
                 let diff_html = format!(
                     "<div style='background:rgba(255,0,127,0.05); border:1px solid var(--accent); padding:10px; border-radius:6px;'>
                         <div style='font-size:0.6rem; color:var(--accent); font-weight:bold; margin-bottom:5px;'>PATCH CONTENT</div>
                         <div style='font-family:monospace; color:var(--text); white-space:pre-wrap;'>{}</div>
                     </div>",
-                    event.details.unwrap_or_default()
+                    html_escape::encode_safe(&raw_diff).to_string()
                 );
                 ops.push(crate::proto::PatchOp::append_html(101, 1, &diff_html));
             }
