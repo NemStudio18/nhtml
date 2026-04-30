@@ -4,19 +4,22 @@ This document details the critical security points and architectural limits of t
 
 ---
 
-## 1. Authentication & Integrity (v0.5.0 ✅)
+## 1. Authentication & Integrity (v0.7.3 ✅)
 ### Implemented Solution
-NHTML v0.5.0 introduced a mandatory cryptographic security layer:
+Mandatory cryptographic security layer is enabled by default:
 - **HMAC-SHA256 Signatures**: Every event sent by the client (`EVENT`) is signed with a 32-byte secret key negotiated during the handshake. The Gateway immediately rejects any falsified frames.
 - **Sequence ID (Anti-Replay)**: An incremental counter is maintained per session. The Gateway only accepts packets with a `SeqID` higher than the previous one, making replay attacks impossible.
+- **Marvin Attack**: *Update (v0.7.3):* This vulnerability (RUSTSEC-2023-0071) has been officially resolved in the latest dependency tree update.
 
 ---
 
-## 2. High Performance & FastCGI (v0.6.0 🚧)
+## 2. High Performance & FastCGI (v0.7.3 ✅)
 ### The Risk
 In classic CGI mode, the Gateway launches a PHP process for each event. While simple, this can be exploited to saturate the CPU (DoS).
-### Solution (v0.6.0)
+### Solution
 - **FastCGI (PHP-FPM)**: The Gateway maintains persistent connections to a PHP worker pool. This drastically reduces process creation overhead and allows resource limiting at the FPM server level.
+- **Rate Limiting (v0.7.1+)**: Limiting the number of events per second per IP at the Gateway level via `[security.rate_limit]`.
+- **Native TLS (v0.7.3+)**: WSS (WebSocket Secure) and HTTPS (`min_version = "1.3"`) support directly in the Gateway without requiring a reverse proxy.
 
 ---
 
@@ -36,5 +39,5 @@ NHTML DevTools (`port 8081`) expose all business flows:
 ---
 
 ## 5. Future Security Roadmap
-- **Rate Limiting**: Limiting the number of events per second per IP at the Gateway level.
-- **Native TLS**: WSS (WebSocket Secure) support directly in the Gateway without requiring a reverse proxy.
+- **Client Session Storage**: Migration of the session ID from `localStorage` to `sessionStorage` for automatic expiration on tab close.
+- **Prometheus Monitoring**: Full integration of rejected attack metrics to Grafana.

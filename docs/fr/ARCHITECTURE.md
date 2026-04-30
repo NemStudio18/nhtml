@@ -1,4 +1,4 @@
-# 🛰️ Référence Technique NHTML (v0.6.0)
+# 🛰️ Référence Technique NHTML (v0.7.3)
 **Document de référence pour l'architecture industrialisée.**
 
 ---
@@ -12,7 +12,7 @@ NHTML est un framework de développement web "Server-Driven" ultra-performant. I
 
 ---
 
-## 2. Architecture Générale (v0.6.0)
+## 2. Architecture Générale (v0.7.3)
 L'architecture repose sur un **Gateway Orchestrateur** agissant comme un pont binaire bidirectionnel sécurisé.
 
 ```mermaid
@@ -32,7 +32,7 @@ graph TD
 ---
 
 ## 3. Communication Haute Performance
-NHTML v0.6.0 introduit le support natif de **FastCGI**. 
+NHTML v0.7.3 implémente le support natif de **FastCGI** avec Load Balancing. 
 Au lieu de lancer un processus PHP pour chaque clic, le Gateway maintient des sockets ouverts vers un pool PHP-FPM, réduisant la latence à < 5ms.
 
 ---
@@ -45,7 +45,7 @@ Le Gateway agit comme un serveur de messagerie binaire.
 
 ---
 
-## 5. Sécurité Industrielle (v0.5.0)
+## 5. Sécurité Industrielle (v0.7.3)
 Chaque interaction est protégée par :
 - **HMAC-SHA256** : Garantit l'origine et l'intégrité des paquets.
 - **Sequence ID** : Empêche toute attaque par rejeu.
