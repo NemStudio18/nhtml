@@ -592,13 +592,17 @@ pub fn run_benchmark(path: &str) {
     println!("✨ Gain de bande passante : {:.1}%", total_gain);
     println!("🚀 Facteur d'efficacité   : {:.1}x", html_size as f32 / binary_size.max(1) as f32);
     
-    println!("\n⚡ MÉTRIQUES DE PERFORMANCE (THÉORIQUES)");
+    println!("\n⚡ MÉTRIQUES DE PERFORMANCE RÉELLES");
     println!("--------------------------------------------------");
-    let latency_saved = (html_size as f32 - binary_size as f32) / (1024.0 * 1024.0 / 8.0); // Simple est. on 1Mbps
-    println!("⏱️ Latence réseau sauvée (1Mbps) : {:.2} ms", latency_saved * 1000.0);
+    let start_bench = std::time::Instant::now();
+    for _ in 0..1000 {
+        let _ = crate::proto::btree(&nodes);
+    }
+    let duration = start_bench.elapsed() / 1000;
+    println!("⏱️ Temps de sérialisation (moyenne) : {} µs", duration.as_micros());
     
-    let cpu_load = binary_size as f32 / 1000.0; // Arbitrary complexity score
-    println!("🧠 Charge CPU Sérialesation      : {:.2} CPU-ops/pkt", cpu_load);
+    let throughput = (binary_size as f32 / 1024.0 / 1024.0) / (duration.as_secs_f32() + 1e-9);
+    println!("🚀 Débit théorique                 : {:.2} MB/s", throughput);
     
     println!("--------------------------------------------------");
     println!("✅ Benchmark terminé. NHTML v0.7.1 est prêt pour la production.");
