@@ -68,12 +68,23 @@ pub struct DevConfig {
 
 impl NhtmlConfig {
     pub fn load() -> Self {
-        if let Ok(content) = fs::read_to_string("nhtml.config.toml") {
-            if let Ok(config) = toml::from_str(&content) {
-                println!("📄 Fichier de configuration nhtml.config.toml détecté et chargé.");
-                return config;
+        let path = "nhtml.config.toml";
+        if std::path::Path::new(path).exists() {
+            if let Ok(content) = fs::read_to_string(path) {
+                match toml::from_str(&content) {
+                    Ok(config) => {
+                        println!("📄 Fichier de configuration nhtml.config.toml détecté et chargé.");
+                        return config;
+                    }
+                    Err(e) => {
+                        eprintln!("❌ ERREUR FATALE: Fichier nhtml.config.toml invalide.");
+                        eprintln!("Détails de l'erreur TOML : {}", e);
+                        std::process::exit(1);
+                    }
+                }
             } else {
-                eprintln!("⚠️ Fichier nhtml.config.toml trouvé mais format invalide.");
+                eprintln!("❌ ERREUR FATALE: Impossible de lire nhtml.config.toml.");
+                std::process::exit(1);
             }
         }
         NhtmlConfig::default()

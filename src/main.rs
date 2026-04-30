@@ -21,9 +21,9 @@ enum Commands {
         #[arg(long)]
         dev: bool,
 
-        /// Port d'écoute (default: 8080)
-        #[arg(short, long, default_value_t = 8080)]
-        port: u16,
+        /// Port d'écoute (override nhtml.config.toml)
+        #[arg(short, long)]
+        port: Option<u16>,
 
         /// Chemin du projet (default: .)
         #[arg(short = 'd', long, default_value = ".")]
@@ -94,15 +94,7 @@ async fn main() {
 
     let config = crate::config::NhtmlConfig::load();
 
-    // Appliquer la config sur les ports si non spécifiés explicitement
-    // Note: Clap a déjà mis les valeurs par défaut, on écrase si config présente
-    if let Commands::Start { ref mut port, .. } = cli.command {
-        if let Some(ref ports) = config.ports {
-            if let Some(ws_port) = ports.ws {
-                *port = ws_port;
-            }
-        }
-    }
+    // Nous gérerons la cascade des ports directement dans Commands::Start
 
     // Channels globaux
     let (tx_monitor, _) = broadcast::channel::<MonitoringEvent>(10000);
@@ -121,14 +113,20 @@ async fn main() {
             cli::create_new_project(&name);
         }
         Commands::Start { dev, port, path, entry, php, fpm, json: _ } => {
+            let final_port = port.unwrap_or_else(|| config.ports.as_ref().and_then(|p| p.ws).unwrap_or(8080));
+            
             println!("🛰️ NHTML Gateway v{}", env!("CARGO_PKG_VERSION"));
             println!("📂 Projet : {}", path);
-            println!("🌐 Port   : {}", port);
+            println!("🌐 Port   : {}", final_port);
             
             let final_db_uri = std::env::var("NHTML_DB_URI").ok()
                 .or(config.database.as_ref().and_then(|d| d.uri.clone()));
             if let Some(ref uri) = final_db_uri {
-                println!("🗄️ Database : {} (Driver détecté)", uri);
+                let masked_uri = url::Url::parse(uri).map(|mut u| {
+                    let _ = u.set_password(Some("***"));
+                    u.to_string()
+                }).unwrap_or_else(|_| "*** (URL masquée)".to_string());
+                println!("🗄️ Database : {} (Driver détecté)", masked_uri);
             } else {
                 println!("🗄️ Database : SQLite (Embarqué)");
             }
@@ -170,18 +168,22 @@ async fn main() {
                 }
             });
 
-            // Lancement des DevTools
-            let devtools_port = config.ports.as_ref().and_then(|p| p.devtools).unwrap_or(8081);
-            let devtools_tx = tx_monitor.clone();
-            tokio::spawn(async move {
-                cli::run_devtools(devtools_tx, "127.0.0.1".to_string(), devtools_port, None).await;
-            });
-
-            // Watcher si mode DEV
             let is_dev = dev || config.dev.as_ref().and_then(|d| d.auto_reload).unwrap_or(false);
+
+            // Lancement des DevTools (Uniquement en mode Dev)
             if is_dev {
+                let devtools_port = config.ports.as_ref().and_then(|p| p.devtools).unwrap_or(8081);
+                let devtools_tx = tx_monitor.clone();
+                let dev_token = uuid::Uuid::new_v4().to_string();
+                println!("🛠️ DevTools Token : {}", dev_token);
+                tokio::spawn(async move {
+                    cli::run_devtools(devtools_tx, "127.0.0.1".to_string(), devtools_port, Some(dev_token)).await;
+                });
+                
                 let tx_r = tx_reload.clone();
                 watcher::start_watcher(tx_r);
+            } else {
+                println!("🔒 DevTools désactivés (Mode Production). Utilisez --dev pour les activer.");
             }
 
             // Cluster (Redis sync)
@@ -208,7 +210,7 @@ async fn main() {
                     return;
                 }
             };
-            socket::serve(gid, port, path, entry, php, Some(fcgi_config), std::sync::Arc::new(sm), tx_monitor, tx_app_broadcast, tx_reload, config.security.clone()).await;
+            socket::serve(gid, final_port, path, entry, php, Some(fcgi_config), std::sync::Arc::new(sm), tx_monitor, tx_app_broadcast, tx_reload, config.security.clone()).await;
         }
         Commands::Devtools => {
             let devtools_port = config.ports.as_ref().and_then(|p| p.devtools).unwrap_or(8081);

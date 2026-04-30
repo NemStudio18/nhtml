@@ -575,8 +575,19 @@ pub fn run_benchmark(path: &str) {
 }
 
 pub fn run_share(port: u16) {
+    use std::io::Write;
     println!("🌍 Tentative de partage du projet NHTML sur le port {}...", port);
-    println!("🔗 Utilisation de LocalTunnel (via npx)...");
+    println!("⚠️ ATTENTION : Cela va utiliser 'npx localtunnel' pour exposer publiquement votre port local sur Internet.");
+    print!("Voulez-vous continuer ? [y/N] ");
+    let _ = std::io::stdout().flush();
+    
+    let mut input = String::new();
+    if std::io::stdin().read_line(&mut input).is_err() || input.trim().to_lowercase() != "y" {
+        println!("❌ Opération annulée.");
+        return;
+    }
+
+    println!("🔗 Lancement de LocalTunnel...");
     
     let child = std::process::Command::new("npx")
         .args(["localtunnel", "--port", &port.to_string()])
@@ -643,13 +654,26 @@ pub fn run_build(production: bool, output_dir: &str) {
     // Copier les assets s'ils existent
     if Path::new("assets").exists() {
         println!("📂 Copie des assets...");
-        // Logique de copie récursive simplifiée
-        let _ = std::process::Command::new("xcopy")
-            .args(["/E", "/I", "/Y", "assets", &format!("{}\\assets", output_dir)])
-            .status();
+        if let Err(e) = copy_dir_all("assets", output_path.join("assets")) {
+            println!("❌ Erreur lors de la copie des assets : {}", e);
+        }
     }
 
     println!("✅ Build terminé avec succès dans '{}' !", output_dir);
     println!("   - HTML : {}", html_file.display());
     println!("   - Bundle NBPS : {}", bin_file.display());
+}
+
+fn copy_dir_all(src: impl AsRef<Path>, dst: impl AsRef<Path>) -> std::io::Result<()> {
+    fs::create_dir_all(&dst)?;
+    for entry in fs::read_dir(src)? {
+        let entry = entry?;
+        let ty = entry.file_type()?;
+        if ty.is_dir() {
+            copy_dir_all(entry.path(), dst.as_ref().join(entry.file_name()))?;
+        } else {
+            fs::copy(entry.path(), dst.as_ref().join(entry.file_name()))?;
+        }
+    }
+    Ok(())
 }
