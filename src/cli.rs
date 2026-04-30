@@ -66,9 +66,8 @@ echo json_encode($patches);
 }
 
 pub fn dump_database() {
-    println!("📊 Contenu de la base de données NHTML :");
-    println!("⚠️ Note: La commande 'stats' est en cours de migration vers sqlx.");
-    println!("Utilisez les DevTools pour une inspection en temps réel.");
+    eprintln!("❌ La commande 'stats' n'est pas encore disponible (migration sqlx en cours).");
+    std::process::exit(1);
 }
 
 pub fn inspect_message(hex: &str) {
