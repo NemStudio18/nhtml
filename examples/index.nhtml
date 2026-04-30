@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>NHTML v0.7.1 | Showcase Hub</title>
+    <title>NHTML v0.7.3-stable | Showcase Hub</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;700&display=swap" rel="stylesheet">
@@ -13,7 +13,7 @@
 <body>
     <div class="premium-container">
         <h1><img src="../assets/logo.png" style="height: 40px; vertical-align: middle; margin-right: 15px;"> NHTML Showcase</h1>
-        <p class="subtitle">Expérimentez la puissance du protocole NBPS v0.7.1 à travers ces démos interactives.</p>
+        <p class="subtitle">Expérimentez la puissance du protocole NBPS v0.7.3 à travers ces démos interactives.</p>
 
         <div class="grid">
             <a href="counter/index.nhtml" class="card">
