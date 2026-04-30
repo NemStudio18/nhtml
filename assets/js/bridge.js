@@ -154,12 +154,18 @@ function readStr16(view, chunk, offset) {
 
 // --- Security: Safe HTML Injection ---
 function safeHTML(html) {
-    if (window.DOMPurify) return window.DOMPurify.sanitize(html);
+    if (window.DOMPurify) {
+        return window.DOMPurify.sanitize(html, {
+            ADD_TAGS: ["n-id", "n-click", "n-input", "n-submit", "n-live", "n-model", "n-text", "n-bind"],
+            ADD_ATTR: ["n-id", "n-click", "n-input", "n-submit", "n-live", "n-model", "n-text", "n-bind"]
+        });
+    }
     
-    // Fallback basic sanitizer
+    // Fallback basic sanitizer (Aggressive)
     const template = document.createElement('template');
     template.innerHTML = html;
-    const scripts = template.content.querySelectorAll('script');
+    
+    const scripts = template.content.querySelectorAll('script, iframe, object, embed, base');
     scripts.forEach(s => s.remove());
     
     const all = template.content.querySelectorAll('*');
@@ -167,15 +173,30 @@ function safeHTML(html) {
         const attrs = el.attributes;
         for (let i = attrs.length - 1; i >= 0; i--) {
             const attr = attrs[i];
-            if (attr.name.toLowerCase().startsWith('on') || 
-                (attr.name.toLowerCase() === 'href' && attr.value.toLowerCase().trim().startsWith('javascript:'))) {
+            const attrName = attr.name.toLowerCase();
+            const attrVal = attr.value.toLowerCase().trim();
+            
+            // Rejet des event handlers et javascript:
+            if (attrName.startsWith('on') || attrVal.startsWith('javascript:') || attrVal.startsWith('data:text/html')) {
+                el.removeAttribute(attr.name);
+            }
+            // Protection contre les imports CSS malveillants
+            if (attrName === 'style' && (attrVal.includes('url(') || attrVal.includes('expression('))) {
                 el.removeAttribute(attr.name);
             }
         }
     });
+    
     const div = document.createElement('div');
     div.appendChild(template.content);
     return div.innerHTML;
+}
+
+// Auto-load DOMPurify in dev mode if missing
+if (!window.DOMPurify && window.location.hostname === '127.0.0.1') {
+    const s = document.createElement('script');
+    s.src = "https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.0.8/purify.min.js";
+    document.head.appendChild(s);
 }
 
 // ── Local Actions Architecture ──

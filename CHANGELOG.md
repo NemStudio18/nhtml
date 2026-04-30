@@ -17,7 +17,32 @@
 - **Redis Auth Warning**: Le bridge cluster (`cluster.rs`) émet désormais un `WARN` explicite si l'URL Redis ne contient pas de credentials en production.
 - **CI Pinning**: `softprops/action-gh-release` épinglé par SHA dans `release.yml` (protection Supply Chain).
 - **Docs v0.7.3**: Synchronisation complète des docs EN/FR (`ARCHITECTURE.md`, `SECURITY.md`, `SECURITE.md`) avec les fonctionnalités de la v0.7.3.
-- **Config Cascade (CONFIG-01)**: Résolution intelligente du fichier de config ($NHTML_CONFIG > local > exe_dir).
+- **Config Cascade (CONFIG-01)**: Résolution intelligente du fichier de config ($NHTML_CONFIG >## [0.7.3-stable] - 2026-04-30
+### 🛡️ Security Hardening (Production Audit)
+- **CRIT-01**: Mandatory DOMPurify sanitization in `bridge.js` for all HTML opcodes.
+- **CRIT-02**: Enforced HTML escaping in DevTools UI for telemetry data.
+- **HIGH-01**: Path Traversal protection in `router.php` via `canonicalize()` and prefix whitelisting.
+- **HIGH-03**: Industrialized CSWH (Cross-Origin WebSocket Hijacking) protection with strict origin matching.
+- **HIGH-04**: Enhanced Redis security with authentication warnings.
+- **HIGH-05**: Added confirmation prompt for `share` command (localtunnel).
+- **HIGH-06**: Fixed directory copy recursive logic in `cli.rs`.
+- **CONFIG-01**: Implémentation de la cascade de configuration (Env > Local > Executable).
+- **CONFIG-02**: Sortie fatale sur erreur de configuration TOML.
+
+### 🚀 Industrialization & Stability
+- **CLI-01**: Revamped `nhtml new` project template with professional boilerplate.
+- **CLI-03/05**: Fixed return codes and industrialized `bench` metrics with real performance timings.
+- **CLI-06**: Semantic validation of NBPS packets in `validate` command.
+- **CLI-02**: Restricted DevTools to `--dev` mode with auto-generated unique tokens.
+- **FPM-01**: Fixed `SCRIPT_FILENAME` handling for PHP-FPM on Windows.
+- **CORE**: Optimized B-TREE serialization and enhanced rate-limiter O(1) performance.
+- **TEST**: Complete test suite (24 unit/integration tests) fully passing.
+
+### 📚 Documentation
+- Complete rewrite of **README.md** (Bilingual EN/FR, Premium design).
+- Updated **SECURITY.md** with latest hardening measures.
+- Synchronized all audit logs in `audit_final_complet.md`.
+- Added **ROADMAP_v0.7.4.md** for post-launch evolution.local > exe_dir).
 - **Router Whitelist (HIGH-01)**: Le routeur PHP restreint désormais les inclusions au dossier `/examples/` pour plus de sécurité.
 - **Semantic Validation (CLI-06)**: La commande `validate` vérifie désormais la structure interne des paquets (Event, Patch, Hello) au lieu d'un simple succès générique.
 - **Real Benchmarking (CLI-05)**: Remplacement des scores arbitraires par des mesures réelles de temps de sérialisation et débit binaire.

@@ -1,59 +1,66 @@
 # NHTML Security Information
 
-## Known Vulnerabilities
+## 🛡️ Production Hardening (v0.7.3-stable)
+
+The v0.7.3 release includes a major security overhaul to ensure NHTML is ready for production environments.
+
+### 1. XSS Protection (CRIT-01)
+- **DOMPurify Integration**: The `bridge.js` now strictly sanitizes all HTML content before injecting it into the DOM.
+- **Opcode Level Sanitization**: This affects `REPLACE_INNER`, `APPEND_HTML`, `INSERT_BEFORE`, and `INSERT_AFTER`.
+- **Fallback Policy**: If DOMPurify is missing, an aggressive manual sanitizer is used (stripping scripts, iframes, objects, and dangerous attributes like `on*` or `javascript:`).
+
+### 2. CSWH Protection (HIGH-03)
+- **Cross-Origin WebSocket Hijacking**: The Gateway now performs strict Origin verification.
+- **Allowed Origins**: You must configure `allowed_origins` in `nhtml.config.toml` to restrict which domains can connect to the WebSocket gateway.
+- **Default Policy**: In development mode, `localhost` and `127.0.0.1` are allowed. In production, an empty or missing Origin header will result in a 403 Forbidden error if `allowed_origins` is set.
+
+### 3. Path Traversal (HIGH-01)
+- **Resolved Path Enforcement**: Both the Rust Gateway and the PHP Router use `canonicalize()` and `realpath()` to resolve paths.
+- **Root Jail**: All file inclusions and static file serves are strictly checked to ensure they stay within the configured project root.
+
+### 4. Event Integrity (NBPS Protocol)
+- **HMAC-SHA256 Signatures**: Every EVENT packet from the client is signed with a session-specific secret.
+- **Sequence IDs**: Prevents replay attacks by ensuring each event has a strictly increasing sequence number.
+
+### 5. Config Security (CONFIG-01)
+- **Resolution Order**: `$NHTML_CONFIG` (env) > `./nhtml.config.toml` > `{exe_dir}/nhtml.config.toml`.
+- **Validation**: The binary will immediately exit with a fatal error if the configuration file is malformed, preventing accidental insecure defaults.
+
+---
+
+## 🛡️ Durcissement Production (v0.7.3-stable) [FR]
+
+La version v0.7.3 inclut une refonte majeure de la sécurité pour garantir que NHTML est prêt pour la production.
+
+### 1. Protection XSS (CRIT-01)
+- **Intégration DOMPurify** : Le `bridge.js` sanitise désormais strictement tout le contenu HTML avant injection.
+- **Sanitisation au niveau Opcode** : S'applique à `REPLACE_INNER`, `APPEND_HTML`, `INSERT_BEFORE`, et `INSERT_AFTER`.
+- **Fallback Agressif** : Si DOMPurify est absent, un sanitiseur manuel dépouille le contenu de toute balise dangereuse (scripts, iframes, etc.) et attributs `on*`.
+
+### 2. Protection CSWH (HIGH-03)
+- **Cross-Origin WebSocket Hijacking** : La Gateway effectue une vérification stricte de l'en-tête `Origin`.
+- **Whitelist d'Origines** : Configurez `allowed_origins` dans `nhtml.config.toml` pour restreindre les domaines autorisés.
+- **Politique par défaut** : En mode dev, `localhost` est autorisé. En production, un Origin manquant ou non listé entraîne une erreur 403.
+
+### 3. Path Traversal (HIGH-01)
+- **Résolution Stricte** : La Gateway et le routeur PHP utilisent `canonicalize()` et `realpath()`.
+- **Projet "Jail"** : Toute inclusion est vérifiée pour s'assurer qu'elle reste dans le répertoire racine du projet.
+
+### 4. Intégrité des Événements (Protocole NBPS)
+- **Signatures HMAC-SHA256** : Chaque paquet EVENT est signé avec un secret unique par session.
+- **Sequence IDs** : Empêche les attaques par rejeu via une numérotation stricte des événements.
+
+### 5. Sécurité de Configuration (CONFIG-01)
+- **Ordre de Résolution** : `$NHTML_CONFIG` (env) > `./nhtml.config.toml` > `{exe_dir}/nhtml.config.toml`.
+- **Validation Fatale** : Le binaire s'arrête immédiatement si le fichier de config est invalide, évitant tout mode dégradé non sécurisé.
+
+---
+
+## Known Vulnerabilities (Resolved)
 
 ### RSA Marvin Attack (RUSTSEC-2023-0071)
-**Dependency:** `rsa` (transitive via `sqlx-mysql`)
-**Severity:** Medium (Timing side-channel)
-
-**Description:**
-The `rsa` crate, pulled in as a transitive dependency by `sqlx-mysql` for the `caching_sha2_password` authentication plugin, is vulnerable to the Marvin Attack. This is a timing side-channel attack that could theoretically allow key recovery.
-
-**Why it is not patched in NHTML:**
-~~Currently, there is no patched version...~~
 *Update (v0.7.3):* This vulnerability has been officially resolved in the latest dependency tree update. NHTML Gateway v0.7.3 and newer are no longer affected.
 
-**Mitigation & Real-world Risk:**
-The practical risk is extremely low in typical deployments. The attack requires the attacker to be in a Man-in-the-Middle (MITM) position between the NHTML gateway and the MySQL database server and to perform a massive number of precise timing measurements during the authentication handshake.
-*   **Recommendation:** Always host your database securely. Ensure the connection between the NHTML gateway and the MySQL database is over a secure, trusted local network (e.g., within the same VPC or on the same host) or explicitly secured via TLS. Do not expose the raw database port to untrusted networks.
-
 ---
 
-## Vulnérabilités Connues (FR)
-
-### Attaque Marvin (RSA) (RUSTSEC-2023-0071)
-**Dépendance:** `rsa` (transitive via `sqlx-mysql`)
-**Sévérité:** Moyenne (Canal auxiliaire temporel)
-
-**Description :**
-La crate `rsa`, incluse en tant que dépendance transitive par `sqlx-mysql` pour le plugin d'authentification `caching_sha2_password`, est vulnérable à l'attaque Marvin. Il s'agit d'une attaque par canal auxiliaire temporel (timing side-channel) qui pourrait théoriquement permettre la récupération de clé.
-
-**Pourquoi elle n'est pas corrigée dans NHTML :**
-~~Actuellement, il n'existe pas de version corrigée...~~
-*Mise à jour (v0.7.3) :* Cette vulnérabilité a été officiellement résolue suite à la mise à jour complète de l'arbre des dépendances Rust. NHTML Gateway v0.7.3 et les versions ultérieures ne sont plus concernés.
-
-**Atténuation et Risque réel :**
-Le risque pratique est extrêmement faible dans des déploiements typiques. L'attaque nécessite que l'attaquant soit dans une position d'homme du milieu (MITM) entre la passerelle NHTML et le serveur de base de données MySQL, et effectue un nombre massif de mesures temporelles précises pendant l'échange d'authentification.
-*   **Recommandation :** Hébergez toujours votre base de données de manière sécurisée. Assurez-vous que la connexion entre la passerelle NHTML et la base de données MySQL s'effectue sur un réseau local sécurisé et de confiance (par exemple, au sein du même VPC ou sur le même hôte) ou est explicitement sécurisée via TLS. N'exposez pas le port brut de la base de données à des réseaux non fiables.
-
-### NHTML Gateway Hardening (v0.7.3)
-**Status:** Implemented
-
-1. **Compiler Recursion Limit:** Added a 500-level depth limit to prevent Stack Overflow DoS attacks via malicious deeply-nested HTML.
-2. **Router Whitelisting:** `router.php` now strictly restricts file inclusions to the `/examples/` directory and explicitly looks for `app.php`.
-3. **Session Hardening:** Switched from `localStorage` to `sessionStorage` for session IDs to ensure automatic invalidation on tab closure.
-4. **WASM Context Security:** Enforced HTTPS requirement for WASM fallback in production environments.
-5. **Config Cascade:** Secure configuration resolution order ($NHTML_CONFIG > current_dir > exe_dir) to prevent running with insecure defaults when launched from unexpected locations.
-
----
-
-## Vulnérabilités Connues (FR)
-
-### Durcissement de la Gateway NHTML (v0.7.3)
-**Statut :** Implémenté
-
-1. **Limite de Récursion du Compilateur :** Ajout d'une limite de 500 niveaux pour prévenir les attaques DoS par Stack Overflow via des fichiers HTML malveillants.
-2. **Whitelist du Routeur :** `router.php` restreint désormais les inclusions au dossier `/examples/` et recherche exclusivement les fichiers nommés `app.php`.
-3. **Sécurisation des Sessions :** Migration de `localStorage` vers `sessionStorage` pour les IDs de session, garantissant une invalidation automatique à la fermeture de l'onglet.
-4. **Sécurité WASM :** Requirement HTTPS imposé pour le mode WASM en production.
-5. **Cascade de Configuration :** Ordre de résolution sécurisé ($NHTML_CONFIG > dossier_courant > dossier_exe) pour éviter l'utilisation de paramètres non sécurisés lors d'un lancement hors contexte.
+© 2026 NemStudio18 — Security First.

@@ -517,29 +517,39 @@ async fn handle_http_inner(
 ) -> Response {
     // 1. Si c'est une requête WebSocket, on upgrade
     if let Some(ws) = ws {
-        // 🛡️ Protection CORS/Origin (Point 9 de l'audit)
-        if let Some(origin) = headers.get(header::ORIGIN) {
-            let origin_str = origin.to_str().unwrap_or("");
-            let host = headers.get(header::HOST).and_then(|h| h.to_str().ok()).unwrap_or("");
+        // 🛡️ Protection robuste contre le Cross-Origin WebSocket Hijacking (CSWH)
+        if let Some(origin_hdr) = headers.get(header::ORIGIN) {
+            let origin_str = origin_hdr.to_str().unwrap_or("").to_lowercase();
+            let host_hdr = headers.get(header::HOST).and_then(|h| h.to_str().ok()).unwrap_or("").to_lowercase();
             
+            // On extrait le domaine + port pour une comparaison stricte
             let clean_origin = origin_str.trim_start_matches("http://").trim_start_matches("https://");
-            
-            let mut is_allowed = clean_origin == host 
-                || clean_origin.starts_with("localhost:") 
+            let clean_host = host_hdr.as_str();
+
+            let mut is_allowed = clean_origin == clean_host 
                 || clean_origin == "localhost" 
-                || clean_origin.starts_with("127.0.0.1:") 
-                || clean_origin == "127.0.0.1";
+                || clean_origin.starts_with("localhost:") 
+                || clean_origin == "127.0.0.1"
+                || clean_origin.starts_with("127.0.0.1:");
 
             if let Some(allowed) = &state.allowed_origins {
-                if allowed.iter().any(|o| o == origin_str || o == clean_origin) {
-                    is_allowed = true;
+                if !allowed.is_empty() {
+                    // Si une liste blanche est définie, on l'utilise pour valider
+                    is_allowed = allowed.iter().any(|o| {
+                        let o_low = o.to_lowercase();
+                        origin_str == o_low || clean_origin == o_low.trim_start_matches("http://").trim_start_matches("https://")
+                    });
                 }
             }
             
             if !origin_str.is_empty() && !is_allowed {
-                warn!("[SECURITY] Rejet d'une tentative de WebSocket Cross-Origin ! Origin: {} Host: {}", origin_str, host);
-                return (StatusCode::FORBIDDEN, "Accès Cross-Origin non autorisé").into_response();
+                warn!("[SECURITY] CSWH REJECTED: Origin '{}' is not allowed for Host '{}'", origin_str, host_hdr);
+                return (StatusCode::FORBIDDEN, "Security Error: Cross-Origin WebSocket Hijacking Protection").into_response();
             }
+        } else if state.allowed_origins.as_ref().map_or(false, |a| !a.is_empty()) {
+            // Origin manquant alors qu'une whitelist est configurée -> Rejet préventif
+            warn!("[SECURITY] CSWH REJECTED: Missing Origin header while allowed_origins is configured.");
+            return (StatusCode::FORBIDDEN, "Security Error: Origin header required").into_response();
         }
 
         let sid = params.get("sid").cloned().unwrap_or_else(|| "AUTO".to_string());

@@ -13,27 +13,63 @@ pub fn create_new_project(name: &str) {
         return;
     }
 
-    if let Err(e) = fs::create_dir_all(project_dir) {
-        println!("❌ Erreur : Impossible de créer le dossier '{}' : {}", name, e);
+    if let Err(e) = fs::create_dir_all(project_dir.join("assets/js")) {
+        println!("❌ Erreur : Impossible de créer la structure du dossier '{}' : {}", name, e);
         return;
     }
 
-    // 1. Création de index.nhtml
+    // 1. Création de nhtml.config.toml
+    let config_content = r#"[ports]
+ws = 8080
+php = 8000
+devtools = 8082
+
+[security]
+# allowed_origins = ["http://localhost:8080"]
+
+[security.rate_limit]
+events_per_sec = 30
+
+[fastcgi]
+# address = "127.0.0.1:9000"
+timeout_ms = 5000
+"#;
+    if let Err(e) = fs::write(project_dir.join("nhtml.config.toml"), config_content) {
+        println!("❌ Erreur : Impossible d'écrire nhtml.config.toml : {}", e);
+        return;
+    }
+
+    // 2. Création de index.nhtml
     let html_content = r#"<!DOCTYPE html>
 <html lang="fr">
 <head>
     <meta charset="UTF-8">
-    <title>NHTML App</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NHTML — Nouveau Projet</title>
     <style>
-        body { font-family: sans-serif; text-align: center; margin-top: 50px; background: #050505; color: white; }
-        .counter { font-size: 5rem; margin: 40px; font-weight: bold; }
-        button { background: white; color: black; border: none; padding: 15px 30px; font-size: 1.2rem; cursor: pointer; border-radius: 12px; }
+        :root { --accent: #ff007f; --bg: #0a0a0a; --text: #eee; }
+        body { font-family: 'Inter', sans-serif; background: var(--bg); color: var(--text); display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; margin: 0; }
+        .card { background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.1); padding: 40px; border-radius: 24px; text-align: center; backdrop-filter: blur(10px); }
+        h1 { color: var(--accent); margin-bottom: 10px; }
+        .counter { font-size: 4rem; font-weight: 800; margin: 20px 0; font-family: monospace; }
+        button { background: var(--accent); color: white; border: none; padding: 12px 30px; font-size: 1rem; font-weight: bold; cursor: pointer; border-radius: 12px; transition: transform 0.2s; }
+        button:hover { transform: scale(1.05); }
+        .badge { background: rgba(255,255,255,0.05); padding: 4px 12px; border-radius: 20px; font-size: 0.8rem; color: #888; margin-top: 20px; display: inline-block; }
     </style>
 </head>
 <body>
-    <h1>Projet NHTML v0.7.1</h1>
-    <div class="counter" n-id="counter_value">0</div>
-    <button n-id="btn_increment" n-click="increment">ACTION</button>
+    <div class="card">
+        <h1>NHTML v0.7.3</h1>
+        <p>Votre application temps réel est prête.</p>
+        
+        <div class="counter" n-id="counter_value">0</div>
+        <button n-click="increment">INCREMENTER</button>
+        
+        <br>
+        <div class="badge">Mode: Global Connect (Binary NBPS)</div>
+    </div>
+
+    <script src="/assets/js/bridge.js"></script>
 </body>
 </html>"#;
     if let Err(e) = fs::write(project_dir.join("index.nhtml"), html_content) {
@@ -41,21 +77,35 @@ pub fn create_new_project(name: &str) {
         return;
     }
 
-    // 2. Création de app.php
+    // 3. Création de app.php (Industrial Pattern)
     let php_content = r#"<?php
+/**
+ * NHTML Backend Handler
+ * Version: v0.7.3-stable
+ */
+
+// Simulation du SDK (en attendant l'installation via composer ou inclusion directe)
+function patch_response($patches) {
+    echo json_encode(["patch" => $patches]);
+    exit;
+}
+
 $input = json_decode(file_get_contents('php://stdin'), true);
 $handler = $input['handler'] ?? '';
 $nodes = $input['nodes'] ?? [];
 
-$counter = (int)($nodes['counter_value']['val'] ?? 0);
+// Récupération de l'état actuel depuis le DOM (vspeed)
+$count = (int)($nodes['counter_value']['val'] ?? 0);
 
-$patches = [];
 if ($handler === 'increment') {
-    $counter++;
-    $patches[] = ["op" => "set_text", "nid" => "counter_value", "val" => (string)$counter];
+    $count++;
+    patch_response([
+        ["op" => "set_text", "nid" => "counter_value", "val" => (string)$count]
+    ]);
 }
 
-echo json_encode($patches);
+// Initialisation par défaut
+patch_response([]);
 "#;
     if let Err(e) = fs::write(project_dir.join("app.php"), php_content) {
         println!("❌ Erreur : Impossible d'écrire app.php : {}", e);
@@ -63,6 +113,7 @@ echo json_encode($patches);
     }
 
     println!("✅ Projet '{}' créé avec succès !", name);
+    println!("👉 Tapez : cd {} && nhtml start --dev", name);
 }
 
 pub fn dump_database() {
