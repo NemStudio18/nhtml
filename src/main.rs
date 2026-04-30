@@ -75,6 +75,12 @@ enum Commands {
         #[arg(short, long, default_value = "dist")]
         output: String,
     },
+    /// Vérifie l'intégrité de l'environnement et de la configuration
+    Check {
+        /// Chemin du projet (default: .)
+        #[arg(short = 'd', long, default_value = ".")]
+        path: String,
+    },
 }
 
 #[tokio::main]
@@ -233,6 +239,9 @@ async fn main() {
         }
         Commands::Build { production, output } => {
             cli::run_build(production, &output);
+        }
+        Commands::Check { path } => {
+            cli::run_check(&path).await;
         }
     }
 }

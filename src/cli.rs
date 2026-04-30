@@ -762,3 +762,65 @@ fn copy_dir_all(src: impl AsRef<Path>, dst: impl AsRef<Path>) -> std::io::Result
     }
     Ok(())
 }
+
+pub async fn run_check(path: &str) {
+    use std::time::Duration;
+    println!("🔍 Diagnostic NHTML — Vérification de l'environnement...");
+    let p = Path::new(path);
+    let mut errors = 0;
+
+    // 1. Vérification du fichier de config
+    let config_path = p.join("nhtml.config.toml");
+    if config_path.exists() {
+        println!("  ✅ nhtml.config.toml trouvé.");
+    } else {
+        println!("  ⚠️ nhtml.config.toml absent (utilisation des valeurs par défaut).");
+    }
+
+    // 2. Vérification des fichiers critiques
+    let files = ["index.nhtml", "app.php", "assets/js/bridge.js"];
+    for f in files {
+        if p.join(f).exists() {
+            println!("  ✅ Fichier critique '{}' trouvé.", f);
+        } else {
+            println!("  ❌ Fichier critique '{}' MANQUANT.", f);
+            errors += 1;
+        }
+    }
+
+    // 3. Vérification de la base de données
+    let db_path = p.join("nhtml_sessions.db");
+    match fs::OpenOptions::new().write(true).create(true).open(&db_path) {
+        Ok(_) => println!("  ✅ Permissions d'écriture sur la base SQLite OK."),
+        Err(e) => {
+            println!("  ❌ Erreur de permissions sur SQLite : {}", e);
+            errors += 1;
+        }
+    }
+
+    // 4. Test de connectivité PHP-FPM (si possible)
+    let config = crate::config::NhtmlConfig::load();
+    if let Some(fcgi) = config.fastcgi {
+        if let Some(addr) = fcgi.address {
+            println!("  📡 Test de connexion PHP-FPM sur {}...", addr);
+            let stream = tokio::time::timeout(
+                Duration::from_millis(1000),
+                tokio::net::TcpStream::connect(&addr)
+            ).await;
+            
+            match stream {
+                Ok(Ok(_)) => println!("  ✅ Connexion PHP-FPM établie avec succès."),
+                _ => println!("  ⚠️ PHP-FPM inaccessible (le Gateway démarrera mais les requêtes échoueront)."),
+            }
+        }
+    }
+
+    // Résultat final
+    println!("\n📊 Diagnostic terminé : {} erreur(s) détectée(s).", errors);
+    if errors == 0 {
+        println!("🚀 Tout semble prêt pour le lancement !");
+    } else {
+        println!("💡 Corrigez les erreurs critiques avant de lancer 'nhtml start'.");
+    }
+}
+

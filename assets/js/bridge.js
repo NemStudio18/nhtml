@@ -751,7 +751,10 @@ function connect(wsUrl, timeoutMs = 5000) {
             if (window.nhtml_hello_timeout) clearTimeout(window.nhtml_hello_timeout);
             
             if (window.nhtml_transport_mode.startsWith("WS")) {
-                setTimeout(() => connect(wsUrl), Math.min(MAX_BACKOFF, 500 * Math.pow(2, reconnectAttempts++))); 
+                const backoff = Math.min(MAX_BACKOFF, 500 * Math.pow(2, reconnectAttempts++));
+                const jitter = backoff * (0.5 + Math.random() * 0.5); // Add 50-100% jitter
+                console.warn(`🛰️ NHTML Disconnected. Retrying in ${Math.round(jitter)}ms... (Attempt ${reconnectAttempts})`);
+                setTimeout(() => connect(wsUrl), jitter); 
             } else {
                 switchToWasm();
             }

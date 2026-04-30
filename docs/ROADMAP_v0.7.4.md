@@ -4,9 +4,9 @@ This document outlines the planned improvements for the next minor release cycle
 
 ## 🏗️ Core Architecture & Infrastructure
 - [x] **SQLite WAL Mode**: Move session database to WAL (Write-Ahead Logging) for better concurrent performance.
-- [ ] **Circuit Breaker for FPM**: Implement a circuit breaker in `socket/mod.rs` to stop trying FPM if the backend is persistently failing.
-- [ ] **Exponential Backoff**: Better reconnection strategy in `bridge.js` with exponential backoff and jitter.
-- [ ] **nhtml check command**: A new pre-deployment command that verifies all routes and config security before going live.
+- [x] **Circuit Breaker for FPM**: Implement a circuit breaker in `socket/mod.rs` to stop trying FPM if the backend is persistently failing.
+- [x] **Exponential Backoff**: Better reconnection strategy in `bridge.js` with exponential backoff and jitter.
+- [x] **nhtml check command**: A new pre-deployment command that verifies all routes and config security before going live.
 
 ## ⚡ Performance (v1.0 Milestone)
 - [ ] **Delta Sync**: At reconnection, only send the patches missed since last state instead of a full B-TREE snapshot.
@@ -19,7 +19,7 @@ This document outlines the planned improvements for the next minor release cycle
 - [ ] **Audit Trail**: Optional secure log of all sensitive state changes (input values, session logins).
 
 ## 🛠️ Developer Experience (DX)
-- [ ] **Unified SDK Interface**: Ensure all SDKs (Python, Go, Node) have 100% parity with the PHP SDK.
+- [x] **Unified SDK Interface**: Ensure all SDKs (Python, Go, Node) have 100% parity with the PHP SDK.
 - [ ] **Better Error Overlays**: Show PHP stack traces directly in the browser during `--dev` mode.
 - [ ] **SSE Fallback**: Official support for Server-Sent Events for environments where WebSockets are blocked.
 
