@@ -892,8 +892,8 @@ function sendHello() {
     if(!socket || socket.readyState !== 1) return;
     const sidBytes = new TextEncoder().encode(window.nhtml_session_id);
     
-    // NBPS v0.5.0 HELLO (Client->Server): [Type:1][Len:4][SIDLen:1][SID:var]
-    const totalSize = 1 + 4 + 1 + sidBytes.length;
+    // NBPS v0.7.4 HELLO (Client->Server): [Type:1][Len:4][SIDLen:1][SID:var][LastSeq:4]
+    const totalSize = 1 + 4 + 1 + sidBytes.length + 4;
     const buf = new Uint8Array(totalSize);
     const view = new DataView(buf.buffer);
     
@@ -901,6 +901,9 @@ function sendHello() {
     view.setUint32(1, totalSize - 5); // Length after header
     buf[5] = sidBytes.length;
     buf.set(sidBytes, 6);
+    
+    // LastSeq at offset 6 + sidBytes.length
+    view.setUint32(6 + sidBytes.length, window.nhtml_seq_id || 0);
     
     sendBinary(buf);
 }

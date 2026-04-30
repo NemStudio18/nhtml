@@ -851,18 +851,52 @@ async fn handle_connection_axum(
     let (mut ws_sender, mut ws_receiver) = socket.split();
     let mut session = Session::new(session_id.clone(), &result, php_script, sm.clone(), state.fpm_addr.clone());
 
-    // ── Séquence d'initialisation ──────────────────────────────────────────
+    // ── Séquence d'initialisation (v0.7.4 Delta Sync) ──────────────────────
+    
+    // 1. Attente du HELLO client pour connaître son état de séquence
+    let mut client_last_seq = 0;
+    if let Some(Ok(WsMessage::Binary(data))) = ws_receiver.next().await {
+        if data.get(0) == Some(&proto::PKT_HELLO) {
+            // [Type:1][Len:4][SIDLen:1][SID:var][LastSeq:4]
+            if data.len() >= 6 {
+                let sid_len = data[5] as usize;
+                if data.len() >= 6 + sid_len + 4 {
+                    client_last_seq = u32::from_be_bytes([
+                        data[6 + sid_len],
+                        data[6 + sid_len + 1],
+                        data[6 + sid_len + 2],
+                        data[6 + sid_len + 3],
+                    ]);
+                    info!("[{}] HELLO Client reçu (LastSeq: {})", hash_sid(&session_id), client_last_seq);
+                }
+            }
+        }
+    }
 
-    // 1. HELLO
+    // 1.5 Réponse HELLO du serveur
     let hello = proto::hello(&session_id, &session_secret, last_seq);
     ws_sender.send(WsMessage::Binary(hello)).await.ok();
 
-    // 2. B-TREE
-    let (btree_pkt, comp_ratio) = proto::wrap_btree(&result.btree_bytes);
-    ws_sender.send(WsMessage::Binary(btree_pkt.clone())).await.ok();
-    info!("[{}] B-TREE envoyé ({} bytes, ratio={:.2})", hash_sid(&session_id), result.btree_bytes.len(), comp_ratio);
+    // 2. B-TREE ou DELTAS (Sync Intelligent)
+    let mut used_delta = false;
+    if client_last_seq > 0 && client_last_seq < last_seq {
+        if let Ok(deltas) = sm.get_deltas_since(session_id.clone(), client_last_seq).await {
+            if !deltas.is_empty() {
+                info!("[{}] ⚡ DELTA SYNC: Ré-envoi de {} paquets (depuis Seq {})", hash_sid(&session_id), deltas.len(), client_last_seq);
+                for d in deltas {
+                    ws_sender.send(WsMessage::Binary(d)).await.ok();
+                }
+                used_delta = true;
+            }
+        }
+    }
 
-    monitor_pkt(&state.tx_monitor, "OUT", proto::PKT_BTREE, btree_pkt.len(), &session_id, Some("BTREE".to_string()), Some("Full DOM Initial State".to_string()), None).await;
+    if !used_delta {
+        let (btree_pkt, comp_ratio) = proto::wrap_btree(&result.btree_bytes);
+        ws_sender.send(WsMessage::Binary(btree_pkt.clone())).await.ok();
+        info!("[{}] 🌳 B-TREE envoyé ({} bytes, ratio={:.2})", hash_sid(&session_id), result.btree_bytes.len(), comp_ratio);
+        monitor_pkt(&state.tx_monitor, "OUT", proto::PKT_BTREE, btree_pkt.len(), &session_id, Some("BTREE".to_string()), Some("Full DOM Initial State".to_string()), None).await;
+    }
 
     // 2.5 Patches d'append restaurés
     if !append_patches.is_empty() {
@@ -1331,6 +1365,12 @@ async fn handle_event(
             let elapsed = start.elapsed().as_millis() as u64;
             let patch_pkt = proto::patch(&final_patches);
             monitor_pkt(&state.tx_monitor, "OUT", proto::PKT_PATCH, patch_pkt.len(), &session.state.session_id, Some(handler.clone()), Some(format!("Applied {} patches", final_patches.len())), Some(elapsed)).await;
+            
+            // --- DELTA SYNC RECORDING (v0.7.4) ---
+            if let Ok(Some((_, current_seq))) = session.sm.get_session_security(session.state.session_id.clone()).await {
+                let _ = session.sm.record_delta(session.state.session_id.clone(), current_seq as u32, patch_pkt.clone()).await;
+            }
+
             result.patch_pkt = Some(patch_pkt);
         }
     }

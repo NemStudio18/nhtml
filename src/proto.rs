@@ -316,12 +316,24 @@ pub fn wrap_btree(payload: &[u8]) -> (Vec<u8>, f32) {
     let mut final_payload = payload.to_vec();
     let mut ratio: f32 = 1.0;
     
-    // Tentative de compression Zstd niveau 3
-    if let Ok(compressed) = zstd::encode_all(payload, 3) {
-        if compressed.len() < payload.len() {
-            ratio = compressed.len() as f32 / orig_len.max(1) as f32;
-            comp_flag = 0x01;
-            final_payload = compressed;
+    // Adaptive Zstd Compression (v0.7.4 Tuning)
+    let level = if orig_len < 256 {
+        0 // Skip compression for small packets (not worth the overhead)
+    } else if orig_len < 2048 {
+        3 // Fast
+    } else if orig_len < 16384 {
+        6 // Balanced
+    } else {
+        12 // Heavy (Better ratio for large initial DOM states)
+    };
+
+    if level > 0 {
+        if let Ok(compressed) = zstd::encode_all(payload, level) {
+            if compressed.len() < payload.len() {
+                ratio = compressed.len() as f32 / orig_len.max(1) as f32;
+                comp_flag = 0x01;
+                final_payload = compressed;
+            }
         }
     }
 

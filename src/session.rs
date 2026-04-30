@@ -95,6 +95,13 @@ impl SessionManager {
             version INTEGER
         )").execute(&pool).await.ok();
 
+        sqlx::query("CREATE TABLE IF NOT EXISTS delta_history (
+            session_id VARCHAR(255),
+            seq_id INTEGER,
+            payload BLOB,
+            PRIMARY KEY(session_id, seq_id)
+        )").execute(&pool).await.ok();
+
         sqlx::query("CREATE TABLE IF NOT EXISTS session_rooms (
             session_id VARCHAR(255),
             room_id VARCHAR(255),
@@ -245,6 +252,29 @@ impl SessionManager {
             .bind(room_id)
             .fetch_all(&self.pool).await?;
         Ok(rows.into_iter().map(|r| r.get(0)).collect())
+    }
+
+    pub async fn record_delta(&self, sid: String, seq_id: u32, payload: Vec<u8>) -> Result<(), sqlx::Error> {
+        sqlx::query("INSERT OR REPLACE INTO delta_history (session_id, seq_id, payload) VALUES (?, ?, ?)")
+            .bind(sid)
+            .bind(seq_id as i64)
+            .bind(payload)
+            .execute(&self.pool).await?;
+        Ok(())
+    }
+
+    pub async fn get_deltas_since(&self, sid: String, last_seq: u32) -> Result<Vec<Vec<u8>>, sqlx::Error> {
+        let rows = sqlx::query("SELECT payload FROM delta_history WHERE session_id = ? AND seq_id > ? ORDER BY seq_id ASC")
+            .bind(sid)
+            .bind(last_seq as i64)
+            .fetch_all(&self.pool).await?;
+        
+        let mut deltas = Vec::new();
+        for row in rows {
+            let p: Vec<u8> = row.get(0);
+            deltas.push(p);
+        }
+        Ok(deltas)
     }
 
     pub async fn cleanup_expired_sessions(&self, ttl_seconds: i64) -> Result<u64, sqlx::Error> {

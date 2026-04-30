@@ -9,8 +9,8 @@ This document outlines the planned improvements for the next minor release cycle
 - [x] **nhtml check command**: A new pre-deployment command that verifies all routes and config security before going live.
 
 ## ⚡ Performance (v1.0 Milestone)
-- [ ] **Delta Sync**: At reconnection, only send the patches missed since last state instead of a full B-TREE snapshot.
-- [ ] **Zstd Level Tuning**: Fine-tune Zstd compression levels based on packet size (Gateway vs Bridge).
+- [x] **Delta Sync**: At reconnection, only send the patches missed since last state instead of a full B-TREE snapshot.
+- [x] **Zstd Level Tuning**: Fine-tune Zstd compression levels based on packet size (Gateway vs Bridge).
 - [ ] **PHP HMR**: Hot Module Replacement for PHP logic (reload parts of the B-TREE without full session refresh).
 
 ## 📊 Observability & Metrics
