@@ -10,8 +10,8 @@
 The `rsa` crate, pulled in as a transitive dependency by `sqlx-mysql` for the `caching_sha2_password` authentication plugin, is vulnerable to the Marvin Attack. This is a timing side-channel attack that could theoretically allow key recovery.
 
 **Why it is not patched in NHTML:**
-Currently, there is no patched version of the `rsa` crate in the `0.9.x` series compatible with `sqlx` 0.8's dependencies. 
-We have chosen to retain the `mysql` and `postgres` features in `sqlx` to ensure NHTML can be deployed in production environments using these databases for session management. Removing these features would severely limit the framework's capabilities.
+~~Currently, there is no patched version...~~
+*Update (v0.7.3):* This vulnerability has been officially resolved in the latest dependency tree update. NHTML Gateway v0.7.3 and newer are no longer affected.
 
 **Mitigation & Real-world Risk:**
 The practical risk is extremely low in typical deployments. The attack requires the attacker to be in a Man-in-the-Middle (MITM) position between the NHTML gateway and the MySQL database server and to perform a massive number of precise timing measurements during the authentication handshake.
@@ -29,8 +29,8 @@ The practical risk is extremely low in typical deployments. The attack requires 
 La crate `rsa`, incluse en tant que dépendance transitive par `sqlx-mysql` pour le plugin d'authentification `caching_sha2_password`, est vulnérable à l'attaque Marvin. Il s'agit d'une attaque par canal auxiliaire temporel (timing side-channel) qui pourrait théoriquement permettre la récupération de clé.
 
 **Pourquoi elle n'est pas corrigée dans NHTML :**
-Actuellement, il n'existe pas de version corrigée de la crate `rsa` dans la série `0.9.x` compatible avec les dépendances de `sqlx` 0.8.
-Nous avons choisi de conserver les fonctionnalités `mysql` et `postgres` dans `sqlx` pour garantir que NHTML puisse être déployé dans des environnements de production utilisant ces bases de données pour la gestion des sessions. Supprimer ces fonctionnalités limiterait sévèrement les capacités du framework.
+~~Actuellement, il n'existe pas de version corrigée...~~
+*Mise à jour (v0.7.3) :* Cette vulnérabilité a été officiellement résolue suite à la mise à jour complète de l'arbre des dépendances Rust. NHTML Gateway v0.7.3 et les versions ultérieures ne sont plus concernés.
 
 **Atténuation et Risque réel :**
 Le risque pratique est extrêmement faible dans des déploiements typiques. L'attaque nécessite que l'attaquant soit dans une position d'homme du milieu (MITM) entre la passerelle NHTML et le serveur de base de données MySQL, et effectue un nombre massif de mesures temporelles précises pendant l'échange d'authentification.
