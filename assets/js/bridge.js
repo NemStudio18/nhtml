@@ -248,11 +248,50 @@ function nhtml_run_scroll_actions(entry) {
     }
 }
 
+let nhtml_rect_cache = new WeakMap();
+let nhtml_resize_observer = null;
+
+function nhtml_get_cached_rect(el) {
+    if (!nhtml_resize_observer) {
+        nhtml_resize_observer = new ResizeObserver(entries => {
+            for (let e of entries) {
+                const r = e.target.getBoundingClientRect();
+                nhtml_rect_cache.set(e.target, {
+                    absLeft: r.left + window.scrollX,
+                    absTop: r.top + window.scrollY,
+                    width: r.width,
+                    height: r.height
+                });
+            }
+        });
+    }
+    
+    let cached = nhtml_rect_cache.get(el);
+    if (!cached) {
+        const r = el.getBoundingClientRect();
+        cached = {
+            absLeft: r.left + window.scrollX,
+            absTop: r.top + window.scrollY,
+            width: r.width,
+            height: r.height
+        };
+        nhtml_rect_cache.set(el, cached);
+        nhtml_resize_observer.observe(el);
+    }
+    
+    return {
+        left: cached.absLeft - window.scrollX,
+        top: cached.absTop - window.scrollY,
+        width: cached.width,
+        height: cached.height
+    };
+}
+
 function nhtml_run_mousemove_actions(entry, e) {
     if (entry._done) return;
     let x = e.clientX, y = e.clientY;
     if (entry.la.flags & 0x04) { // SCOPE_SELF
-        const rect = entry.el.getBoundingClientRect();
+        const rect = nhtml_get_cached_rect(entry.el);
         x -= rect.left; y -= rect.top;
     }
     
@@ -260,7 +299,7 @@ function nhtml_run_mousemove_actions(entry, e) {
     else if (entry.la.actionType === 0x07) entry.el.style.setProperty(`--${entry.la.param}`, y);
     else if (entry.la.actionType === 0x08) {
         // Distance
-        const rect = entry.el.getBoundingClientRect();
+        const rect = nhtml_get_cached_rect(entry.el);
         const cx = rect.left + rect.width/2;
         const cy = rect.top + rect.height/2;
         const dist = Math.sqrt(Math.pow(e.clientX - cx, 2) + Math.pow(e.clientY - cy, 2));

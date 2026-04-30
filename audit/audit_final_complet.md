@@ -659,20 +659,20 @@ assert!(ips.len() <= 1000, "Rate limiter dépasse la limite mémoire de 1000 IPs
 
 ### 📈 SPRINT 3 — Long terme
 - [ ] **MED-01** `Cargo.toml` → Retirer features `mysql`/`postgres` si inutilisées
-- [ ] **MED-02** `Cargo.toml` → Remplacer `tokio = full` par features explicites
-- [ ] **MED-05** `Cargo.toml` → Ajouter `[profile.release]` optimisé
-- [ ] **MED-15** `chat/app.php` → JOIN unique pour les pseudos
-- [ ] **MED-16/17** `chat/app.php` → Limites longueur message et pseudo
-- [ ] **MED-18** `style-lab/app.php` → Valider numériquement les valeurs CSS
-- [ ] **MED-19** `counter/app.php` → Migrer vers le SDK PHP
-- [ ] **MED-22** `socket/mod.rs` → SHA256 tronqué pour les logs de session
-- [ ] **MED-23** `config.rs` → Ajouter `min_tls_version` dans `TlsConfig`
+- [x] **MED-02** `Cargo.toml` → Remplacer `tokio = full` par features explicites
+- [x] **MED-05** `Cargo.toml` → Ajouter `[profile.release]` optimisé
+- [x] **MED-15** `chat/app.php` → JOIN unique pour les pseudos
+- [x] **MED-16/17** `chat/app.php` → Limites longueur message et pseudo
+- [x] **MED-18** `style-lab/app.php` → Valider numériquement les valeurs CSS
+- [x] **MED-19** `counter/app.php` → Migrer vers le SDK PHP
+- [x] **MED-22** `socket/mod.rs` → SHA256 tronqué pour les logs de session
+- [x] **MED-23** `config.rs` → Ajouter `min_tls_version` dans `TlsConfig`
 - [ ] **MED-24** `cli.rs` → Connecter métriques DevTools aux vrais compteurs Prometheus
 - [ ] **MED-25** `tests/v0_7_0_security.rs` → Renforcer test anti-leak rate limiter
-- [ ] **PERF-01** `bridge.js` → Cache `getBoundingClientRect` via `ResizeObserver`
-- [ ] **PERF-03** `socket/mod.rs` → `tokio::task::spawn_blocking` pour compilation NHTML
-- [ ] **PERF-05** `decoder.rs` → `Cow<'a, str>` pour éviter allocations par paquet
-- [ ] **PERF-06** `btree_builder.rs` → `Vec::with_capacity(1024)`
+- [x] **PERF-01** `bridge.js` → Cache `getBoundingClientRect` via `ResizeObserver`
+- [x] **PERF-03** `socket/mod.rs` → `tokio::task::spawn_blocking` pour compilation NHTML
+- [ ] **PERF-05** `decoder.rs` → `Cow<'a, str>` pour éviter allocations par paquet (Mis en pause car decoder.rs = DevTools uniquement)
+- [x] **PERF-06** `btree_builder.rs` → `Vec::with_capacity(1024)`
 
 ---
 

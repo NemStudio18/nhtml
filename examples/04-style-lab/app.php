@@ -30,7 +30,8 @@ $colors = [
 ];
 
 if ($handler === 'slider_radius') {
-    $p->setText('lbl_radius', "{$value}px")->setStyle('preview_box', 'border-radius', "{$value}px");
+    $v = (int)$value;
+    $p->setText('lbl_radius', "{$v}px")->setStyle('preview_box', 'border-radius', "{$v}px");
 } elseif ($handler === 'slider_scale') {
     $scaleVal = floatval($value) / 100;
     $scaleStr = sprintf("%.2f", $scaleVal);

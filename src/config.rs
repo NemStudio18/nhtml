@@ -36,6 +36,7 @@ pub struct TlsConfig {
     pub enabled: bool,
     pub cert: String,
     pub key: String,
+    pub min_version: Option<String>,
 }
 
 #[derive(Debug, Deserialize, Clone)]

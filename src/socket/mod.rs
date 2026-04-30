@@ -35,11 +35,10 @@ use fastcgi_client::conn::KeepAlive;
 type HmacSha256 = Hmac<Sha256>;
 
 fn hash_sid(sid: &str) -> String {
-    use std::collections::hash_map::DefaultHasher;
-    use std::hash::{Hasher, Hash};
-    let mut hasher = DefaultHasher::new();
-    sid.hash(&mut hasher);
-    format!("{:x}", hasher.finish())[0..8].to_string()
+    use sha2::{Sha256, Digest};
+    let mut hasher = Sha256::new();
+    hasher.update(sid.as_bytes());
+    format!("{:x}", hasher.finalize())[0..8].to_string()
 }
 #[cfg(unix)]
 type FpmStream = Either<TcpStream, UnixStream>;
@@ -674,39 +673,43 @@ async fn handle_connection_axum(
 
     info!("[WS] Handshake Resolution: {} -> {}", nhtml_rel_path, nhtml_abs_path);
 
-    // ─── Compilation & Cache ─────────────────────────────────────────────
     let cached_res = {
         let mut cache = state.compile_cache.lock().await;
         let mtime = std::fs::metadata(&nhtml_abs_path)
             .and_then(|m| m.modified())
             .unwrap_or(std::time::SystemTime::now());
 
-        if let Some((cached_time, res)) = cache.get(&nhtml_abs_path) {
-            if *cached_time == mtime {
-                res.clone()
-            } else {
-                let source = match std::fs::read_to_string(&nhtml_abs_path) {
-                    Ok(s) => s,
-                    Err(e) => {
-                        error!("Impossible de lire {} : {}", nhtml_abs_path, e);
-                        return;
-                    }
-                };
-                let res = Arc::new(NhtmlCompiler::compile(&source));
-                cache.insert(nhtml_abs_path.clone(), (mtime, res.clone()));
-                res
-            }
+        let needs_compile = match cache.get(&nhtml_abs_path) {
+            Some((cached_time, res)) => {
+                if *cached_time == mtime {
+                    Some(res.clone())
+                } else {
+                    None
+                }
+            },
+            None => None,
+        };
+
+        if let Some(res) = needs_compile {
+            res
         } else {
-            let source = match std::fs::read_to_string(&nhtml_abs_path) {
-                Ok(s) => s,
+            let path_clone = nhtml_abs_path.clone();
+            let res_compile = tokio::task::spawn_blocking(move || {
+                let source = std::fs::read_to_string(&path_clone)
+                    .map_err(|e| format!("Impossible de lire {} : {}", path_clone, e))?;
+                Ok::<_, String>(Arc::new(NhtmlCompiler::compile(&source)))
+            }).await.unwrap();
+
+            match res_compile {
+                Ok(r) => {
+                    cache.insert(nhtml_abs_path.clone(), (mtime, r.clone()));
+                    r
+                },
                 Err(e) => {
-                    error!("Impossible de lire {} : {}", nhtml_abs_path, e);
+                    error!("{}", e);
                     return;
                 }
-            };
-            let res = Arc::new(NhtmlCompiler::compile(&source));
-            cache.insert(nhtml_abs_path.clone(), (mtime, res.clone()));
-            res
+            }
         }
     };
     

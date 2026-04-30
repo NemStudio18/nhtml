@@ -26,7 +26,7 @@ $formData = json_decode($input['payload'] ?? '{}', true);
 $sessionId = $input['session_id'] ?? 'anonymous';
 
 // Gérer le pseudo (Sauvegarde automatique si présent dans le payload)
-$pseudo = trim($formData['chat_pseudo'] ?? '');
+$pseudo = mb_substr(trim($formData['chat_pseudo'] ?? ''), 0, 50, 'UTF-8');
 if ($pseudo) {
     $stmt = $db->prepare("INSERT INTO users (session_id, pseudo) VALUES (?, ?) ON CONFLICT(session_id) DO UPDATE SET pseudo = excluded.pseudo");
     $stmt->execute([$sessionId, $pseudo]);
@@ -40,7 +40,7 @@ $p = Nhtml::patch();
 
 // Si c'est l'init (via HELLO), on charge les derniers messages
 if ($handler === 'init' || !$handler) {
-    $stmt = $db->query("SELECT * FROM messages ORDER BY id DESC LIMIT 20");
+    $stmt = $db->query("SELECT m.*, u.pseudo as author_pseudo FROM messages m LEFT JOIN users u ON m.session_id = u.session_id ORDER BY m.id DESC LIMIT 20");
     $messages = array_reverse($stmt->fetchAll(PDO::FETCH_ASSOC));
     
     $html = "";
@@ -48,10 +48,7 @@ if ($handler === 'init' || !$handler) {
         $isMe = $msg['session_id'] === $sessionId;
         $class = $isMe ? 'sent' : 'received';
         
-        // Chercher le pseudo de l'auteur
-        $stmt_u = $db->prepare("SELECT pseudo FROM users WHERE session_id = ?");
-        $stmt_u->execute([$msg['session_id']]);
-        $author = $stmt_u->fetchColumn() ?: substr($msg['session_id'], 0, 5);
+        $author = $msg['author_pseudo'] ?: substr($msg['session_id'], 0, 5);
         
         if ($isMe) $author = "Moi ($author)";
         
@@ -73,7 +70,7 @@ if ($handler === 'send') {
         exit;
     }
     
-    $content = trim($formData['chat_input'] ?? '');
+    $content = mb_substr(trim($formData['chat_input'] ?? ''), 0, 2000, 'UTF-8');
     if ($content !== '') {
         $stmt = $db->prepare("INSERT INTO messages (session_id, author, content) VALUES (?, ?, ?)");
         $stmt->execute([$sessionId, $pseudo, $content]);

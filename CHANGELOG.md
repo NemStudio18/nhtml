@@ -38,6 +38,12 @@
 - **B-TREE Integrity**: Limitation sécurisée à 64Ko avec préservation des frontières de caractères UTF-8 pour éviter le crash client sur des nœuds immenses.
 - **Queue System (DoS Prevention)**: Implémentation d'une file d'attente non-bloquante (`tokio::sync::Semaphore`) pour le Pool FPM afin d'éviter la fermeture prématurée des requêtes en charge forte.
 - **Dependency Update**: Résolution de la faille de sécurité "Marvin Attack" via mise à jour du graphe de dépendances (`sqlx` / `rsa`).
+- **Async Compilation**: L'appel lourd à la compilation `.nhtml` est maintenant exécuté dans un `tokio::task::spawn_blocking` pour éviter de bloquer l'executor asynchrone principal.
+- **Binary Hardening**: Pré-allocation mémoire intelligente avec `Vec::with_capacity` pour la construction de l'arbre B-TREE, et troncature stricte des champs à 65535 octets.
+- **HashDoS Mitigation**: Migration vers `sha2::Sha256` pour générer les empreintes de logs de sessions (au lieu de `DefaultHasher` qui est prévisible).
+- **Strict TLS**: Ajout de la propriété `min_version: "1.3"` dans la configuration TLS.
+- **Frontend Thrashing**: Mise en cache drastique du calcul `getBoundingClientRect()` sur le client avec un `ResizeObserver` global, évitant de tuer la batterie sur les événements `mousemove`.
+- **Examples Security**: Migration du `counter` vers le SDK Object `Nhtml::patch()`, suppression de l'injection CSS dans `style-lab`, et troncature (`mb_substr`) + `JOIN` (anti N+1) sur l'exemple de `chat`.
 
 ## v0.7.0 (Avril 2026) — "Industrial Scale"
 ### Added

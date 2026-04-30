@@ -18,19 +18,13 @@ $counter = (int)($nodes['counter_value']['val'] ?? 0);
 
 if ($handler === 'increment') {
     $counter++;
-    
-    // Réponse directe au Gateway
-    echo json_encode([
-        ['op' => 'set_text', 'nid' => 'counter_value', 'val' => (string)$counter]
-    ]);
+    Nhtml::patch()->setText('counter_value', (string)$counter)->send();
     exit;
 }
 
 // Fallback init / No match
 if ($handler === 'init' || !$handler) {
-    echo json_encode([
-        ['op' => 'set_text', 'nid' => 'counter_value', 'val' => (string)$counter]
-    ]);
+    Nhtml::patch()->setText('counter_value', (string)$counter)->send();
 } else {
-    echo json_encode([]);
+    Nhtml::patch()->send();
 }

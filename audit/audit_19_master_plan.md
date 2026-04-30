@@ -45,9 +45,9 @@ Ce document regroupe toutes les vulnérabilités identifiées lors de l'audit co
 ### 🔵 QUALITÉ ET PERFORMANCE (À planifier dans les sprints)
 *   **[PERF-09-001] N+1 Queries sur le Nettoyage (`session.rs`)**
     Boucle `for` avec une requête `DELETE` individuelle par session (asphyxie de la DB SQLite/MySQL sous forte charge).
-*   **[PERF-08-001] Blocage du Thread Tokio par le Compilateur (`socket/mod.rs`)**
+*   ~~**[PERF-08-001] Blocage du Thread Tokio par le Compilateur (`socket/mod.rs`)**~~ ✅ Corrigé (spawn_blocking)
     La compilation `.nhtml` au sein du WebSocket est synchrone. À déléguer via `tokio::task::spawn_blocking`.
-*   **[PERF-04-001] Layout Thrashing (Chute de FPS) (`bridge.js`)**
+*   ~~**[PERF-04-001] Layout Thrashing (Chute de FPS) (`bridge.js`)**~~ ✅ Corrigé (ResizeObserver cache)
     Lecture synchrone de `getBoundingClientRect()` sur l'événement très fréquent `mousemove`.
 *   ~~**[QUAL-13-001] Rupture Multi-Plateforme (`cli.rs`)**~~ ✅ Corrigé (Fonction `copy_dir_all` 100% Rust native)
     L'appel système à `xcopy` casse la commande `build` sous Linux et macOS.

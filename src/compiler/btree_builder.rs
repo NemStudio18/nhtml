@@ -7,7 +7,7 @@ use super::NodeSpec;
 /// Sérialise un nœud et tous ses descendants (depth-first)
 #[allow(dead_code)]
 pub fn serialize_node(node: &NodeSpec) -> Vec<u8> {
-    let mut buf = Vec::new();
+    let mut buf = Vec::with_capacity(1024);
     write_node(&mut buf, node);
     buf
 }
@@ -23,8 +23,9 @@ fn write_node(buf: &mut Vec<u8>, node: &NodeSpec) {
 
     // tag_len + tag
     let tag = node.tag.as_bytes();
-    buf.push(tag.len() as u8);
-    buf.extend_from_slice(tag);
+    let tag_len = tag.len().min(255);
+    buf.push(tag_len as u8);
+    buf.extend_from_slice(&tag[..tag_len]);
 
     // Calculer les flags
     let has_attrs    = !node.attrs.is_empty();
@@ -43,24 +44,36 @@ fn write_node(buf: &mut Vec<u8>, node: &NodeSpec) {
 
     // ── ATTRS ─────────────────────────────────────────────────────────────
     if has_attrs {
-        buf.push(node.attrs.len() as u8);
-        for (key, val) in &node.attrs {
+        buf.push(node.attrs.len().min(255) as u8);
+        for (key, val) in node.attrs.iter().take(255) {
             let kb = key.as_bytes();
             let vb = val.as_bytes();
-            buf.push(kb.len() as u8);
-            buf.extend_from_slice(kb);
-            buf.push((vb.len() >> 8) as u8);
-            buf.push((vb.len() & 0xFF) as u8);
-            buf.extend_from_slice(vb);
+            let kb_len = kb.len().min(255);
+            buf.push(kb_len as u8);
+            buf.extend_from_slice(&kb[..kb_len]);
+            
+            let mut vb_len = vb.len();
+            if vb_len > 65535 {
+                vb_len = 65535;
+                while !val.is_char_boundary(vb_len) && vb_len > 0 { vb_len -= 1; }
+            }
+            buf.push((vb_len >> 8) as u8);
+            buf.push((vb_len & 0xFF) as u8);
+            buf.extend_from_slice(&vb[..vb_len]);
         }
     }
 
     // ── TEXT ──────────────────────────────────────────────────────────────
     if has_text {
+        let mut tb_len = node.text.len();
+        if tb_len > 65535 {
+            tb_len = 65535;
+            while !node.text.is_char_boundary(tb_len) && tb_len > 0 { tb_len -= 1; }
+        }
         let tb = node.text.as_bytes();
-        buf.push((tb.len() >> 8) as u8);
-        buf.push((tb.len() & 0xFF) as u8);
-        buf.extend_from_slice(tb);
+        buf.push((tb_len >> 8) as u8);
+        buf.push((tb_len & 0xFF) as u8);
+        buf.extend_from_slice(&tb[..tb_len]);
     }
 
     // ── CHILDREN ──────────────────────────────────────────────────────────
