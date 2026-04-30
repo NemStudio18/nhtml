@@ -69,25 +69,34 @@ pub struct DevConfig {
 
 impl NhtmlConfig {
     pub fn load() -> Self {
-        let path = "nhtml.config.toml";
-        if std::path::Path::new(path).exists() {
-            if let Ok(content) = fs::read_to_string(path) {
-                match toml::from_str(&content) {
-                    Ok(config) => {
-                        println!("📄 Fichier de configuration nhtml.config.toml détecté et chargé.");
-                        return config;
-                    }
-                    Err(e) => {
-                        eprintln!("❌ ERREUR FATALE: Fichier nhtml.config.toml invalide.");
-                        eprintln!("Détails de l'erreur TOML : {}", e);
-                        std::process::exit(1);
+        let candidates = [
+            std::env::var("NHTML_CONFIG").unwrap_or_default(),
+            "./nhtml.config.toml".to_string(),
+            std::env::current_exe().ok()
+                .and_then(|p| p.parent().map(|d| d.join("nhtml.config.toml").to_string_lossy().to_string()))
+                .unwrap_or_default(),
+        ];
+
+        for path in &candidates {
+            if path.is_empty() { continue; }
+            let path_obj = std::path::Path::new(path);
+            if path_obj.exists() && path_obj.is_file() {
+                if let Ok(content) = fs::read_to_string(path) {
+                    match toml::from_str(&content) {
+                        Ok(config) => {
+                            println!("📄 Fichier de configuration chargé depuis : {}", path);
+                            return config;
+                        }
+                        Err(e) => {
+                            eprintln!("❌ ERREUR FATALE: Fichier {} invalide.", path);
+                            eprintln!("Détails de l'erreur TOML : {}", e);
+                            std::process::exit(1);
+                        }
                     }
                 }
-            } else {
-                eprintln!("❌ ERREUR FATALE: Impossible de lire nhtml.config.toml.");
-                std::process::exit(1);
             }
         }
+        
         NhtmlConfig::default()
     }
 }
