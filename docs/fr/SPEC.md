@@ -1,4 +1,4 @@
-# 🛰️ NHTML Protocol Specification (NBPS) v0.7.3
+# 🛰️ NHTML Protocol Specification (NBPS) v0.7.4
 **Édition Sécurité & Stabilité**
 
 ## 1. Structure Universelle des Paquets
@@ -69,8 +69,12 @@ Le SDK PHP peut retourner un tableau simple de patchs, ou un objet structuré po
 
 ---
 
-## 5. Performance, Sécurité & Transport
+## 5. Performance, Sécurité & Résilience (v0.7.4)
+- **Delta Sync (Nouveauté v0.7.4)** : Lors d'une reconnexion, le Gateway compare le `LastSeq` du client. Si les patchs manquants sont en cache (`delta_history`), ils sont rejoués au lieu de renvoyer un `B-TREE` complet.
+- **Circuit Breaker (Nouveauté v0.7.4)** : Protection contre la saturation. Si un backend PHP-FPM échoue 10 fois de suite, le Gateway "ouvre le circuit" et rejette les requêtes pendant 10 secondes pour permettre au backend de récupérer.
+- **Adaptive Zstd Compression** : Le niveau de compression varie dynamiquement de 3 (rapide) à 12 (fort) selon la taille du payload. Les paquets < 256 octets ne sont pas compressés.
+- **SQLite WAL Mode** : Utilisation systématique du mode *Write-Ahead Logging* pour permettre des écritures concurrentes sans bloquer les lectures de sessions.
 - **Sécurité CSWH** : Validation stricte des origines via liste blanche (`allowed_origins` dans `nhtml.config.toml`).
-- **Limitation de Taux (Rate Limiting)** : Cache O(1) de type LRU par adresse IP (Limitation par défaut à 30 events/sec pour contrer le DoS).
-- **Zstd Compression** : Utilisation du dictionnaire Zstd pour les snapshots B-TREE massifs.
-- **Binary Stream** : Toutes les communications sont binaires, encodées en stricte vérification UTF-8 pour les chaînes de caractères.
+- **Limitation de Taux (Rate Limiting)** : Cache O(1) de type LRU par adresse IP (Limitation par défaut à 30 events/sec).
+- **Binary Stream** : Toutes les communications sont binaires, encodées en stricte vérification UTF-8.
+

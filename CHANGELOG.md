@@ -1,6 +1,18 @@
 # 📜 Changelog NHTML
 
-## v0.7.3 (Avril 2026) — "Scale & Observability" (WIP)
+## v0.7.4 (Mai 2026) — "Performance & Resilience" (ACTUEL)
+### Added
+- **Delta Sync (Sync Intelligent)** : Le Gateway ne renvoie que les patchs manqués lors d'une reconnexion au lieu de renvoyer tout le DOM (`B-TREE`). Gain de performance majeur sur les connexions instables.
+- **Circuit Breaker FPM** : Protection contre les cascades de pannes. Le Gateway bloque le trafic vers un backend FPM défaillant pendant 10 secondes après 10 échecs consécutifs.
+- **Adaptive Zstd Tuning** : Niveau de compression Zstd dynamique basé sur la taille du paquet (de 3 à 12). Optimise le CPU pour les petits messages et le ratio pour les gros états initiaux.
+- **Diagnostic Command (`nhtml check`)** : Nouvel outil CLI pour vérifier l'intégrité de l'environnement (fichiers, DB, FPM) avant le déploiement.
+- **SQLite WAL Mode** : Activation par défaut du mode *Write-Ahead Logging* pour une meilleure concurrence et des performances d'écriture accrues.
+
+### Fixed
+- **Reconnection Jitter** : Ajout d'un délai aléatoire (jitter) lors des tentatives de reconnexion dans `bridge.js` pour éviter la saturation du Gateway.
+- **Async Mutex Fixes** : Résolution des problèmes de compilation liés aux verrous asynchrones dans la gestion d'état du socket.
+
+## v0.7.3-stable (Avril 2026) — "Industrial Hardening"
 ### Added
 - **Native Load Balancing**: Dispatcher intelligent intégré supportant les stratégies **Round-Robin** et **Least-Connections**.
 - **Automated Healthchecks**: Surveillance active des backends FPM avec mise en quarantaine automatique des nœuds défaillants.

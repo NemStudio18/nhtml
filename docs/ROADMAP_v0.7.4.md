@@ -14,14 +14,14 @@ This document outlines the planned improvements for the next minor release cycle
 - [ ] **PHP HMR**: Hot Module Replacement for PHP logic (reload parts of the B-TREE without full session refresh).
 
 ## 📊 Observability & Metrics
-- [ ] **Prometheus Exporter**: Native `/metrics` endpoint with latency histograms, active sessions, and compression ratios.
+- [x] **Prometheus Exporter**: Native `/metrics` endpoint with latency histograms, active sessions, and compression ratios.
 - [ ] **OpenTelemetry**: Distributed tracing support to track a request from `bridge.js` through the Gateway to the PHP backend.
 - [ ] **Audit Trail**: Optional secure log of all sensitive state changes (input values, session logins).
 
 ## 🛠️ Developer Experience (DX)
 - [x] **Unified SDK Interface**: Ensure all SDKs (Python, Go, Node) have 100% parity with the PHP SDK.
-- [ ] **Better Error Overlays**: Show PHP stack traces directly in the browser during `--dev` mode.
+- [x] **Better Error Overlays**: Show PHP stack traces directly in the browser during `--dev` mode.
 - [ ] **SSE Fallback**: Official support for Server-Sent Events for environments where WebSockets are blocked.
 
 ---
-*Last Updated: 2026-04-30 — NHTML v0.7.3-stable*
+*Last Updated: 2026-04-30 — NHTML v0.7.4-dev*

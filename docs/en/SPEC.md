@@ -1,4 +1,4 @@
-# 🛰️ NHTML Protocol Specification (NBPS) v0.7.3
+# 🛰️ NHTML Protocol Specification (NBPS) v0.7.4
 **Security & Stability Edition**
 
 ## 1. Universal Packet Structure
@@ -69,8 +69,11 @@ The PHP SDK can return a simple array of patches or a structured object to inclu
 
 ---
 
-## 5. Performance, Security & Transport
-- **CSWH Security**: Strict origin validation via whitelist (`allowed_origins` in `nhtml.config.toml`).
-- **Rate Limiting**: O(1) LRU-based cache per IP address (Default limit: 30 events/sec to mitigate DoS).
-- **Zstd Compression**: Dictionary-based Zstd usage for massive B-TREE snapshots.
-- **Binary Stream**: All communications are binary, using strict UTF-8 decoding for string integrity.
+## 5. Performance, Security & Resilience (v0.7.4)
+- **Delta Sync (New in v0.7.4)**: Upon reconnection, the Gateway checks the client's `LastSeq`. If missing patches are found in `delta_history`, they are replayed instead of sending a full `B-TREE`.
+- **Circuit Breaker (New in v0.7.4)**: Saturation protection. If a PHP-FPM backend fails 10 consecutive times, the Gateway "opens the circuit" and rejects requests for 10 seconds to allow recovery.
+- **Adaptive Zstd Compression**: Compression level scales dynamically from 3 (fast) to 12 (heavy) based on payload size. Packets < 256 bytes are not compressed.
+- **SQLite WAL Mode**: System-wide use of *Write-Ahead Logging* to allow concurrent writes without blocking session reads.
+- **CSWH Protection**: Strict origin validation via whitelist (`allowed_origins` in `nhtml.config.toml`).
+- **Rate Limiting**: O(1) LRU cache per IP address (Default limit: 30 events/sec).
+- **Binary Stream**: All communications are binary, with strict UTF-8 verification for strings.

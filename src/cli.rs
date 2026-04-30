@@ -59,7 +59,7 @@ timeout_ms = 5000
 </head>
 <body>
     <div class="card">
-        <h1>NHTML v0.7.3</h1>
+        <h1>NHTML v0.7.4</h1>
         <p>Votre application temps réel est prête.</p>
         
         <div class="counter" n-id="counter_value">0</div>
@@ -81,7 +81,7 @@ timeout_ms = 5000
     let php_content = r#"<?php
 /**
  * NHTML Backend Handler
- * Version: v0.7.3-stable
+ * Version: v0.7.4-dev
  */
 
 // Simulation du SDK (en attendant l'installation via composer ou inclusion directe)
@@ -610,7 +610,7 @@ async fn handle_devtools_ws(socket: WebSocket, tx_monitor: broadcast::Sender<cra
 
 
 pub fn run_benchmark(path: &str) {
-    println!("🧪 NHTML Industrial Benchmark Tool v0.7.3-stable");
+    println!("🧪 NHTML Industrial Benchmark Tool v0.7.4-dev");
     println!("--------------------------------------------------");
     
     let (html_content, label) = if let Ok(content) = std::fs::read_to_string(path) {
@@ -656,7 +656,7 @@ pub fn run_benchmark(path: &str) {
     println!("🚀 Débit théorique                 : {:.2} MB/s", throughput);
     
     println!("--------------------------------------------------");
-    println!("✅ Benchmark terminé. NHTML v0.7.3-stable est prêt pour la production.");
+    println!("✅ Benchmark terminé. NHTML v0.7.4-dev est prêt pour la production.");
 }
 
 pub fn run_share(port: u16) {

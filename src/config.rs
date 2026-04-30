@@ -57,6 +57,7 @@ pub struct PortsConfig {
     pub ws: Option<u16>,
     pub php: Option<u16>,
     pub devtools: Option<u16>,
+    pub metrics: Option<u16>,
     #[allow(dead_code)]
     pub http: Option<u16>,
 }

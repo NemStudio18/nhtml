@@ -5,7 +5,7 @@ use nhtml_gateway::{MonitoringEvent, cli, supervisor, socket, session, watcher, 
 
 #[derive(Parser)]
 #[command(name = "nhtml-gateway")]
-#[command(about = "NHTML Gateway - NBPS v0.7.3-stable", long_about = None)]
+#[command(about = "NHTML Gateway - NBPS v0.7.4-dev", long_about = None)]
 struct Cli {
     #[command(subcommand)]
     command: Commands,
@@ -107,11 +107,21 @@ async fn main() {
     let (tx_app_broadcast, _) = broadcast::channel::<std::sync::Arc<Vec<u8>>>(5000);
     let (tx_reload, _) = broadcast::channel::<()>(100);
 
-    // Initialisation des métriques Prometheus (v0.7.3-stable)
-    if let Err(e) = metrics_exporter_prometheus::PrometheusBuilder::new().install() {
-        error!("❌ Impossible d'installer le recorder Prometheus : {}", e);
-    } else {
-        info!("📊 Metrics: Exportateur Prometheus prêt sur le port standard des métriques.");
+    // Initialisation des métriques Prometheus (v0.7.4)
+    if let Some(metrics_port) = config.ports.as_ref().and_then(|p| p.metrics) {
+        let addr = format!("0.0.0.0:{}", metrics_port);
+        if let Ok(socket_addr) = addr.parse() {
+            if let Err(e) = metrics_exporter_prometheus::PrometheusBuilder::new()
+                .with_http_listener(socket_addr)
+                .install() 
+            {
+                error!("❌ Impossible d'installer le serveur Prometheus sur {} : {}", addr, e);
+            } else {
+                info!("📊 Metrics: Exportateur Prometheus actif sur http://{}", addr);
+            }
+        }
+    } else if let Err(e) = metrics_exporter_prometheus::PrometheusBuilder::new().install() {
+        error!("❌ Impossible d'installer le recorder Prometheus (sans listener) : {}", e);
     }
 
     match cli.command {

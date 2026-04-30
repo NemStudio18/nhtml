@@ -638,6 +638,22 @@ function processMessage(msg) {
             return;
         }
 
+        if (type === 0x10) { // LOG (v0.7.4 Error Overlays)
+            const severity = chunk[5];
+            const msgLen = view.getUint16(6);
+            const message = new TextDecoder().decode(chunk.slice(8, 8 + msgLen));
+            
+            console.log(`%c[NHTML LOG] %c${message}`, 
+                severity === 0x03 ? 'background:#ff0000;color:#fff;padding:2px' : 'color:#ff007f', 
+                'color:#fff');
+
+            // Show Overlay in Dev Mode
+            if (severity >= 0x02 && window.nhtml_dev_mode) {
+                showErrorOverlay(message, severity);
+            }
+            return;
+        }
+
         if (type === 0x07) { // B-TREE
             const isCompressed = chunk[5] === 0x01;
             const origLen = view.getUint32(6);
@@ -1108,6 +1124,35 @@ function processEvent(e, listenFlag, fallbackAttr) {
 document.addEventListener('click', (e) => processEvent(e, 0x01, 'n-click'));
 document.addEventListener('input', (e) => processEvent(e, 0x02, ['n-input', 'n-change']));
 document.addEventListener('keydown', (e) => processEvent(e, 0x08, 'n-keydown'));
+
+function showErrorOverlay(message, severity) {
+    let overlay = document.getElementById('nhtml-error-overlay');
+    if (!overlay) {
+        overlay = document.createElement('div');
+        overlay.id = 'nhtml-error-overlay';
+        overlay.style.cssText = `
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.85); color: #ff5555; z-index: 1000000;
+            padding: 40px; font-family: 'Fira Code', monospace; overflow-y: auto;
+            backdrop-filter: blur(10px); display: flex; flex-direction: column;
+        `;
+        document.body.appendChild(overlay);
+    }
+    
+    const title = severity === 0x03 ? "CRITICAL SYSTEM ERROR" : "PHP BACKEND ERROR";
+    overlay.innerHTML = `
+        <div style="max-width: 900px; margin: 0 auto; width: 100%;">
+            <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #ff5555; padding-bottom: 10px; margin-bottom: 20px;">
+                <h2 style="margin: 0; font-size: 24px;">⚠️ ${title}</h2>
+                <button onclick="document.getElementById('nhtml-error-overlay').remove()" style="background: #ff5555; color: white; border: none; padding: 5px 15px; cursor: pointer; border-radius: 4px; font-weight: bold;">CLOSE</button>
+            </div>
+            <pre style="background: #1a1a1a; padding: 20px; border-radius: 8px; border-left: 5px solid #ff5555; white-space: pre-wrap; font-size: 14px; line-height: 1.5; box-shadow: 0 10px 30px rgba(0,0,0,0.5);">${message}</pre>
+            <div style="margin-top: 20px; color: #888; font-size: 12px;">
+                NHTML v0.7.4 | Dev Mode Active | Protocol: NBPS v0.7.4
+            </div>
+        </div>
+    `;
+}
 
 function nhtml_startup() {
     // Scan existing IDs for hybrid mode (DevTools)
