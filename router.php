@@ -19,15 +19,18 @@ if (file_exists(__DIR__ . $path) && !is_dir(__DIR__ . $path) && !str_ends_with($
 }
 
 // Recherche du app.php dans le dossier demandé
-// Exemple : /examples/counter/ -> /examples/counter/app.php
+// Le router NE DOIT INCLURE QUE des fichiers nommés exactement "app.php"
 $app_php = __DIR__ . $path;
 if (is_dir($app_php)) {
     $app_php = rtrim($app_php, '/') . '/app.php';
 }
 
-if (file_exists($app_php)) {
-    include $app_php;
+$real_base = realpath(__DIR__);
+$real_target = realpath($app_php);
+
+if ($real_target && strpos($real_target, $real_base) === 0 && basename($real_target) === 'app.php' && file_exists($real_target)) {
+    include $real_target;
 } else {
     http_response_code(404);
-    echo json_encode(["error" => "App not found at $app_php"]);
+    echo json_encode(["error" => "App not found"]);
 }
