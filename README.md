@@ -289,10 +289,7 @@ Nhtml::patch()->setText('status', 'online')->broadcastToRoom('lobby')->send();
 **Python (FastAPI)**:
 ```python
 from nhtml import Nhtml
-patch = Nhtml.patch()
-patch.set_text('counter', '42')
-patch.add_class('button', 'active')
-patch.send()
+Nhtml.patch().set_text('counter', '42').add_class('button', 'active').send()
 ```
 
 **Node.js**:

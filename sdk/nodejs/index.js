@@ -1,5 +1,5 @@
 /**
- * NHTML SDK Node.js v0.7.1
+ * NHTML SDK Node.js v0.7.3-stable
  */
 
 class Patch {
@@ -114,30 +114,44 @@ class Patch {
         return response;
     }
 
-    // Express helper
     send(res) {
-        res.json(this.toDict());
+        if (!res.headersSent) {
+            res.json(this.toDict());
+        }
     }
 }
 
+const parseEvent = (body) => {
+    let payload = body.payload;
+    let data = {};
+    try {
+        if (payload) data = JSON.parse(payload);
+    } catch (e) {}
+    return {
+        handler: body.handler,
+        sourceId: body.source_id,
+        sessionId: body.session_id,
+        payload: payload,
+        data: data,
+        lastVersion: body.last_version,
+        nodes: body.nodes || {}
+    };
+};
+
+const Nhtml = {
+    patch: () => Patch.create(),
+    batch: (callback) => {
+        const p = Patch.create();
+        callback(p);
+        return p.toDict();
+    },
+    parseEvent,
+    joinRoom: (res, roomId) => Patch.create().joinRoom(roomId).send(res),
+    leaveRoom: (res, roomId) => Patch.create().leaveRoom(roomId).send(res)
+};
+
 module.exports = {
+    Nhtml,
     Patch,
-    parseEvent: (body) => {
-        let payload = body.payload;
-        let data = {};
-        try {
-            data = JSON.parse(payload);
-        } catch (e) {
-            // Not JSON or empty
-        }
-        return {
-            handler: body.handler,
-            sourceId: body.source_id,
-            sessionId: body.session_id,
-            payload: payload,
-            data: data,
-            lastVersion: body.last_version,
-            nodes: body.nodes || {}
-        };
-    }
+    parseEvent
 };

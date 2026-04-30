@@ -48,7 +48,7 @@
 - **Real Benchmarking (CLI-05)**: Remplacement des scores arbitraires par des mesures réelles de temps de sérialisation et débit binaire.
 - **Stats Exit Code (CLI-03)**: La commande `stats` renvoie désormais un code d'erreur (exit 1) propre puisqu'elle est en cours de migration.
 
-## v0.7.1 (Avril 2026) — "Industrial Hardening" (ACTUEL)
+## v0.7.3-stable (Avril 2026) — "Industrial Hardening" (ACTUEL)
 ### Added
 - **Agnostic Database Engine (sqlx)**: Support complet pour **SQLite**, **MySQL** et **PostgreSQL** via `sqlx::AnyPool`.
 - **Global Session Persistence**: Centralisation de l'état des sessions et de l'historique des patches en DB, permettant la scalabilité horizontale (Clustering).

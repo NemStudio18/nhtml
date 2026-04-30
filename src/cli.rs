@@ -610,7 +610,7 @@ async fn handle_devtools_ws(socket: WebSocket, tx_monitor: broadcast::Sender<cra
 
 
 pub fn run_benchmark(path: &str) {
-    println!("🧪 NHTML Industrial Benchmark Tool v0.7.1");
+    println!("🧪 NHTML Industrial Benchmark Tool v0.7.3-stable");
     println!("--------------------------------------------------");
     
     let (html_content, label) = if let Ok(content) = std::fs::read_to_string(path) {
@@ -656,7 +656,7 @@ pub fn run_benchmark(path: &str) {
     println!("🚀 Débit théorique                 : {:.2} MB/s", throughput);
     
     println!("--------------------------------------------------");
-    println!("✅ Benchmark terminé. NHTML v0.7.1 est prêt pour la production.");
+    println!("✅ Benchmark terminé. NHTML v0.7.3-stable est prêt pour la production.");
 }
 
 pub fn run_share(port: u16) {

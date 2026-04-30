@@ -420,8 +420,18 @@ async fn handle_ws_route(
     let ip = addr.ip().to_string();
 
     info!("[WS] Upgrade request from {} for path: {} (sid: {})", ip, path, sid);
-    metrics::gauge!("nhtml_active_clients").increment(1.0);
-    ws.on_upgrade(move |socket| handle_ws_wrapper(socket, path, sid, ip, state))
+    ws.on_upgrade(move |socket| async move {
+        metrics::gauge!("nhtml_active_clients").increment(1.0);
+        let _guard = ActiveClientGuard;
+        handle_ws_wrapper(socket, path, sid, ip, state).await
+    })
+}
+
+struct ActiveClientGuard;
+impl Drop for ActiveClientGuard {
+    fn drop(&mut self) {
+        metrics::gauge!("nhtml_active_clients").decrement(1.0);
+    }
 }
 
 struct GatewayState {
@@ -934,7 +944,6 @@ async fn handle_connection_axum(
                     Some(m) => m,
                     None => {
                         info!("[{}] Connexion terminée", hash_sid(&session_id));
-                        metrics::gauge!("nhtml_active_clients").decrement(1.0);
                         break;
                     }
                 };
@@ -1195,7 +1204,9 @@ async fn handle_event(
 
     let (patches, broadcast_instr, join_rooms, leave_rooms) = match php_res {
         Ok(p) => {
-            let latency = start.elapsed().as_millis() as u64;
+            let duration = start.elapsed();
+            let latency = duration.as_millis() as u64;
+            metrics::histogram!("nhtml_php_call_duration_seconds").record(duration.as_secs_f64());
             monitor_pkt(&state.tx_monitor, "OUT", proto::PKT_PATCH, 0, &session.state.session_id, Some(handler.clone()), Some(format!("PHP Response received")), Some(latency)).await;
             p
         },
@@ -1257,7 +1268,7 @@ async fn handle_event(
         }
     }
 
-    // 5. Traitement du Broadcast v0.7.1 (SDK-driven)
+    // 5. Traitement du Broadcast v0.7.3-stable (SDK-driven)
     if let Some(bc) = broadcast_instr {
         info!("[{}] BROADCAST via PHP (scope: {})", session.state.session_id, bc.scope);
         let bc_pkt = proto::patch(&bc.patches);

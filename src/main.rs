@@ -5,7 +5,7 @@ use nhtml_gateway::{MonitoringEvent, cli, supervisor, socket, session, watcher, 
 
 #[derive(Parser)]
 #[command(name = "nhtml-gateway")]
-#[command(about = "NHTML Gateway - NBPS v0.7.1", long_about = None)]
+#[command(about = "NHTML Gateway - NBPS v0.7.3-stable", long_about = None)]
 struct Cli {
     #[command(subcommand)]
     command: Commands,
@@ -101,7 +101,7 @@ async fn main() {
     let (tx_app_broadcast, _) = broadcast::channel::<std::sync::Arc<Vec<u8>>>(5000);
     let (tx_reload, _) = broadcast::channel::<()>(100);
 
-    // Initialisation des métriques Prometheus (v0.7.1)
+    // Initialisation des métriques Prometheus (v0.7.3-stable)
     if let Err(e) = metrics_exporter_prometheus::PrometheusBuilder::new().install() {
         error!("❌ Impossible d'installer le recorder Prometheus : {}", e);
     } else {

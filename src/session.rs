@@ -42,7 +42,7 @@ impl SessionManager {
         
         // Initialisation des tables (Syntaxe compatible SQLite/MySQL/PG autant que possible)
         // Note: AUTOINCREMENT vs SERIAL vs AUTO_INCREMENT est un challenge.
-        // On utilise des définitions simplifiées pour v0.7.1
+        // On utilise des définitions simplifiées pour v0.7.3-stable
         
         sqlx::query("CREATE TABLE IF NOT EXISTS sessions (
             session_id VARCHAR(255) PRIMARY KEY,

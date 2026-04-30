@@ -2,12 +2,11 @@ package nhtml
 
 import (
 	"encoding/json"
-	"fmt"
 	"io"
 	"net/http"
 )
 
-const Version = "0.7.1"
+const Version = "0.7.3-stable"
 
 type Event struct {
 	Handler     string                 `json:"handler"`
@@ -19,7 +18,14 @@ type Event struct {
 	Data        map[string]interface{} `json:"-"`
 }
 
-func ParseEvent(r *http.Request) (*Event, error) {
+// Nhtml is the main entry point for the Go SDK
+type Nhtml struct{}
+
+func (n Nhtml) Patch() *Patch {
+	return NewPatch()
+}
+
+func (n Nhtml) ParseEvent(r *http.Request) (*Event, error) {
 	body, err := io.ReadAll(r.Body)
 	if err != nil {
 		return nil, err
@@ -30,7 +36,6 @@ func ParseEvent(r *http.Request) (*Event, error) {
 		return nil, err
 	}
 
-	// Parse internal payload which is usually a JSON string
 	if event.Payload != "" {
 		var payloadData map[string]interface{}
 		if err := json.Unmarshal([]byte(event.Payload), &payloadData); err == nil {
@@ -41,14 +46,15 @@ func ParseEvent(r *http.Request) (*Event, error) {
 	return &event, nil
 }
 
-func SendResponse(w http.ResponseWriter, p *Patch) {
+func (n Nhtml) Send(w http.ResponseWriter, p *Patch) {
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(p)
 }
 
-// Gin Handler helper
-func GinHandler(c interface{}, handler func(*Event) *Patch) {
-	// This is a placeholder since we don't want to force gin dependency here
-	// but developers can easily adapt it.
-	fmt.Println("NHTML Go SDK initialized")
+func (n Nhtml) JoinRoom(w http.ResponseWriter, roomID string) {
+	n.Send(w, NewPatch().JoinRoom(roomID))
+}
+
+func (n Nhtml) LeaveRoom(w http.ResponseWriter, roomID string) {
+	n.Send(w, NewPatch().LeaveRoom(roomID))
 }
