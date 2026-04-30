@@ -238,7 +238,7 @@ impl NhtmlCompiler {
             for child in body.children() {
                 if let Node::Element(_) = child.value() {
                     if let Some(child_ref) = ElementRef::wrap(child) {
-                        root_nodes.push(compiler.parse_element(child_ref, 0));
+                        root_nodes.push(compiler.parse_element(child_ref, 0, 0));
                     }
                 }
             }
@@ -246,7 +246,7 @@ impl NhtmlCompiler {
             // Fallback : prendre le premier élément du document
             if let Ok(first_sel) = Selector::parse(":root > *") {
                 if let Some(first) = document.select(&first_sel).next() {
-                    root_nodes.push(compiler.parse_element(first, 0));
+                    root_nodes.push(compiler.parse_element(first, 0, 0));
                 }
             }
         }
@@ -307,7 +307,21 @@ impl NhtmlCompiler {
     }
 
     /// Parse récursivement un élément HTML
-    fn parse_element(&mut self, el: ElementRef, parent_id: u16) -> NodeSpec {
+    fn parse_element(&mut self, el: ElementRef, parent_id: u16, depth: usize) -> NodeSpec {
+        if depth > 500 {
+            warn!("NHTML Compiler: Profondeur maximale dépassée (500). Interruption du sous-arbre.");
+            return NodeSpec {
+                id: self.alloc_id(),
+                parent_id,
+                node_type: 0x01,
+                tag: "div".to_string(),
+                attrs: Vec::new(),
+                text: "<!-- MAX_DEPTH_REACHED -->".to_string(),
+                n_attrs: NAttrs::default(),
+                children: Vec::new(),
+            };
+        }
+
         let id  = self.alloc_id();
         let tag = el.value().name().to_lowercase();
 
@@ -339,7 +353,7 @@ impl NhtmlCompiler {
             match child.value() {
                 Node::Element(_) => {
                     if let Some(child_ref) = ElementRef::wrap(child) {
-                        children.push(self.parse_element(child_ref, id));
+                        children.push(self.parse_element(child_ref, id, depth + 1));
                     }
                 }
                 Node::Text(t) => {

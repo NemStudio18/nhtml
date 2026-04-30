@@ -6,6 +6,17 @@
 - **Automated Healthchecks**: Surveillance active des backends FPM avec mise en quarantaine automatique des nœuds défaillants.
 - **Multi-Backend Configuration**: Support pour plusieurs adresses FastCGI/FPM simultanées via `nhtml.config.toml`.
 - **Evolution Branding**: Intégration du nouveau concept de logo minimaliste symbolisant l'évolution du HTML.
+- **Config Sections**: Ajout des sections `[security]` et `[cluster]` (avec auth Redis commentée) dans le template `nhtml.config.toml`.
+- **CI Cache**: `Swatinem/rust-cache@v2` ajouté dans `release.yml` pour accélérer les builds CI de ~60%.
+- **Test Suite v0.7.3**: Nouveau fichier `tests/v0_7_3_hardening.rs` couvrant la profondeur récursive, les paquets proto, et les bounds du B-TREE.
+
+### Fixed
+- **Session Storage**: `localStorage` migré vers `sessionStorage` pour le `session_id` dans `bridge.js` (expiration automatique à la fermeture de l'onglet).
+- **WASM Security**: La fonction `switchToWasm()` est désormais conditionnée à un contexte HTTPS en production (bloque les fallback non sécurisés).
+- **Compiler DoS**: Limite de profondeur récursive (max **500 niveaux**) ajoutée au compilateur NHTML (`compiler/mod.rs`) pour prévenir tout stack overflow.
+- **Redis Auth Warning**: Le bridge cluster (`cluster.rs`) émet désormais un `WARN` explicite si l'URL Redis ne contient pas de credentials en production.
+- **CI Pinning**: `softprops/action-gh-release` épinglé par SHA dans `release.yml` (protection Supply Chain).
+- **Docs v0.7.3**: Synchronisation complète des docs EN/FR (`ARCHITECTURE.md`, `SECURITY.md`, `SECURITE.md`) avec les fonctionnalités de la v0.7.3.
 
 ## v0.7.1 (Avril 2026) — "Industrial Hardening" (ACTUEL)
 ### Added

@@ -1,6 +1,6 @@
 use std::sync::Arc;
 use tokio::sync::broadcast;
-use tracing::{info, error};
+use tracing::{info, warn, error};
 use redis::AsyncCommands;
 use futures_util::StreamExt;
 
@@ -10,6 +10,10 @@ pub async fn start_cluster_bridge(
     tx_app_broadcast: broadcast::Sender<Arc<Vec<u8>>>,
 ) {
     info!("⚡ Cluster: Démarrage du bridge Redis sur {} (GID: {})", redis_url, gateway_id);
+    
+    if !redis_url.contains('@') && !redis_url.contains("127.0.0.1") && !redis_url.contains("localhost") {
+        warn!("⚠️ Cluster: ATTENTION ! L'URL Redis ne contient pas d'authentification ('@'). Ceci est critique en production !");
+    }
     
     let client = match redis::Client::open(redis_url.clone()) {
         Ok(c) => c,

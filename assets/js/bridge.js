@@ -18,7 +18,7 @@ window.nhtml_stats = { pkts: 0, size: 0 };
 window.nhtml_node_map = {};
 window.nhtml_reverse_map = {};
 window.nhtml_el_cache = new Map(); // Cache des éléments pour performance
-window.nhtml_session_id = localStorage.getItem('nhtml_session_id') || "";
+window.nhtml_session_id = sessionStorage.getItem('nhtml_session_id') || "";
 window.nhtml_seq_id = 0;
 window.nhtml_session_secret = null;
 window.nhtml_crypto_key = null;
@@ -42,7 +42,7 @@ async function initNhtml(wsUrl, httpUrl = "") {
     httpFallbackUrl = httpUrl;
     if (!window.nhtml_session_id || window.nhtml_session_id.length < 5) {
         window.nhtml_session_id = crypto.randomUUID().replace(/-/g, '');
-        localStorage.setItem('nhtml_session_id', window.nhtml_session_id);
+        sessionStorage.setItem('nhtml_session_id', window.nhtml_session_id);
     }
     injectStyles();
     injectHud();
@@ -744,6 +744,13 @@ function connect(wsUrl, timeoutMs = 5000) {
 let nhtml_wasm_init_started = false;
 async function switchToWasm() {
     if (window.nhtml_transport_mode === "WASM" || nhtml_wasm_init_started) return;
+    
+    // Secure Context Check
+    if (window.location.protocol !== "https:" && window.location.hostname !== "localhost" && window.location.hostname !== "127.0.0.1") {
+        console.error("🛰️ NHTML WASM fallback aborted: Requires HTTPS (Secure Context) in production.");
+        return;
+    }
+
     nhtml_wasm_init_started = true;
     
     window.nhtml_transport_mode = "WASM";

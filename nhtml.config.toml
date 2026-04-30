@@ -20,3 +20,13 @@ auto_reload = false
 address = ""
 # Timeout pour les appels FastCGI en millisecondes (défaut: 5000)
 timeout_ms = 5000
+
+[security]
+# Limite de taux (événements par seconde par IP)
+rate_limit = { events_per_sec = 20 }
+# Configuration TLS native
+# tls = { enabled = true, cert = "cert.pem", key = "key.pem", min_version = "1.3" }
+
+[cluster]
+# URL Redis pour le broadcasting multi-gateway. DOIT inclure une authentification en production.
+# redis_url = "redis://user:password@127.0.0.1:6379"

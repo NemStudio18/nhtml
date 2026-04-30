@@ -79,7 +79,7 @@ enum Commands {
 
 #[tokio::main]
 async fn main() {
-    let mut cli = Cli::parse();
+    let cli = Cli::parse();
     
     // Initialisation du logging
     if let Commands::Start { json, .. } = cli.command {

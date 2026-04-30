@@ -635,27 +635,27 @@ assert!(ips.len() <= 1000, "Rate limiter dépasse la limite mémoire de 1000 IPs
 ## 🚀 PLAN D'ACTION PRIORISÉ
 
 ### 🚑 SPRINT 0 — Avant tout déploiement public (< 48h)
-- [ ] **CRIT-01** `bridge.js` → Intégrer DOMPurify sur tous les opcodes HTML (L.462, L.466, L.430-435)
-- [ ] **CRIT-02** `cli.rs` → Échapper `handler_name` et `details` avec `html_escape::encode_safe()`
-- [ ] **HIGH-01** `router.php` → Whitelist stricte + `realpath()` sur le chemin final
-- [ ] **HIGH-02** `router.php` → Message 404 générique sans chemin absolu
+- [x] **CRIT-01** `bridge.js` → Intégrer DOMPurify sur tous les opcodes HTML (L.462, L.466, L.430-435)
+- [x] **CRIT-02** `cli.rs` → Échapper `handler_name` et `details` avec `html_escape::encode_safe()`
+- [x] **HIGH-01** `router.php` → Whitelist stricte + `realpath()` sur le chemin final
+- [x] **HIGH-02** `router.php` → Message 404 générique sans chemin absolu
 
 ### 🔥 SPRINT 1 — Semaine 1
-- [ ] **HIGH-03** `socket/mod.rs` → Fix CSWH avec parsing URL strict (`url` crate déjà dans Cargo.toml)
-- [ ] **HIGH-04** `cluster.rs` → Documenter et forcer auth Redis, ajouter `[cluster]` dans le config template
-- [ ] **HIGH-05** `cli.rs` → Ajouter confirmation explicite avant `npx localtunnel`
-- [ ] **HIGH-06** `cli.rs` → Remplacer `xcopy` par copie récursive Rust pure
-- [ ] **HIGH-07** `main.rs` → Générer un token DevTools auto au démarrage
+- [x] **HIGH-03** `socket/mod.rs` → Fix CSWH avec parsing URL strict (`url` crate déjà dans Cargo.toml)
+- [x] **HIGH-04** `cluster.rs` → Documenter et forcer auth Redis, ajouter `[cluster]` dans le config template
+- [x] **HIGH-05** `cli.rs` → Ajouter confirmation explicite avant `npx localtunnel`
+- [x] **HIGH-06** `cli.rs` → Remplacer `xcopy` par copie récursive Rust pure
+- [x] **HIGH-07** `main.rs` → Générer un token DevTools auto au démarrage
 
 ### 🛠️ SPRINT 2 — Semaines 2-4
-- [ ] **MED-03/04** `nhtml.config.toml` → Ajouter sections `[security]` et `[cluster]` commentées
-- [ ] **MED-06** `bridge.js` → `localStorage` → `sessionStorage` pour le session ID
-- [ ] **MED-07** `bridge.js` → Vérifier HTTPS avant fetch WASM en production
-- [ ] **MED-08/09** `compiler/mod.rs` → Ajouter compteur de profondeur (max 500)
-- [ ] **MED-10/11/12** `btree_builder.rs` + `proto.rs` → Remplacer casts `as u8/u16` par `min()` + assert
-- [ ] **MED-13/14** `session.rs` → Transactions SQL + DELETE batch sur TTL cleanup
-- [ ] **MED-20** `release.yml` → Épingler `action-gh-release` par SHA
-- [ ] **MED-21** `release.yml` → Ajouter `Swatinem/rust-cache@v2`
+- [x] **MED-03/04** `nhtml.config.toml` → Ajouter sections `[security]` et `[cluster]` commentées
+- [x] **MED-06** `bridge.js` → `localStorage` → `sessionStorage` pour le session ID
+- [x] **MED-07** `bridge.js` → Vérifier HTTPS avant fetch WASM en production
+- [x] **MED-08/09** `compiler/mod.rs` → Ajouter compteur de profondeur (max 500)
+- [x] **MED-10/11/12** `btree_builder.rs` + `proto.rs` → Remplacer casts `as u8/u16` par `min()` + assert
+- [x] **MED-13/14** `session.rs` → Transactions SQL + DELETE batch sur TTL cleanup
+- [x] **MED-20** `release.yml` → Épingler `action-gh-release` par SHA
+- [x] **MED-21** `release.yml` → Ajouter `Swatinem/rust-cache@v2`
 
 ### 📈 SPRINT 3 — Long terme
 - [ ] **MED-01** `Cargo.toml` → Retirer features `mysql`/`postgres` si inutilisées
@@ -667,8 +667,8 @@ assert!(ips.len() <= 1000, "Rate limiter dépasse la limite mémoire de 1000 IPs
 - [x] **MED-19** `counter/app.php` → Migrer vers le SDK PHP
 - [x] **MED-22** `socket/mod.rs` → SHA256 tronqué pour les logs de session
 - [x] **MED-23** `config.rs` → Ajouter `min_tls_version` dans `TlsConfig`
-- [ ] **MED-24** `cli.rs` → Connecter métriques DevTools aux vrais compteurs Prometheus
-- [ ] **MED-25** `tests/v0_7_0_security.rs` → Renforcer test anti-leak rate limiter
+- [x] **MED-24** `cli.rs` → Connecter métriques DevTools aux vrais compteurs Prometheus
+- [x] **MED-25** `tests/v0_7_0_security.rs` → Renforcer test anti-leak rate limiter
 - [x] **PERF-01** `bridge.js` → Cache `getBoundingClientRect` via `ResizeObserver`
 - [x] **PERF-03** `socket/mod.rs` → `tokio::task::spawn_blocking` pour compilation NHTML
 - [ ] **PERF-05** `decoder.rs` → `Cow<'a, str>` pour éviter allocations par paquet (Mis en pause car decoder.rs = DevTools uniquement)
@@ -890,24 +890,24 @@ Un paquet PING vide passe la validation avec "✅ SUCCÈS". La validation séman
 ### 🔥 SPRINT 1 — Semaine 1
 - [ ] **HIGH-01/02** `router.php` → Whitelist + realpath + 404 générique
 - [ ] **HIGH-03** `socket/mod.rs` → Fix CSWH parsing URL strict
-- [ ] **HIGH-04** `cluster.rs` → Auth Redis + section [cluster] dans config template
-- [ ] **HIGH-05** `cli.rs` → Confirmation avant npx localtunnel
-- [ ] **HIGH-06** `cli.rs` → Remplacer xcopy par copie Rust pure
-- [ ] **CONFIG-01** `config.rs` → Cascade résolution + --config CLI arg
-- [ ] **CONFIG-02** `config.rs` → Exit fatal si config invalide
-- [ ] **CONFIG-03** `main.rs` → Priorité CLI > Config > Défaut pour --port
-- [ ] **CLI-02** `main.rs` → DevTools uniquement en mode --dev avec token auto
+- [x] **HIGH-04** `cluster.rs` → Auth Redis + section [cluster] dans config template
+- [x] **HIGH-05** `cli.rs` → Confirmation avant npx localtunnel
+- [x] **HIGH-06** `cli.rs` → Remplacer xcopy par copie Rust pure
+- [x] **CONFIG-01** `config.rs` → Cascade résolution + --config CLI arg
+- [x] **CONFIG-02** `config.rs` → Exit fatal si config invalide
+- [x] **CONFIG-03** `main.rs` → Priorité CLI > Config > Défaut pour --port
+- [x] **CLI-02** `main.rs` → DevTools uniquement en mode --dev avec token auto
 
 ### 🛠️ SPRINT 2 — Semaines 2-4
-- [ ] **MED-03/04** `nhtml.config.toml` → Sections [security] et [cluster] commentées
-- [ ] **MED-06** `bridge.js` → localStorage → sessionStorage
-- [ ] **MED-07** `bridge.js` → Vérifier HTTPS avant WASM
-- [ ] **MED-08/09** `compiler/mod.rs` → Limite profondeur récursion (max 500)
-- [ ] **MED-10/11/12** `btree_builder.rs`/`proto.rs` → Remplacer casts as u8/u16
-- [ ] **MED-13/14** `session.rs` → Transactions SQL + DELETE batch TTL
-- [ ] **CLI-04** `main.rs` → Masquer credentials DB dans les logs
-- [ ] **CLI-03** `cli.rs` → exit(1) sur commandes non implémentées
-- [ ] **MED-20/21** `release.yml` → Épingler actions par SHA + cache Cargo
+- [x] **MED-03/04** `nhtml.config.toml` → Sections [security] et [cluster] commentées
+- [x] **MED-06** `bridge.js` → localStorage → sessionStorage
+- [x] **MED-07** `bridge.js` → Vérifier HTTPS avant WASM
+- [x] **MED-08/09** `compiler/mod.rs` → Limite profondeur récursion (max 500)
+- [x] **MED-10/11/12** `btree_builder.rs`/`proto.rs` → Remplacer casts as u8/u16
+- [x] **MED-13/14** `session.rs` → Transactions SQL + DELETE batch TTL
+- [x] **CLI-04** `main.rs` → Masquer credentials DB dans les logs
+- [x] **CLI-03** `cli.rs` → exit(1) sur commandes non implémentées
+- [x] **MED-20/21** `release.yml` → Épingler actions par SHA + cache Cargo
 
 ### 📈 SPRINT 3 — Long terme
 - [ ] Prometheus métriques réelles dans DevTools
