@@ -25,10 +25,13 @@ if (is_dir($app_php)) {
     $app_php = rtrim($app_php, '/') . '/app.php';
 }
 
-$real_base = realpath(__DIR__);
-$real_target = realpath($app_php);
+$allowed_prefix = realpath(__DIR__ . '/examples');
+if (!$allowed_prefix) {
+    http_response_code(500);
+    exit("Internal Server Error: examples directory missing");
+}
 
-if ($real_target && strpos($real_target, $real_base) === 0 && basename($real_target) === 'app.php' && file_exists($real_target)) {
+if ($real_target && str_starts_with($real_target, $allowed_prefix) && basename($real_target) === 'app.php' && file_exists($real_target)) {
     include $real_target;
 } else {
     http_response_code(404);
