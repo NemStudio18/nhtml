@@ -17,6 +17,11 @@
 - **Redis Auth Warning**: Le bridge cluster (`cluster.rs`) émet désormais un `WARN` explicite si l'URL Redis ne contient pas de credentials en production.
 - **CI Pinning**: `softprops/action-gh-release` épinglé par SHA dans `release.yml` (protection Supply Chain).
 - **Docs v0.7.3**: Synchronisation complète des docs EN/FR (`ARCHITECTURE.md`, `SECURITY.md`, `SECURITE.md`) avec les fonctionnalités de la v0.7.3.
+- **Config Cascade (CONFIG-01)**: Résolution intelligente du fichier de config ($NHTML_CONFIG > local > exe_dir).
+- **Router Whitelist (HIGH-01)**: Le routeur PHP restreint désormais les inclusions au dossier `/examples/` pour plus de sécurité.
+- **Semantic Validation (CLI-06)**: La commande `validate` vérifie désormais la structure interne des paquets (Event, Patch, Hello) au lieu d'un simple succès générique.
+- **Real Benchmarking (CLI-05)**: Remplacement des scores arbitraires par des mesures réelles de temps de sérialisation et débit binaire.
+- **Stats Exit Code (CLI-03)**: La commande `stats` renvoie désormais un code d'erreur (exit 1) propre puisqu'elle est en cours de migration.
 
 ## v0.7.1 (Avril 2026) — "Industrial Hardening" (ACTUEL)
 ### Added

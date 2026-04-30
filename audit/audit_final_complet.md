@@ -888,7 +888,7 @@ Un paquet PING vide passe la validation avec "✅ SUCCÈS". La validation séman
 - [ ] **CLI-01** `cli.rs` → Corriger le template `nhtml new` (protocole réel)
 
 ### 🔥 SPRINT 1 — Semaine 1
-- [ ] **HIGH-01/02** `router.php` → Whitelist + realpath + 404 générique
+- [x] **HIGH-01/02** `router.php` → Whitelist + realpath + 404 générique (HIGH-01)
 - [ ] **HIGH-03** `socket/mod.rs` → Fix CSWH parsing URL strict
 - [x] **HIGH-04** `cluster.rs` → Auth Redis + section [cluster] dans config template
 - [x] **HIGH-05** `cli.rs` → Confirmation avant npx localtunnel
@@ -906,7 +906,9 @@ Un paquet PING vide passe la validation avec "✅ SUCCÈS". La validation séman
 - [x] **MED-10/11/12** `btree_builder.rs`/`proto.rs` → Remplacer casts as u8/u16
 - [x] **MED-13/14** `session.rs` → Transactions SQL + DELETE batch TTL
 - [x] **CLI-04** `main.rs` → Masquer credentials DB dans les logs
-- [x] **CLI-03** `cli.rs` → exit(1) sur commandes non implémentées
+- [x] **CLI-03** `cli.rs` → exit(1) sur commandes non implémentées (CLI-03)
+- [x] **CLI-05** `cli.rs` → Benchmarks avec métriques réelles (CLI-05)
+- [x] **CLI-06** `cli.rs` → Validation sémantique NBPS (CLI-06)
 - [x] **MED-20/21** `release.yml` → Épingler actions par SHA + cache Cargo
 
 ### 📈 SPRINT 3 — Long terme

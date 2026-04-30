@@ -36,3 +36,24 @@ La crate `rsa`, incluse en tant que dépendance transitive par `sqlx-mysql` pour
 Le risque pratique est extrêmement faible dans des déploiements typiques. L'attaque nécessite que l'attaquant soit dans une position d'homme du milieu (MITM) entre la passerelle NHTML et le serveur de base de données MySQL, et effectue un nombre massif de mesures temporelles précises pendant l'échange d'authentification.
 *   **Recommandation :** Hébergez toujours votre base de données de manière sécurisée. Assurez-vous que la connexion entre la passerelle NHTML et la base de données MySQL s'effectue sur un réseau local sécurisé et de confiance (par exemple, au sein du même VPC ou sur le même hôte) ou est explicitement sécurisée via TLS. N'exposez pas le port brut de la base de données à des réseaux non fiables.
 
+### NHTML Gateway Hardening (v0.7.3)
+**Status:** Implemented
+
+1. **Compiler Recursion Limit:** Added a 500-level depth limit to prevent Stack Overflow DoS attacks via malicious deeply-nested HTML.
+2. **Router Whitelisting:** `router.php` now strictly restricts file inclusions to the `/examples/` directory and explicitly looks for `app.php`.
+3. **Session Hardening:** Switched from `localStorage` to `sessionStorage` for session IDs to ensure automatic invalidation on tab closure.
+4. **WASM Context Security:** Enforced HTTPS requirement for WASM fallback in production environments.
+5. **Config Cascade:** Secure configuration resolution order ($NHTML_CONFIG > current_dir > exe_dir) to prevent running with insecure defaults when launched from unexpected locations.
+
+---
+
+## Vulnérabilités Connues (FR)
+
+### Durcissement de la Gateway NHTML (v0.7.3)
+**Statut :** Implémenté
+
+1. **Limite de Récursion du Compilateur :** Ajout d'une limite de 500 niveaux pour prévenir les attaques DoS par Stack Overflow via des fichiers HTML malveillants.
+2. **Whitelist du Routeur :** `router.php` restreint désormais les inclusions au dossier `/examples/` et recherche exclusivement les fichiers nommés `app.php`.
+3. **Sécurisation des Sessions :** Migration de `localStorage` vers `sessionStorage` pour les IDs de session, garantissant une invalidation automatique à la fermeture de l'onglet.
+4. **Sécurité WASM :** Requirement HTTPS imposé pour le mode WASM en production.
+5. **Cascade de Configuration :** Ordre de résolution sécurisé ($NHTML_CONFIG > dossier_courant > dossier_exe) pour éviter l'utilisation de paramètres non sécurisés lors d'un lancement hors contexte.
