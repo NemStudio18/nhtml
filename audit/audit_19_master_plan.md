@@ -11,13 +11,13 @@ Ce document regroupe toutes les vulnérabilités identifiées lors de l'audit co
 
 ### 🔴 CRITIQUES (Résolution immédiate)
 > Impacte directement la sécurité des utilisateurs. Exploitation triviale.
-*   **[CRIT-04-001] Faille XSS Stored / Reflected via `innerHTML` (`bridge.js`)**
+*   ~~**[CRIT-04-001] Faille XSS Stored / Reflected via `innerHTML` (`bridge.js`)**~~ ✅ Corrigé (DOMPurify via safeHTML)
     L'injection de contenu dynamique via `innerHTML` sans filtre permet à un attaquant d'exécuter des scripts malveillants. 
     **Fix** : Implémenter DOMPurify ou utiliser `.textContent` par défaut.
 
 ### 🟠 HAUTES (Résolution prioritaire)
 > Peut permettre de contourner les mécanismes de sécurité du serveur.
-*   **[HIGH-07-001] Contournement du CSWH (Cross-Site WebSocket Hijacking) (`socket/mod.rs`)**
+*   ~~**[HIGH-07-001] Contournement du CSWH (Cross-Site WebSocket Hijacking) (`socket/mod.rs`)**~~ ✅ Corrigé (Check URL Strict)
     La vérification de l'Origin utilise `.contains(host)` (ex: `attaquant-monsite.com` passera).
     **Fix** : Utiliser un parsing d'URL strict et une égalité stricte du nom de domaine.
 

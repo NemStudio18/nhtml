@@ -23,6 +23,11 @@
 - **WASM MIME Support**: Support explicite des types MIME `.mjs` et `.wasm` pour le mode Zero-Server.
 - **SDK Standardisation**: Alignement complet des SDK Python, Node.js et Go sur le modèle PHP (Broadcast Scopes, Parsing NBPS v0.7).
 - **UI Industrialization**: Remplacement de tous les emojis par des icônes Font Awesome professionnelles et intégration du nouveau logo premium.
+- **XSS Prevention (Bridge)**: Injection automatique de DOMPurify et sécurisation de `innerHTML`/`insertAdjacentHTML` contre les payloads malveillants.
+- **DevTools Security**: Échappement HTML strict via `html_escape::encode_safe` sur les noms des handlers et payloads envoyés aux DevTools.
+- **CLI Scaffolding**: Correction du template `app.php` généré par `nhtml new` pour supporter le format JSON via `php://stdin`.
+- **Router Hardening**: `router.php` n'inclut désormais explicitement que des fichiers nommés `app.php` et masque son arborescence système (404 générique).
+- **CSWH Protection**: Comparaison stricte des Origins WebSocket pour empêcher le Cross-Site WebSocket Hijacking.
 
 ## v0.7.0 (Avril 2026) — "Industrial Scale"
 ### Added
